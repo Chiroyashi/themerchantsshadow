@@ -68,6 +68,7 @@ function App() {
       const statusRef = ref(db, `rooms/${roomCode}/status`);
       const unsubscribe = onValue(statusRef, (snapshot) => {
         const status = snapshot.val();
+        // Redirect otomatis hanya jika pemain masih berada di Lobby
         if (status === "playing" && currentPage === "room-lobby") {
           setCurrentPage('view-role');
         }
@@ -76,18 +77,18 @@ function App() {
     }
   }, [roomCode, currentPage]);
 
-  // --- 4. TIME GOD HANDLERS (Moderator Power) ---
+  // --- 4. TIME GOD HANDLERS (Sinkron ke Firebase) ---
   
-  // A. Toggle Play/Pause
+  // A. Toggle Play/Pause (Mengirim detik terakhir agar tidak reset)
   const handleToggleTimer = (isActive, currentSeconds) => {
     if (!isHost) return;
     update(ref(db, `rooms/${roomCode}/timer`), {
       isActive: !isActive,
-      seconds: currentSeconds
+      seconds: currentSeconds // Kunci agar waktu tidak melompat balik
     });
   };
 
-  // B. Reset Timer ke Default
+  // B. Reset Timer (Kembali ke 5 Menit & Pause)
   const handleResetTimer = () => {
     if (!isHost) return;
     update(ref(db, `rooms/${roomCode}/timer`), {
@@ -96,7 +97,7 @@ function App() {
     });
   };
 
-  // C. Tambah atau Edit Waktu Manual
+  // C. Edit Waktu (Manual Input atau Tombol +01:00)
   const handleEditTimer = (newSeconds) => {
     if (!isHost) return;
     update(ref(db, `rooms/${roomCode}/timer`), {
@@ -109,13 +110,13 @@ function App() {
     if (!isHost) return;
     update(ref(db, `rooms/${roomCode}/timer`), {
       phase: newPhase,
-      isActive: false // Otomatis pause saat ganti fase sesuai request
+      isActive: false // Otomatis pause agar Moderator bisa bercerita
     });
   };
 
   // --- 5. Game Handlers ---
   const handlePlayerLeave = () => {
-    if (window.confirm("Apakah Anda yakin ingin menyerah dan keluar? Status Anda akan menjadi MATI.")) {
+    if (window.confirm("Apakah Anda yakin ingin menyerah dan keluar? Status Anda akan menjadi MATI di layar pemain lain.")) {
       update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), { status: "dead" });
       localStorage.clear();
       window.location.hash = 'landing';
@@ -136,10 +137,14 @@ function App() {
       timer: { 
         isActive: false, 
         seconds: 300,
-        phase: "Pagi (Diskusi)" // Fase default
+        phase: "Pagi (Diskusi)" 
       },
       players: {
-        [hostId]: { name: finalName + " (Moderator)", role: "Moderator", status: "alive" }
+        [hostId]: { 
+          name: finalName + " (Moderator)", 
+          role: "Moderator", 
+          status: "alive" 
+        }
       }
     });
 
@@ -156,6 +161,7 @@ function App() {
     const newPlayerRef = push(playerRef);
     const playerId = newPlayerRef.key;
 
+    // OTOMATIS MATI jika tab ditutup atau koneksi hilang
     onDisconnect(ref(db, `rooms/${code}/players/${playerId}/status`)).set("dead");
 
     set(newPlayerRef, {
@@ -185,7 +191,7 @@ function App() {
   };
 
   const handleExitGame = () => {
-    if (window.confirm("Bubarkan room? Semua data akan dihapus.")) {
+    if (window.confirm("Bubarkan room? Semua data akan dihapus dari database.")) {
       localStorage.clear();
       window.location.hash = 'landing';
       window.location.reload();

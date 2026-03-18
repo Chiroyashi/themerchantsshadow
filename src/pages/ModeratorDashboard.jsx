@@ -23,11 +23,12 @@ const ModeratorDashboard = ({
       const data = snapshot.val();
       if (data) {
         setGlobalTimer(data);
-        setTempSeconds(data.seconds);
+        // Update tempSeconds hanya saat tidak sedang dalam mode edit input
+        if (!isEditing) setTempSeconds(data.seconds);
       }
     });
     return () => unsubscribe();
-  }, [roomCode]);
+  }, [roomCode, isEditing]);
 
   const aliveCount = players.filter(p => p.status !== 'dead' && p.role !== 'Moderator').length;
 
@@ -57,7 +58,7 @@ const ModeratorDashboard = ({
              <span className="px-2 py-0.5 bg-red-600/10 text-red-500 text-[8px] font-black rounded border border-red-600/20 uppercase">Live Sync</span>
           </div>
 
-          {/* 1. Periode Selector */}
+          {/* 1. Periode Selector (Pagi, Siang, Malam) */}
           <div className="grid grid-cols-3 gap-2">
             {[
               { id: "Pagi (Diskusi)", label: "Pagi", icon: Sun, color: "text-amber-500", bg: "bg-amber-500/10" },
@@ -79,11 +80,12 @@ const ModeratorDashboard = ({
             ))}
           </div>
 
-          {/* 2. Timer & Edit Tools */}
+          {/* 2. Timer Display & Quick Actions */}
           <div className="bg-slate-950/50 border border-slate-800 p-4 rounded-2xl flex flex-col items-center gap-4">
             <div className="flex items-center gap-4">
               <SharedTimer roomCode={roomCode} />
               
+              {/* Tombol Tambah 1 Menit */}
               <button 
                 onClick={() => onEditTimer(globalTimer.seconds + 60)}
                 className="p-2.5 bg-blue-600/10 text-blue-500 border border-blue-600/20 rounded-xl hover:bg-blue-600/20 transition-all flex flex-col items-center"
@@ -93,12 +95,13 @@ const ModeratorDashboard = ({
               </button>
             </div>
 
+            {/* Input Detik Manual */}
             {isEditing ? (
               <div className="flex items-center gap-2 animate-in fade-in zoom-in duration-200">
                 <input 
                   type="number" 
                   value={tempSeconds}
-                  onChange={(e) => setTempSeconds(parseInt(e.target.value))}
+                  onChange={(e) => setTempSeconds(parseInt(e.target.value) || 0)}
                   className="bg-slate-900 border border-slate-700 text-white text-xs p-2 rounded-lg w-20 text-center outline-none focus:border-blue-500"
                 />
                 <button 
@@ -118,7 +121,7 @@ const ModeratorDashboard = ({
             )}
           </div>
 
-          {/* 3. Main Playback Controls */}
+          {/* 3. Playback Controls */}
           <div className="flex gap-2">
             <button 
               onClick={() => onToggleTimer(globalTimer.isActive, globalTimer.seconds)}
@@ -129,7 +132,9 @@ const ModeratorDashboard = ({
               }`}
             >
               {globalTimer.isActive ? <Pause size={20} /> : <Play size={20} fill="currentColor" />}
-              <span className="uppercase tracking-widest text-xs">{globalTimer.isActive ? 'Pause' : 'Play'}</span>
+              <span className="uppercase tracking-widest text-xs">
+                {globalTimer.isActive ? 'Pause' : 'Play'}
+              </span>
             </button>
             
             <button 
@@ -147,7 +152,7 @@ const ModeratorDashboard = ({
         </div>
       </header>
 
-      {/* Grid Pemain */}
+      {/* Grid Kartu Pemain */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {players.filter(p => p.role !== 'Moderator').map((p) => (
           <div 
