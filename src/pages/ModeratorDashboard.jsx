@@ -3,7 +3,7 @@ import { ref, onValue } from "firebase/database";
 import { db } from "../lib/firebase";
 import { 
   Skull, Heart, Play, Pause, RefreshCw, Info, LogOut, 
-  Sun, Sunset, Moon, Plus, Edit3, Clock 
+  Sun, Sunset, Moon, Plus, Clock, Timer as TimerIcon 
 } from 'lucide-react';
 import SharedTimer from '../components/SharedTimer';
 
@@ -11,6 +11,7 @@ const ModeratorDashboard = ({
   players, roomCode, onKill, onExit, 
   onToggleTimer, onResetTimer, onSetPhase, onEditTimer 
 }) => {
+  // State untuk memantau data timer dari Firebase
   const [globalTimer, setGlobalTimer] = useState({ isActive: false, seconds: 300, phase: "Pagi (Diskusi)" });
   const [isEditing, setIsEditing] = useState(false);
   
@@ -18,7 +19,7 @@ const ModeratorDashboard = ({
   const [timeInput, setTimeInput] = useState("05:00");
   const [tempSeconds, setTempSeconds] = useState(300);
 
-  // 1. Sync data timer dari Firebase
+  // 1. Sinkronisasi Data Timer dari Firebase
   useEffect(() => {
     if (!roomCode) return;
     const timerRef = ref(db, `rooms/${roomCode}/timer`);
@@ -28,7 +29,7 @@ const ModeratorDashboard = ({
         setGlobalTimer(data);
         if (!isEditing) {
           setTempSeconds(data.seconds);
-          // Konversi detik ke format MM:SS untuk ditampilkan di input
+          // Konversi detik ke format MM:SS untuk tampilan input
           const mins = Math.floor(data.seconds / 60).toString().padStart(2, '0');
           const secs = (data.seconds % 60).toString().padStart(2, '0');
           setTimeInput(`${mins}:${secs}`);
@@ -38,7 +39,7 @@ const ModeratorDashboard = ({
     return () => unsubscribe();
   }, [roomCode, isEditing]);
 
-  // 2. Logika Hitung Mundur Lokal agar UI Smooth
+  // 2. Logika Hitung Mundur Lokal agar UI Moderator Smooth
   useEffect(() => {
     let interval = null;
     if (globalTimer.isActive && tempSeconds > 0) {
@@ -51,7 +52,6 @@ const ModeratorDashboard = ({
 
   // 3. Fungsi Konversi MM:SS ke Total Detik
   const handleTimeSubmit = () => {
-    // Memisahkan string berdasarkan ":" (misal "10:00" jadi ["10", "00"])
     const parts = timeInput.split(':');
     if (parts.length === 2) {
       const minutes = parseInt(parts[0]) || 0;
@@ -113,44 +113,54 @@ const ModeratorDashboard = ({
             ))}
           </div>
 
-          {/* 2. Timer Display & Edit Manual (Format MM:SS) */}
-          <div className="bg-slate-950/50 border border-slate-800 p-4 rounded-2xl flex flex-col items-center gap-4">
-            <div className="flex items-center gap-4">
-              <SharedTimer roomCode={roomCode} />
+          {/* 2. Timer Display & Tiga Pilar Kontrol (Edit | Timer | Quick Add) */}
+          <div className="bg-slate-950/50 border border-slate-800 p-5 rounded-2xl">
+            <div className="flex items-center justify-between gap-4">
               
-              <button 
-                onClick={() => onEditTimer(globalTimer.seconds + 60)}
-                className="p-2.5 bg-blue-600/10 text-blue-500 border border-blue-600/20 rounded-xl hover:bg-blue-600/20 transition-all flex flex-col items-center"
-              >
-                <Plus size={14} />
-                <span className="text-[8px] font-black uppercase">01:00</span>
-              </button>
-            </div>
+              {/* Pilar Kiri: Edit Manual */}
+              <div className="flex-1">
+                {isEditing ? (
+                  <div className="flex flex-col gap-1 animate-in zoom-in duration-200">
+                    <input 
+                      type="text" 
+                      value={timeInput}
+                      onChange={(e) => setTimeInput(e.target.value)}
+                      className="bg-slate-900 border border-slate-700 text-white text-[10px] p-2 rounded-lg w-full text-center outline-none focus:border-blue-500 font-mono"
+                    />
+                    <button 
+                      onClick={handleTimeSubmit}
+                      className="w-full py-1 bg-blue-600 text-white rounded-lg font-black text-[8px] uppercase"
+                    >
+                      Set
+                    </button>
+                  </div>
+                ) : (
+                  <button 
+                    onClick={() => setIsEditing(true)}
+                    className="w-full aspect-square flex flex-col items-center justify-center bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl transition-all text-slate-400 hover:text-white group"
+                  >
+                    <TimerIcon size={18} className="group-hover:rotate-12 transition-transform" />
+                    <span className="text-[7px] font-black uppercase mt-1 tracking-tighter">Set Time</span>
+                  </button>
+                )}
+              </div>
 
-            {isEditing ? (
-              <div className="flex items-center gap-2 animate-in fade-in zoom-in duration-200">
-                <input 
-                  type="text" 
-                  value={timeInput}
-                  placeholder="00:00"
-                  onChange={(e) => setTimeInput(e.target.value)}
-                  className="bg-slate-900 border border-slate-700 text-white text-xs p-2 rounded-lg w-24 text-center outline-none focus:border-blue-500 font-mono tracking-widest"
-                />
+              {/* Pilar Tengah: Shared Timer Display */}
+              <div className="flex-[1.5] flex justify-center scale-110">
+                <SharedTimer roomCode={roomCode} />
+              </div>
+
+              {/* Pilar Kanan: Quick +01:00 */}
+              <div className="flex-1">
                 <button 
-                  onClick={handleTimeSubmit}
-                  className="bg-blue-600 text-white text-[10px] px-3 py-2 rounded-lg font-black uppercase"
+                  onClick={() => onEditTimer(globalTimer.seconds + 60)}
+                  className="w-full aspect-square flex flex-col items-center justify-center bg-blue-600/10 text-blue-500 border border-blue-600/20 rounded-xl hover:bg-blue-600/20 transition-all group"
                 >
-                  SET
+                  <Plus size={18} className="group-hover:scale-125 transition-transform" />
+                  <span className="text-[7px] font-black uppercase mt-1">+01:00</span>
                 </button>
               </div>
-            ) : (
-              <button 
-                onClick={() => setIsEditing(true)}
-                className="text-slate-600 hover:text-white flex items-center gap-1 text-[9px] font-bold transition-colors uppercase tracking-widest"
-              >
-                <Edit3 size={10} /> Edit Waktu (MM:SS)
-              </button>
-            )}
+            </div>
           </div>
 
           {/* 3. Main Playback Controls */}
@@ -235,11 +245,10 @@ const ModeratorDashboard = ({
         ))}
       </div>
 
-      {/* FOOTER TIPS */}
-      <footer className="mt-12 p-6 bg-slate-900/20 border border-slate-800/50 rounded-2xl flex items-center gap-4 border-dashed text-slate-500">
-        <Info size={20} className="text-amber-500 shrink-0" />
-        <p className="text-[11px] leading-relaxed italic">
-          <strong>MM:SS Format:</strong> Sekarang kamu bisa mengetik waktu diskusi lebih mudah (contoh: 10:00 untuk 10 menit). Tekan SET untuk menyinkronkan ke seluruh pemain.
+      <footer className="mt-12 p-6 bg-slate-900/20 border border-slate-800/50 rounded-2xl flex items-center gap-4 border-dashed text-slate-500 text-center">
+        <Info size={20} className="text-amber-500 shrink-0 mx-auto" />
+        <p className="text-[11px] leading-relaxed italic mt-2">
+          <strong>MM:SS Format:</strong> Gunakan tombol kiri untuk mengatur waktu spesifik, dan tombol kanan untuk menambah perpanjangan waktu secara instan.
         </p>
       </footer>
     </div>

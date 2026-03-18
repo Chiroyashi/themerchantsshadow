@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ref, set, onValue, push, update, onDisconnect } from "firebase/database"; 
 import { db } from "./lib/firebase";
 import { distributeRoles } from './utils/gameLogic';
+import { AlertCircle, XCircle, Info, CheckCircle2 } from 'lucide-react';
 
 // Import Pages
 import LandingPage from './pages/LandingPage';
@@ -25,8 +26,23 @@ function App() {
   const [players, setPlayers] = useState([]);
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('player_name') || '');
 
-  // Mencari data diri sendiri dari daftar pemain
+  // STATE UNTUK CUSTOM NOTIFIKASI
+  const [notification, setNotification] = useState({
+    show: false,
+    title: "",
+    message: "",
+    type: "info", // info, error, success, confirm
+    onConfirm: null
+  });
+
   const myData = players.find(p => p.id === myPlayerId);
+
+  // Fungsi Pembantu Notifikasi
+  const showNotif = (title, message, type = "info", onConfirm = null) => {
+    setNotification({ show: true, title, message, type, onConfirm });
+  };
+
+  const closeNotif = () => setNotification(prev => ({ ...prev, show: false }));
 
   // --- 2. SYNC URL & LOCAL STORAGE ---
   useEffect(() => {
@@ -49,9 +65,8 @@ function App() {
     if (myPlayerId) localStorage.setItem('my_player_id', myPlayerId);
   }, [currentPage, roomCode, isHost, myPlayerId, playerName]);
 
-  // --- 3. FIREBASE LISTENERS (Real-time Sync) ---
+  // --- 3. FIREBASE LISTENERS ---
   
-  // Memantau Daftar Pemain
   useEffect(() => {
     if (roomCode) {
       const playersRef = ref(db, `rooms/${roomCode}/players`);
@@ -68,38 +83,42 @@ function App() {
     }
   }, [roomCode]);
 
-  // Memantau Status Room (Redirect Game Start & Auto-Kick Bubar)
   useEffect(() => {
     if (roomCode) {
       const statusRef = ref(db, `rooms/${roomCode}/status`);
       const unsubscribe = onValue(statusRef, (snapshot) => {
         const status = snapshot.val();
         
-        // JIKA GAME DIMULAI: Redirect dari Lobby ke ViewRole
         if (status === "playing" && currentPage === "room-lobby") {
           setCurrentPage('view-role');
         }
 
-        // JIKA MODERATOR MEMBUBARKAN ROOM: Semua pemain keluar
         if (status === "destroyed") {
-          alert("Room telah dibubarkan oleh Moderator.");
-          localStorage.clear();
-          window.location.hash = 'landing';
-          window.location.reload();
+          // CUSTOM NOTIF: Ganti alert browser
+          showNotif(
+            "Room Dibubarkan", 
+            "Moderator telah menutup permainan ini. Kamu akan diarahkan kembali ke menu utama.", 
+            "error"
+          );
+          
+          setTimeout(() => {
+            localStorage.clear();
+            window.location.hash = 'landing';
+            window.location.reload();
+          }, 3500); // Beri waktu pemain membaca notifikasi
         }
       });
       return () => unsubscribe();
     }
   }, [roomCode, currentPage]);
 
-  // Auto-redirect ke GameBoard jika pemain mati (Spectator Mode)
   useEffect(() => {
     if (myData?.status === 'dead' && currentPage === 'view-role') {
       setCurrentPage('game-board');
     }
   }, [myData?.status, currentPage]);
 
-  // --- 4. TIME GOD HANDLERS (Kontrol Moderator) ---
+  // --- 4. HANDLERS ---
   
   const handleToggleTimer = (isActive, currentSeconds) => {
     if (!isHost) return;
@@ -132,15 +151,18 @@ function App() {
     });
   };
 
-  // --- 5. GAME LOGIC HANDLERS ---
-  
   const handlePlayerLeave = () => {
-    if (window.confirm("Apakah Anda yakin ingin menyerah? Status Anda akan menjadi MATI.")) {
-      update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), { status: "dead" });
-      localStorage.clear();
-      window.location.hash = 'landing';
-      window.location.reload();
-    }
+    showNotif(
+      "Konfirmasi Keluar", 
+      "Apakah kamu yakin ingin menyerah? Statusmu akan menjadi MATI.", 
+      "confirm",
+      () => {
+        update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), { status: "dead" });
+        localStorage.clear();
+        window.location.hash = 'landing';
+        window.location.reload();
+      }
+    );
   };
 
   const handleCreateRoom = (name) => {
@@ -169,7 +191,6 @@ function App() {
     const newPlayerRef = push(playerRef);
     const playerId = newPlayerRef.key;
 
-    // OTOMATIS MATI jika tab ditutup atau koneksi hilang
     onDisconnect(ref(db, `rooms/${code}/players/${playerId}/status`)).set("dead");
 
     set(newPlayerRef, {
@@ -200,62 +221,107 @@ function App() {
   };
 
   const handleExitGame = async () => {
-    if (window.confirm("Bubarkan room? Semua pemain akan otomatis keluar.")) {
-      try {
-        // 1. Beritahu Firebase bahwa room ini sudah bubar (status: destroyed)
-        await update(ref(db, `rooms/${roomCode}`), { status: "destroyed" });
-        
-        // 2. Bersihkan data moderator sendiri
-        localStorage.clear();
-        window.location.hash = 'landing';
-        window.location.reload();
-      } catch (error) {
-        console.error("Gagal membubarkan room:", error);
+    showNotif(
+      "Bubarkan Room?", 
+      "Semua data akan dihapus dan pemain akan dikeluarkan otomatis.", 
+      "confirm",
+      async () => {
+        try {
+          await update(ref(db, `rooms/${roomCode}`), { status: "destroyed" });
+          localStorage.clear();
+          window.location.hash = 'landing';
+          window.location.reload();
+        } catch (error) {
+          console.error("Gagal membubarkan room:", error);
+        }
       }
-    }
+    );
+  };
+
+  // --- 5. CUSTOM NOTIFICATION COMPONENT ---
+  const GameNotification = () => {
+    if (!notification.show) return null;
+
+    const icons = {
+      info: <Info className="text-blue-500" size={40} />,
+      error: <XCircle className="text-red-500" size={40} />,
+      success: <CheckCircle2 className="text-emerald-500" size={40} />,
+      confirm: <AlertCircle className="text-amber-500" size={40} />
+    };
+
+    return (
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-300">
+        <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2rem] shadow-2xl max-w-sm w-full text-center space-y-6 transform animate-in zoom-in-95 duration-300">
+          <div className="flex justify-center">{icons[notification.type]}</div>
+          <div className="space-y-2">
+            <h2 className="text-xl font-black text-white uppercase italic tracking-tighter">
+              {notification.title}
+            </h2>
+            <p className="text-slate-400 text-sm leading-relaxed">
+              {notification.message}
+            </p>
+          </div>
+          
+          <div className="flex flex-col gap-2 pt-2">
+            {notification.type === "confirm" ? (
+              <div className="flex gap-2">
+                <button 
+                  onClick={closeNotif}
+                  className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl font-bold transition-all uppercase text-[10px] tracking-widest"
+                >
+                  Batal
+                </button>
+                <button 
+                  onClick={() => { notification.onConfirm(); closeNotif(); }}
+                  className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-bold transition-all uppercase text-[10px] tracking-widest shadow-lg shadow-red-900/20"
+                >
+                  Ya, Lanjut
+                </button>
+              </div>
+            ) : (
+              <button 
+                onClick={closeNotif}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold transition-all uppercase text-[10px] tracking-widest shadow-lg shadow-blue-900/20"
+              >
+                Dimengerti
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   // --- 6. RENDER LOGIC ---
   const renderPage = () => {
     switch (currentPage) {
-      case 'landing': 
-        return <LandingPage onNext={() => setCurrentPage('introduction')} />;
-      case 'introduction': 
-        return <Introduction onNext={() => setCurrentPage('room-setup')} onBack={() => setCurrentPage('landing')} />;
-      case 'room-setup': 
-        return <Room onCreate={handleCreateRoom} onJoin={handleJoinRoom} onBack={() => setCurrentPage('introduction')} />;
-      case 'room-lobby': 
-        return <Lobby roomCode={roomCode} players={players} isHost={isHost} onStart={handleStartGame} onBack={() => setCurrentPage('room-setup')} />;
+      case 'landing': return <LandingPage onNext={() => setCurrentPage('introduction')} />;
+      case 'introduction': return <Introduction onNext={() => setCurrentPage('room-setup')} onBack={() => setCurrentPage('landing')} />;
+      case 'room-setup': return <Room onCreate={handleCreateRoom} onJoin={handleJoinRoom} onBack={() => setCurrentPage('introduction')} />;
+      case 'room-lobby': return <Lobby roomCode={roomCode} players={players} isHost={isHost} onStart={handleStartGame} onBack={() => setCurrentPage('room-setup')} />;
       case 'view-role':
         return isHost ? (
           <ModeratorDashboard 
-            players={players} 
-            roomCode={roomCode} 
-            onKill={handleKillPlayer} 
-            onExit={handleExitGame}
-            onToggleTimer={handleToggleTimer} 
-            onResetTimer={handleResetTimer}
-            onEditTimer={handleEditTimer} 
-            onSetPhase={handleSetPhase}
+            players={players} roomCode={roomCode} 
+            onKill={handleKillPlayer} onExit={handleExitGame}
+            onToggleTimer={handleToggleTimer} onResetTimer={handleResetTimer}
+            onEditTimer={handleEditTimer} onSetPhase={handleSetPhase}
           />
         ) : (
           <ViewRole 
-            playerData={myData} 
-            roomCode={roomCode} 
-            onNext={() => setCurrentPage('game-board')} 
-            onLeave={handlePlayerLeave} 
+            playerData={myData} roomCode={roomCode} 
+            onNext={() => setCurrentPage('game-board')} onLeave={handlePlayerLeave} 
           />
         );
-      case 'game-board': 
-        return <GameBoard players={players} roomCode={roomCode} onBack={() => setCurrentPage('view-role')} />;
-      default: 
-        return <LandingPage onNext={() => setCurrentPage('introduction')} />;
+      case 'game-board': return <GameBoard players={players} roomCode={roomCode} onBack={() => setCurrentPage('view-role')} />;
+      default: return <LandingPage onNext={() => setCurrentPage('introduction')} />;
     }
   };
 
   return (
     <div className="antialiased selection:bg-red-500/30">
       {renderPage()}
+      <GameNotification />
     </div>
   );
 }
