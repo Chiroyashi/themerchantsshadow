@@ -35,9 +35,9 @@ const Room = ({ onCreate, onJoin, onBack }) => {
             </div>
             <input 
               type="text" 
-              placeholder="CONTOH: AKBAR_PCC" 
+              placeholder="Contoh: Werewolf" 
               value={tempName}
-              onChange={(e) => setTempName(e.target.value.toUpperCase())}
+              onChange={(e) => setTempName(e.target.value)}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-4 font-bold tracking-widest focus:border-red-600 outline-none transition-all placeholder:text-slate-800 text-center"
             />
             {isNameEmpty && (
