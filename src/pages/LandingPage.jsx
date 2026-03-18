@@ -64,12 +64,12 @@ const LandingPage = ({ onNext }) => {
         <div className="max-w-5xl mx-auto grid grid-cols-3 gap-4">
           <div className="text-center space-y-1">
             <div className="flex justify-center mb-2"><Sword className="w-5 h-5 text-red-500/70" /></div>
-            <p className="text-xl font-bold italic leading-none">18</p>
+            <p className="text-xl font-bold italic leading-none">20</p>
             <p className="text-[10px] uppercase tracking-widest text-slate-500">Pemain</p>
           </div>
           <div className="text-center space-y-1 border-x border-slate-900">
             <div className="flex justify-center mb-2"><Shield className="w-5 h-5 text-blue-500/70" /></div>
-            <p className="text-xl font-bold italic leading-none">14</p>
+            <p className="text-xl font-bold italic leading-none">7</p>
             <p className="text-[10px] uppercase tracking-widest text-slate-500">Role Unik</p>
           </div>
           <div className="text-center space-y-1">

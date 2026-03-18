@@ -10,55 +10,94 @@ import Mechanics from './pages/Mechanics';
 import Room from './pages/Room';
 import Lobby from './pages/Lobby';
 import ViewRole from './pages/ViewRole';
-import ModeratorDashboard from './pages/ModeratorDashboard'; // JANGAN LUPA IMPORT INI
+import ModeratorDashboard from './pages/ModeratorDashboard';
 
 function App() {
-  const [currentPage, setCurrentPage] = useState('landing');
-  const [roomCode, setRoomCode] = useState('');
-  const [isHost, setIsHost] = useState(false);
+  // --- 1. State Initialization ---
+  const [currentPage, setCurrentPage] = useState(() => {
+    const hash = window.location.hash.replace('#', '');
+    return hash || localStorage.getItem('last_page') || 'landing';
+  });
+  
+  const [roomCode, setRoomCode] = useState(() => localStorage.getItem('room_code') || '');
+  const [isHost, setIsHost] = useState(() => localStorage.getItem('is_host') === 'true');
+  const [myPlayerId, setMyPlayerId] = useState(() => localStorage.getItem('my_player_id') || null);
   const [players, setPlayers] = useState([]);
-  const [myPlayerId, setMyPlayerId] = useState(null);
+  const [playerName, setPlayerName] = useState(() => localStorage.getItem('player_name') || '');
 
-  // Monitoring Status Game
+  // --- 2. Handle Browser Back/Forward ---
+  useEffect(() => {
+    const handlePopState = () => {
+      const hash = window.location.hash.replace('#', '') || 'landing';
+      setCurrentPage(hash);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // --- 3. Sync State to LocalStorage & Hash URL ---
+  useEffect(() => {
+    if (window.location.hash !== `#${currentPage}`) {
+      window.history.pushState(null, '', `#${currentPage}`);
+    }
+    localStorage.setItem('last_page', currentPage);
+    localStorage.setItem('room_code', roomCode);
+    localStorage.setItem('is_host', isHost);
+    localStorage.setItem('player_name', playerName);
+    if (myPlayerId) localStorage.setItem('my_player_id', myPlayerId);
+  }, [currentPage, roomCode, isHost, myPlayerId, playerName]);
+
+  // --- 4. Logic Firebase: Listen Players ---
   useEffect(() => {
     if (roomCode) {
-      const statusRef = ref(db, `rooms/${roomCode}/status`);
-      const unsubscribe = onValue(statusRef, (snapshot) => {
-        const status = snapshot.val();
-        if (status === "playing") {
-          setCurrentPage('view-role');
+      const playersRef = ref(db, `rooms/${roomCode}/players`);
+      const unsubscribe = onValue(playersRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          const playerList = Object.entries(data).map(([id, val]) => ({
+            id,
+            ...val
+          }));
+          setPlayers(playerList);
         }
       });
       return () => unsubscribe();
     }
   }, [roomCode]);
 
-  // Listen Players
-  const listenToPlayers = (code) => {
-    const playersRef = ref(db, `rooms/${code}/players`);
-    onValue(playersRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const playerList = Object.entries(data).map(([id, val]) => ({
-          id,
-          ...val
-        }));
-        setPlayers(playerList);
-      }
-    });
-  };
+  // --- 5. Logic Firebase: Auto-Redirect ---
+  useEffect(() => {
+    if (roomCode) {
+      const statusRef = ref(db, `rooms/${roomCode}/status`);
+      const unsubscribe = onValue(statusRef, (snapshot) => {
+        const status = snapshot.val();
+        if (status === "playing" && currentPage === "room-lobby") {
+          setCurrentPage('view-role');
+        }
+      });
+      return () => unsubscribe();
+    }
+  }, [roomCode, currentPage]);
 
-  const handleCreateRoom = () => {
+  // --- Handlers ---
+  const handleCreateRoom = (name) => {
+    const finalName = name || "Moderator";
+    setPlayerName(finalName);
+
     const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     const roomRef = ref(db, 'rooms/' + newCode);
     const hostId = "host_" + Date.now();
     
     set(roomRef, {
       status: "waiting",
-      host: "Akbar",
+      host: finalName,
       createdAt: Date.now(),
       players: {
-        [hostId]: { name: "Akbar (Moderator)", role: "Moderator", status: "alive" }
+        [hostId]: { 
+          name: finalName + " (Moderator)", 
+          role: "Moderator", 
+          status: "alive" 
+        }
       }
     });
 
@@ -66,16 +105,18 @@ function App() {
     setMyPlayerId(hostId);
     setIsHost(true);
     setCurrentPage('room-lobby');
-    listenToPlayers(newCode);
   };
 
-  const handleJoinRoom = (code, playerName) => {
+  const handleJoinRoom = (code, inputName) => {
+    const finalName = inputName || "Player";
+    setPlayerName(finalName);
+
     const playerRef = ref(db, `rooms/${code}/players`);
     const newPlayerRef = push(playerRef);
     const playerId = newPlayerRef.key;
 
     set(newPlayerRef, {
-      name: playerName,
+      name: finalName,
       role: "Pending",
       status: "alive"
     }).then(() => {
@@ -83,21 +124,14 @@ function App() {
       setMyPlayerId(playerId);
       setIsHost(false);
       setCurrentPage('room-lobby');
-      listenToPlayers(code);
     });
   };
 
   const handleStartGame = () => {
-    console.log("Tombol Start diklik oleh Host!");
-    // Mengacak role
     const playersWithRoles = distributeRoles(players);
-    
-    // Update role ke Firebase per player
     playersWithRoles.forEach(p => {
       set(ref(db, `rooms/${roomCode}/players/${p.id}/role`), p.role);
     });
-
-    // Trigger pindah halaman untuk semua pemain
     set(ref(db, `rooms/${roomCode}/status`), "playing");
   };
 
@@ -107,8 +141,17 @@ function App() {
     set(ref(db, `rooms/${roomCode}/players/${playerId}/status`), newStatus);
   };
 
+  const handleExitGame = () => {
+    if (window.confirm("Apakah Anda yakin ingin keluar? Semua progress room akan hilang dari perangkat ini.")) {
+      localStorage.clear();
+      window.location.hash = 'landing';
+      window.location.reload();
+    }
+  };
+
   const myData = players.find(p => p.id === myPlayerId);
 
+  // --- Render Logic ---
   const renderPage = () => {
     switch (currentPage) {
       case 'landing':
@@ -116,7 +159,13 @@ function App() {
       case 'introduction':
         return <Introduction onNext={() => setCurrentPage('room-setup')} onBack={() => setCurrentPage('landing')} />;
       case 'room-setup':
-        return <Room onCreate={handleCreateRoom} onJoin={handleJoinRoom} onBack={() => setCurrentPage('introduction')} />;
+        return (
+          <Room 
+            onCreate={handleCreateRoom} 
+            onJoin={handleJoinRoom} 
+            onBack={() => setCurrentPage('introduction')}
+          />
+        );
       case 'room-lobby':
         return (
           <Lobby 
@@ -124,6 +173,7 @@ function App() {
             players={players} 
             isHost={isHost} 
             onStart={handleStartGame} 
+            onBack={() => setCurrentPage('room-setup')} 
           />
         );
       case 'view-role':
@@ -132,6 +182,7 @@ function App() {
             players={players} 
             roomCode={roomCode} 
             onKill={handleKillPlayer} 
+            onExit={handleExitGame}
           />
         ) : (
           <ViewRole 
@@ -141,7 +192,7 @@ function App() {
           />
         );
       case 'mechanics':
-        return <Mechanics onBack={() => setCurrentPage('landing')} />;
+        return <Mechanics onBack={() => setCurrentPage('view-role')} />;
       default:
         return <LandingPage onNext={() => setCurrentPage('introduction')} />;
     }
