@@ -1,70 +1,13 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Shield, Skull, HelpCircle, BookOpen, X, Zap, Info } from 'lucide-react';
+import { Eye, EyeOff, Shield, Skull, HelpCircle, BookOpen, X } from 'lucide-react';
 import SharedTimer from '../components/SharedTimer';
-
-// --- Komponen Pop-up Mechanics Internal ---
-const RoleModal = ({ role, isOpen, onClose }) => {
-  if (!isOpen) return null;
-
-  const getRoleDetail = (roleName) => {
-    const r = roleName?.toLowerCase() || "";
-    if (r.includes('werewolf')) return {
-      title: "The Werewolf",
-      icon: <Skull className="text-red-500" size={40} />,
-      desc: "Kamu adalah predator malam. Misimu adalah menghabisi seluruh warga tanpa ketahuan.",
-      powers: ["Membunuh 1 warga setiap malam.", "Bekerjasama dengan Werewolf lain.", "Menyamar sebagai warga di siang hari."]
-    };
-    if (r.includes('warlock')) return {
-      title: "The Warlock",
-      icon: <Zap className="text-purple-500" size={40} />,
-      desc: "Penyihir kegelapan yang membantu Werewolf. Kamu punya ilmu hitam untuk mengacaukan kota.",
-      powers: ["Mengetahui siapa Werewolf.", "Mampu memberikan kutukan atau tanda.", "Membantu voting untuk membuang warga."]
-    };
-    if (r.includes('moderator')) return {
-      title: "The Moderator",
-      icon: <Info className="text-amber-500" size={40} />,
-      desc: "Kamu adalah hakim tertinggi. Kamu mengontrol alur cerita dan waktu.",
-      powers: ["Mengatur fase malam dan siang.", "Menentukan kematian pemain.", "Menjaga kejujuran permainan."]
-    };
-    return {
-      title: "The Merchant (Warga)",
-      icon: <Shield className="text-blue-500" size={40} />,
-      desc: "Kamu adalah warga biasa yang mencoba bertahan hidup dari teror malam.",
-      powers: ["Berdiskusi di siang hari.", "Voting untuk membuang tersangka.", "Mencari tahu siapa penghianat."]
-    };
-  };
-
-  const detail = getRoleDetail(role);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-950/90 backdrop-blur-sm animate-in fade-in duration-300">
-      <div className="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-3xl p-8 relative shadow-2xl">
-        <button onClick={onClose} className="absolute top-4 right-4 text-slate-500 hover:text-white">
-          <X size={24} />
-        </button>
-        <div className="text-center space-y-6">
-          <div className="flex justify-center">{detail.icon}</div>
-          <h2 className="text-2xl font-black uppercase italic tracking-tighter text-white">{detail.title}</h2>
-          <p className="text-slate-400 text-sm leading-relaxed">{detail.desc}</p>
-          <div className="space-y-3 text-left bg-slate-950/50 p-4 rounded-2xl border border-slate-800">
-            <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest flex items-center gap-2"><Zap size={12} /> Kemampuan:</p>
-            {detail.powers.map((p, i) => (
-              <div key={i} className="flex gap-2 items-start text-xs text-slate-300">
-                <span className="text-red-600">•</span><span>{p}</span>
-              </div>
-            ))}
-          </div>
-          <button onClick={onClose} className="w-full py-4 bg-slate-100 text-slate-950 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-white transition-all">SAYA MENGERTI</button>
-        </div>
-      </div>
-    </div>
-  );
-};
+import RoleModal from '../components/RoleModal'; // Pastikan import ini benar
 
 const ViewRole = ({ playerData, roomCode, onNext, onLeave }) => {
   const [isRevealed, setIsRevealed] = useState(false);
   const [showMechanics, setShowMechanics] = useState(false);
 
+  // Menentukan tema visual kartu berdasarkan role
   const theme = (() => {
     const role = playerData?.role?.toLowerCase() || "";
     if (role.includes('werewolf') || role.includes('warlock')) 
@@ -79,12 +22,12 @@ const ViewRole = ({ playerData, roomCode, onNext, onLeave }) => {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-6 flex flex-col items-center justify-center font-sans">
       
-      {/* Timer Sinkron */}
+      {/* 1. Timer Sinkron (Fixed at Top) */}
       <div className="fixed top-8 left-1/2 -translate-x-1/2 z-40 scale-90 md:scale-100">
-        <SharedTimer roomCode={roomCode} isHost={false} />
+        <SharedTimer roomCode={roomCode} />
       </div>
 
-      {/* Pop-up Mechanics */}
+      {/* 2. Pop-up Tutorial Role */}
       <RoleModal 
         role={playerData?.role} 
         isOpen={showMechanics} 
@@ -92,23 +35,29 @@ const ViewRole = ({ playerData, roomCode, onNext, onLeave }) => {
       />
 
       <div className="max-w-md w-full space-y-8 text-center pt-12">
+        {/* Identitas Pemain */}
         <div className="space-y-1">
           <p className="text-slate-500 text-[10px] uppercase tracking-[0.3em]">Identity Assigned</p>
           <h2 className="text-xl font-bold italic">{playerData?.name || "Pemain"}</h2>
           <p className="text-slate-600 text-xs font-mono uppercase tracking-widest">Room: {roomCode}</p>
         </div>
 
-        {/* Card Section */}
+        {/* 3. Kartu Role Utama */}
         <div className={`relative aspect-[3/4] w-full rounded-2xl border-2 transition-all duration-500 flex flex-col items-center justify-center p-8 overflow-hidden
             ${isRevealed ? `${theme.bg} ${theme.border} shadow-[0_0_30px_rgba(220,38,38,0.2)]` : 'bg-slate-900 border-slate-800'}`}>
+          
           {!isRevealed ? (
+            /* Tampilan Tertutup */
             <div className="space-y-4 animate-pulse">
               <div className="w-20 h-20 mx-auto rounded-full bg-slate-800 flex items-center justify-center">
                 <HelpCircle className="text-slate-600 w-10 h-10" />
               </div>
-              <p className="text-slate-500 font-bold tracking-widest uppercase text-sm">Ketuk tombol di bawah <br/> untuk melihat peran</p>
+              <p className="text-slate-500 font-bold tracking-widest uppercase text-sm">
+                Ketuk tombol di bawah <br/> untuk melihat peran
+              </p>
             </div>
           ) : (
+            /* Tampilan Terbuka */
             <div className="space-y-6 z-10 animate-in fade-in zoom-in duration-300 text-center">
               <RoleIcon className={`${theme.color} w-24 h-24 mx-auto drop-shadow-lg`} />
               <div className="space-y-2">
@@ -124,20 +73,23 @@ const ViewRole = ({ playerData, roomCode, onNext, onLeave }) => {
           )}
         </div>
 
-        {/* Action Buttons */}
+        {/* 4. Action Buttons Area */}
         <div className="space-y-6">
+          {/* Tombol Tahan Intip */}
           <button 
             onMouseDown={() => setIsRevealed(true)}
             onMouseUp={() => setIsRevealed(false)}
             onTouchStart={() => setIsRevealed(true)}
             onTouchEnd={() => setIsRevealed(false)}
             className={`w-full py-5 rounded-xl font-black uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-3 select-none
-              ${isRevealed ? 'bg-slate-100 text-slate-950 shadow-inner' : 'bg-red-700 hover:bg-red-600 shadow-lg shadow-red-900/20'}`}>
+              ${isRevealed ? 'bg-slate-100 text-slate-950 shadow-inner' : 'bg-red-700 hover:bg-red-600 shadow-lg shadow-red-900/20'}`}
+          >
             {isRevealed ? <EyeOff size={20} /> : <Eye size={20} />}
             {isRevealed ? "LEPASKAN UNTUK SEMBUNYI" : "TAHAN UNTUK INTIP ROLE"}
           </button>
 
           <div className="flex flex-col gap-6 items-center">
+            {/* Navigasi & Tutorial (Hanya muncul saat diintip) */}
             {isRevealed && (
               <div className="flex flex-col gap-4 w-full animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <button 
@@ -156,7 +108,7 @@ const ViewRole = ({ playerData, roomCode, onNext, onLeave }) => {
               </div>
             )}
 
-            {/* Tombol Keluar Manual */}
+            {/* Tombol Keluar Manual (Menyerah) */}
             <button 
               onClick={onLeave}
               className="text-[9px] text-slate-700 hover:text-red-500 font-bold uppercase tracking-[0.3em] transition-colors flex items-center gap-2 border-t border-slate-900 pt-4 w-full justify-center"
