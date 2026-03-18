@@ -10,11 +10,10 @@ const SharedTimer = ({ roomCode }) => {
     phase: "Persiapan" 
   });
 
-  // KUNCI: Gunakan Ref untuk menyimpan nilai detik agar tidak terpengaruh re-render
+  // Ref untuk menyimpan nilai seconds terbaru agar interval bisa membacanya tanpa penundaan state
   const secondsRef = useRef(300);
-  const intervalRef = useRef(null);
+  const activeRef = useRef(false);
 
-  // 1. Sinkronisasi Tunggal dengan Firebase
   useEffect(() => {
     if (!roomCode) return;
 
@@ -22,42 +21,30 @@ const SharedTimer = ({ roomCode }) => {
     const unsubscribe = onValue(timerRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        // Update state utama
+        // 1. Update State untuk UI
         setTimerData(data);
-        
-        // Update nilai referensi detik
+        // 2. Update Ref untuk logic internal
         secondsRef.current = data.seconds;
-
-        // LOGIKA PAUSE/PLAY:
-        if (!data.isActive) {
-          // Jika Firebase bilang PAUSE, langsung bunuh interval lokal tanpa ampun
-          if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-            intervalRef.current = null;
-          }
-        } else {
-          // Jika Firebase bilang PLAY dan interval belum jalan, mulai hitung mundur
-          if (!intervalRef.current && data.seconds > 0) {
-            intervalRef.current = setInterval(() => {
-              if (secondsRef.current > 0) {
-                secondsRef.current -= 1;
-                // Update UI secara halus
-                setTimerData(prev => ({ ...prev, seconds: secondsRef.current }));
-              } else {
-                clearInterval(intervalRef.current);
-                intervalRef.current = null;
-              }
-            }, 1000);
-          }
-        }
+        activeRef.current = data.isActive;
       }
     });
 
-    return () => {
-      unsubscribe();
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
+    return () => unsubscribe();
   }, [roomCode]);
+
+  // Loop Interval Independen
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // HANYA kurangi detik jika ref aktif TRUE dan detik > 0
+      if (activeRef.current && secondsRef.current > 0) {
+        secondsRef.current -= 1;
+        // Update state lokal HANYA untuk tampilan (biar smooth)
+        setTimerData(prev => ({ ...prev, seconds: secondsRef.current }));
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const formatTime = (s) => {
     const mins = Math.floor(s / 60);
@@ -78,7 +65,7 @@ const SharedTimer = ({ roomCode }) => {
       
       <div className="flex items-center gap-2 mb-0.5">
         {getPhaseIcon()}
-        <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 italic">
+        <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 italic text-center">
           {timerData.phase || "Menunggu"}
         </span>
       </div>

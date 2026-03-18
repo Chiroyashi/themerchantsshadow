@@ -76,6 +76,12 @@ function App() {
     }
   }, [roomCode, currentPage]);
 
+  useEffect(() => {
+    if (myData?.status === 'dead' && currentPage === 'view-role') {
+      setCurrentPage('game-board');
+    }
+  }, [myData?.status, currentPage]);
+
   // --- 4. TIME GOD HANDLERS (Perbaikan Kritis) ---
   
   const handleToggleTimer = (isActive, currentSeconds) => {

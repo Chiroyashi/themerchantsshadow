@@ -11,11 +11,12 @@ const ModeratorDashboard = ({
   players, roomCode, onKill, onExit, 
   onToggleTimer, onResetTimer, onSetPhase, onEditTimer 
 }) => {
+  // State untuk memantau data timer dari Firebase
   const [globalTimer, setGlobalTimer] = useState({ isActive: false, seconds: 300, phase: "Pagi (Diskusi)" });
   const [isEditing, setIsEditing] = useState(false);
   const [tempSeconds, setTempSeconds] = useState(300);
 
-  // Sync data timer dari Firebase
+  // 1. Sinkronisasi Data Timer dari Firebase
   useEffect(() => {
     if (!roomCode) return;
     const timerRef = ref(db, `rooms/${roomCode}/timer`);
@@ -23,18 +24,32 @@ const ModeratorDashboard = ({
       const data = snapshot.val();
       if (data) {
         setGlobalTimer(data);
-        // Update tempSeconds hanya saat tidak sedang dalam mode edit input
-        if (!isEditing) setTempSeconds(data.seconds);
+        // Update tempSeconds hanya jika sedang tidak mengetik manual
+        if (!isEditing) {
+          setTempSeconds(data.seconds);
+        }
       }
     });
     return () => unsubscribe();
   }, [roomCode, isEditing]);
 
+  // 2. Logika Hitung Mundur Lokal (Agar UI Moderator Smooth)
+  useEffect(() => {
+    let interval = null;
+    if (globalTimer.isActive && tempSeconds > 0) {
+      interval = setInterval(() => {
+        setTempSeconds((prev) => Math.max(0, prev - 1));
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [globalTimer.isActive, tempSeconds]);
+
   const aliveCount = players.filter(p => p.status !== 'dead' && p.role !== 'Moderator').length;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-sans">
-      {/* Header Section */}
+      
+      {/* HEADER SECTION */}
       <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-8 border-b border-slate-800 pb-8">
         <div className="flex flex-col gap-4">
           <div>
@@ -55,10 +70,10 @@ const ModeratorDashboard = ({
              <p className="text-[10px] uppercase tracking-widest text-slate-500 font-black flex items-center gap-2">
                <Clock size={12} /> Time God Controller
              </p>
-             <span className="px-2 py-0.5 bg-red-600/10 text-red-500 text-[8px] font-black rounded border border-red-600/20 uppercase">Live Sync</span>
+             <span className="px-2 py-0.5 bg-red-600/10 text-red-500 text-[8px] font-black rounded border border-red-600/20 uppercase animate-pulse">Live Sync</span>
           </div>
 
-          {/* 1. Periode Selector (Pagi, Siang, Malam) */}
+          {/* 1. Periode Selector */}
           <div className="grid grid-cols-3 gap-2">
             {[
               { id: "Pagi (Diskusi)", label: "Pagi", icon: Sun, color: "text-amber-500", bg: "bg-amber-500/10" },
@@ -85,7 +100,6 @@ const ModeratorDashboard = ({
             <div className="flex items-center gap-4">
               <SharedTimer roomCode={roomCode} />
               
-              {/* Tombol Tambah 1 Menit */}
               <button 
                 onClick={() => onEditTimer(globalTimer.seconds + 60)}
                 className="p-2.5 bg-blue-600/10 text-blue-500 border border-blue-600/20 rounded-xl hover:bg-blue-600/20 transition-all flex flex-col items-center"
@@ -95,7 +109,6 @@ const ModeratorDashboard = ({
               </button>
             </div>
 
-            {/* Input Detik Manual */}
             {isEditing ? (
               <div className="flex items-center gap-2 animate-in fade-in zoom-in duration-200">
                 <input 
@@ -121,10 +134,10 @@ const ModeratorDashboard = ({
             )}
           </div>
 
-          {/* 3. Playback Controls */}
+          {/* 3. Main Playback Controls */}
           <div className="flex gap-2">
             <button 
-              onClick={() => onToggleTimer(globalTimer.isActive, globalTimer.seconds)}
+              onClick={() => onToggleTimer(globalTimer.isActive, tempSeconds)}
               className={`flex-1 flex justify-center items-center gap-3 p-4 rounded-2xl font-black transition-all shadow-lg active:scale-95 ${
                 globalTimer.isActive 
                   ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-900/20' 
@@ -152,7 +165,7 @@ const ModeratorDashboard = ({
         </div>
       </header>
 
-      {/* Grid Kartu Pemain */}
+      {/* PLAYER GRID */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {players.filter(p => p.role !== 'Moderator').map((p) => (
           <div 
@@ -203,10 +216,11 @@ const ModeratorDashboard = ({
         ))}
       </div>
 
+      {/* FOOTER TIPS */}
       <footer className="mt-12 p-6 bg-slate-900/20 border border-slate-800/50 rounded-2xl flex items-center gap-4 border-dashed text-slate-500">
         <Info size={20} className="text-amber-500 shrink-0" />
         <p className="text-[11px] leading-relaxed italic">
-          <strong>Time God Mode:</strong> Gunakan panel di atas untuk mengatur fase permainan. Setiap ganti fase, timer akan otomatis ter-pause agar kamu bisa memberikan narasi sebelum diskusi dimulai.
+          <strong>Moderator Power:</strong> Gunakan panel "Time God" untuk mengatur alur cerita. Jangan lupa untuk mem-pause timer sebelum berganti fase agar kamu bisa memberikan narasi pembuka yang dramatis kepada anak-anak PCC.
         </p>
       </footer>
     </div>
