@@ -6,7 +6,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyCPE0BNUWOGdQw4OmqLC6efBmOmBNbY8xY",
   authDomain: "themerchantsshadow.firebaseapp.com",
   // Ganti URL di bawah jika berbeda dengan yang ada di tab Realtime Database milikmu
-  databaseURL: "https://themerchantsshadow-default-rtdb.firebaseio.com", 
+  databaseURL: "https://themerchantsshadow-default-rtdb.asia-southeast1.firebasedatabase.app/", 
   projectId: "themerchantsshadow",
   storageBucket: "themerchantsshadow.firebasestorage.app",
   messagingSenderId: "286065812994",
