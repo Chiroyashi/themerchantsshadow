@@ -26,14 +26,11 @@ function App() {
   const [players, setPlayers] = useState([]);
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('player_name') || '');
 
-  // STATE UNTUK CUSTOM NOTIFIKASI
+  // STATE NOTIFIKASI & ANTI-LOOP FLAG
   const [notification, setNotification] = useState({
-    show: false,
-    title: "",
-    message: "",
-    type: "info", // info, error, success, confirm
-    onConfirm: null
+    show: false, title: "", message: "", type: "info", onConfirm: null
   });
+  const [hasShownDestroyed, setHasShownDestroyed] = useState(false);
 
   const myData = players.find(p => p.id === myPlayerId);
 
@@ -41,7 +38,6 @@ function App() {
   const showNotif = (title, message, type = "info", onConfirm = null) => {
     setNotification({ show: true, title, message, type, onConfirm });
   };
-
   const closeNotif = () => setNotification(prev => ({ ...prev, show: false }));
 
   // --- 2. SYNC URL & LOCAL STORAGE ---
@@ -73,9 +69,7 @@ function App() {
       const unsubscribe = onValue(playersRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
-          const playerList = Object.entries(data).map(([id, val]) => ({
-            id, ...val
-          }));
+          const playerList = Object.entries(data).map(([id, val]) => ({ id, ...val }));
           setPlayers(playerList);
         }
       });
@@ -93,8 +87,10 @@ function App() {
           setCurrentPage('view-role');
         }
 
-        if (status === "destroyed") {
-          // CUSTOM NOTIF: Ganti alert browser
+        // ANTI-LOOP: Hanya jalankan jika status destroyed DAN belum pernah ditampilkan
+        if (status === "destroyed" && !hasShownDestroyed) {
+          setHasShownDestroyed(true); // Kunci agar tidak loop
+          
           showNotif(
             "Room Dibubarkan", 
             "Moderator telah menutup permainan ini. Kamu akan diarahkan kembali ke menu utama.", 
@@ -105,12 +101,12 @@ function App() {
             localStorage.clear();
             window.location.hash = 'landing';
             window.location.reload();
-          }, 3500); // Beri waktu pemain membaca notifikasi
+          }, 3500);
         }
       });
       return () => unsubscribe();
     }
-  }, [roomCode, currentPage]);
+  }, [roomCode, currentPage, hasShownDestroyed]);
 
   useEffect(() => {
     if (myData?.status === 'dead' && currentPage === 'view-role') {
@@ -122,33 +118,22 @@ function App() {
   
   const handleToggleTimer = (isActive, currentSeconds) => {
     if (!isHost) return;
-    update(ref(db, `rooms/${roomCode}/timer`), {
-      isActive: !isActive,
-      seconds: currentSeconds 
-    });
+    update(ref(db, `rooms/${roomCode}/timer`), { isActive: !isActive, seconds: currentSeconds });
   };
 
   const handleResetTimer = () => {
     if (!isHost) return;
-    update(ref(db, `rooms/${roomCode}/timer`), {
-      isActive: false,
-      seconds: 300
-    });
+    update(ref(db, `rooms/${roomCode}/timer`), { isActive: false, seconds: 300 });
   };
 
   const handleEditTimer = (newSeconds) => {
     if (!isHost) return;
-    update(ref(db, `rooms/${roomCode}/timer`), {
-      seconds: Math.max(0, parseInt(newSeconds))
-    });
+    update(ref(db, `rooms/${roomCode}/timer`), { seconds: Math.max(0, parseInt(newSeconds)) });
   };
 
   const handleSetPhase = (newPhase) => {
     if (!isHost) return;
-    update(ref(db, `rooms/${roomCode}/timer`), {
-      phase: newPhase,
-      isActive: false 
-    });
+    update(ref(db, `rooms/${roomCode}/timer`), { phase: newPhase, isActive: false });
   };
 
   const handlePlayerLeave = () => {
@@ -169,16 +154,11 @@ function App() {
     const finalName = name || "Moderator";
     const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     const hostId = "host_" + Date.now();
-    
     set(ref(db, 'rooms/' + newCode), {
-      status: "waiting",
-      host: finalName,
+      status: "waiting", host: finalName,
       timer: { isActive: false, seconds: 300, phase: "Pagi (Diskusi)" },
-      players: {
-        [hostId]: { name: finalName + " (Moderator)", role: "Moderator", status: "alive" }
-      }
+      players: { [hostId]: { name: finalName + " (Moderator)", role: "Moderator", status: "alive" } }
     });
-
     setRoomCode(newCode);
     setMyPlayerId(hostId);
     setIsHost(true);
@@ -190,14 +170,8 @@ function App() {
     const playerRef = ref(db, `rooms/${code}/players`);
     const newPlayerRef = push(playerRef);
     const playerId = newPlayerRef.key;
-
     onDisconnect(ref(db, `rooms/${code}/players/${playerId}/status`)).set("dead");
-
-    set(newPlayerRef, {
-      name: finalName,
-      role: "Pending",
-      status: "alive"
-    }).then(() => {
+    set(newPlayerRef, { name: finalName, role: "Pending", status: "alive" }).then(() => {
       setRoomCode(code);
       setMyPlayerId(playerId);
       setIsHost(false);
@@ -207,17 +181,13 @@ function App() {
 
   const handleStartGame = () => {
     const playersWithRoles = distributeRoles(players);
-    playersWithRoles.forEach(p => {
-      update(ref(db, `rooms/${roomCode}/players/${p.id}`), { role: p.role });
-    });
+    playersWithRoles.forEach(p => { update(ref(db, `rooms/${roomCode}/players/${p.id}`), { role: p.role }); });
     set(ref(db, `rooms/${roomCode}/status`), "playing");
   };
 
   const handleKillPlayer = (playerId, currentStatus) => {
     if (!isHost) return;
-    update(ref(db, `rooms/${roomCode}/players/${playerId}`), { 
-      status: currentStatus === 'dead' ? 'alive' : 'dead' 
-    });
+    update(ref(db, `rooms/${roomCode}/players/${playerId}`), { status: currentStatus === 'dead' ? 'alive' : 'dead' });
   };
 
   const handleExitGame = async () => {
@@ -227,6 +197,7 @@ function App() {
       "confirm",
       async () => {
         try {
+          setHasShownDestroyed(true); // Moderator juga mengunci notif lokalnya
           await update(ref(db, `rooms/${roomCode}`), { status: "destroyed" });
           localStorage.clear();
           window.location.hash = 'landing';
@@ -241,50 +212,28 @@ function App() {
   // --- 5. CUSTOM NOTIFICATION COMPONENT ---
   const GameNotification = () => {
     if (!notification.show) return null;
-
     const icons = {
       info: <Info className="text-blue-500" size={40} />,
       error: <XCircle className="text-red-500" size={40} />,
       success: <CheckCircle2 className="text-emerald-500" size={40} />,
       confirm: <AlertCircle className="text-amber-500" size={40} />
     };
-
     return (
       <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-300">
         <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2rem] shadow-2xl max-w-sm w-full text-center space-y-6 transform animate-in zoom-in-95 duration-300">
           <div className="flex justify-center">{icons[notification.type]}</div>
           <div className="space-y-2">
-            <h2 className="text-xl font-black text-white uppercase italic tracking-tighter">
-              {notification.title}
-            </h2>
-            <p className="text-slate-400 text-sm leading-relaxed">
-              {notification.message}
-            </p>
+            <h2 className="text-xl font-black text-white uppercase italic tracking-tighter">{notification.title}</h2>
+            <p className="text-slate-400 text-sm leading-relaxed">{notification.message}</p>
           </div>
-          
           <div className="flex flex-col gap-2 pt-2">
             {notification.type === "confirm" ? (
               <div className="flex gap-2">
-                <button 
-                  onClick={closeNotif}
-                  className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl font-bold transition-all uppercase text-[10px] tracking-widest"
-                >
-                  Batal
-                </button>
-                <button 
-                  onClick={() => { notification.onConfirm(); closeNotif(); }}
-                  className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-bold transition-all uppercase text-[10px] tracking-widest shadow-lg shadow-red-900/20"
-                >
-                  Ya, Lanjut
-                </button>
+                <button onClick={closeNotif} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl font-bold uppercase text-[10px] tracking-widest">Batal</button>
+                <button onClick={() => { notification.onConfirm(); closeNotif(); }} className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-bold uppercase text-[10px] tracking-widest shadow-lg">Ya, Lanjut</button>
               </div>
             ) : (
-              <button 
-                onClick={closeNotif}
-                className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold transition-all uppercase text-[10px] tracking-widest shadow-lg shadow-blue-900/20"
-              >
-                Dimengerti
-              </button>
+              <button onClick={closeNotif} className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold uppercase text-[10px] tracking-widest shadow-lg">Dimengerti</button>
             )}
           </div>
         </div>
