@@ -1,34 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { Skull, Heart, Timer, Play, Pause, RefreshCw, Info, LogOut } from 'lucide-react';
+import { ref, onValue } from "firebase/database";
+import { db } from "../lib/firebase";
+import { Skull, Heart, Play, Pause, RefreshCw, Info, LogOut } from 'lucide-react';
+import SharedTimer from '../components/SharedTimer';
 
-const ModeratorDashboard = ({ players, roomCode, onKill, onExit }) => {
-  const [seconds, setSeconds] = useState(300); // Default 5 menit (300 detik)
-  const [isActive, setIsActive] = useState(false);
+const ModeratorDashboard = ({ players, roomCode, onKill, onExit, onToggleTimer, onResetTimer }) => {
+  // State lokal untuk memantau status timer di Firebase (untuk UI tombol)
+  const [globalTimer, setGlobalTimer] = useState({ isActive: false, seconds: 300 });
 
-  // Logic Timer
   useEffect(() => {
-    let interval = null;
-    if (isActive && seconds > 0) {
-      interval = setInterval(() => {
-        setSeconds((prev) => prev - 1);
-      }, 1000);
-    } else if (seconds === 0) {
-      setIsActive(false);
-      clearInterval(interval);
-    }
-    return () => clearInterval(interval);
-  }, [isActive, seconds]);
-
-  const formatTime = (s) => {
-    const mins = Math.floor(s / 60);
-    const secs = s % 60;
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-  };
+    if (!roomCode) return;
+    const timerRef = ref(db, `rooms/${roomCode}/timer`);
+    const unsubscribe = onValue(timerRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) setGlobalTimer(data);
+    });
+    return () => unsubscribe();
+  }, [roomCode]);
 
   const aliveCount = players.filter(p => p.status !== 'dead' && p.role !== 'Moderator').length;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8">
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-sans">
       {/* Header Section */}
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-6 border-b border-slate-800 pb-6">
         <div className="flex flex-col gap-4">
@@ -37,7 +30,6 @@ const ModeratorDashboard = ({ players, roomCode, onKill, onExit }) => {
             <p className="text-[10px] text-slate-500 font-mono mt-2 tracking-[0.2em]">OPERATIONAL ROOM: {roomCode}</p>
           </div>
           
-          {/* Tombol Bubarkan Room */}
           <button 
             onClick={onExit}
             className="flex items-center gap-2 px-4 py-2 bg-red-900/10 text-red-500 border border-red-900/30 rounded-lg hover:bg-red-900/20 transition-all text-[10px] font-black uppercase tracking-widest w-fit"
@@ -46,24 +38,27 @@ const ModeratorDashboard = ({ players, roomCode, onKill, onExit }) => {
           </button>
         </div>
 
-        {/* Diskusi Timer Card */}
-        <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center gap-6 shadow-2xl">
-          <div className="text-center">
-            <p className="text-[10px] uppercase tracking-widest text-slate-500 mb-1 font-bold">Waktu Diskusi</p>
-            <div className={`text-4xl font-mono font-bold ${seconds < 60 ? 'text-red-500 animate-pulse' : 'text-white'}`}>
-              {formatTime(seconds)}
-            </div>
-          </div>
-          <div className="flex gap-2">
+        {/* Global Timer Control */}
+        <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col items-center gap-3 shadow-2xl min-w-[200px]">
+          <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Waktu Diskusi Global</p>
+          
+          {/* Komponen Timer Sinkron */}
+          <SharedTimer roomCode={roomCode} isHost={true} />
+
+          <div className="flex gap-2 w-full">
             <button 
-              onClick={() => setIsActive(!isActive)}
-              className={`p-3 rounded-lg transition-all ${isActive ? 'bg-amber-600 hover:bg-amber-500 shadow-lg shadow-amber-900/20' : 'bg-green-700 hover:bg-green-600 shadow-lg shadow-green-900/20'}`}
+              onClick={() => onToggleTimer(globalTimer.isActive, globalTimer.seconds)}
+              className={`flex-1 flex justify-center items-center p-3 rounded-xl transition-all shadow-lg ${
+                globalTimer.isActive 
+                  ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-900/20' 
+                  : 'bg-green-700 hover:bg-green-600 shadow-green-900/20'
+              }`}
             >
-              {isActive ? <Pause size={20} /> : <Play size={20} fill="currentColor" />}
+              {globalTimer.isActive ? <Pause size={20} /> : <Play size={20} fill="currentColor" />}
             </button>
             <button 
-              onClick={() => { setIsActive(false); setSeconds(300); }}
-              className="p-3 bg-slate-800 hover:bg-slate-700 rounded-lg transition-all"
+              onClick={onResetTimer}
+              className="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl transition-all text-slate-400 hover:text-white"
             >
               <RefreshCw size={20} />
             </button>
@@ -112,7 +107,6 @@ const ModeratorDashboard = ({ players, roomCode, onKill, onExit }) => {
               </button>
             </div>
 
-            {/* Tim Badge */}
             <div className="flex items-center gap-2 pt-2 border-t border-slate-800/50">
               <div className={`w-2 h-2 rounded-full ${
                 p.role.toLowerCase().includes('werewolf') || p.role.toLowerCase().includes('warlock') 
@@ -128,12 +122,10 @@ const ModeratorDashboard = ({ players, roomCode, onKill, onExit }) => {
       </div>
 
       {/* Info Footer */}
-      <footer className="mt-12 p-6 bg-slate-900/20 border border-slate-800/50 rounded-2xl flex items-center gap-4 border-dashed">
-        <div className="p-2 bg-amber-500/10 rounded-lg">
-          <Info className="text-amber-500" size={20} />
-        </div>
-        <p className="text-[11px] text-slate-500 leading-relaxed italic max-w-2xl">
-          <strong>Moderator Tools:</strong> Gunakan panel ini untuk mengelola jalannya game. Semua perubahan status (Hidup/Mati) akan langsung ter-sinkronisasi ke perangkat pemain. Pastikan timer diskusi digunakan secara konsisten.
+      <footer className="mt-12 p-6 bg-slate-900/20 border border-slate-800/50 rounded-2xl flex items-center gap-4 border-dashed text-slate-500">
+        <Info size={20} className="text-amber-500 shrink-0" />
+        <p className="text-[11px] leading-relaxed italic">
+          <strong>Moderator Mode:</strong> Waktu yang kamu Play/Pause di sini akan muncul secara otomatis di layar setiap pemain. Gunakan fitur ini untuk mendisiplinkan waktu debat warga.
         </p>
       </footer>
     </div>

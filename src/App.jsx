@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ref, set, onValue, push } from "firebase/database";
+import { ref, set, onValue, push, update, onDisconnect } from "firebase/database"; 
 import { db } from "./lib/firebase";
 import { distributeRoles } from './utils/gameLogic';
 
@@ -79,25 +79,50 @@ function App() {
     }
   }, [roomCode, currentPage]);
 
-  // --- Handlers ---
+  // --- 6. Global Timer Handlers ---
+  const handleToggleTimer = (isActive, currentSeconds) => {
+    if (!isHost) return;
+    update(ref(db, `rooms/${roomCode}/timer`), {
+      isActive: !isActive,
+      seconds: currentSeconds
+    });
+  };
+
+  const handleResetTimer = () => {
+    if (!isHost) return;
+    set(ref(db, `rooms/${roomCode}/timer`), {
+      isActive: false,
+      seconds: 300
+    });
+  };
+
+  // --- 7. Pemain Keluar Handlers ---
+  const handlePlayerLeave = () => {
+    if (window.confirm("Apakah Anda yakin ingin menyerah dan keluar? Status Anda akan menjadi MATI.")) {
+      // Set status mati di database
+      update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), { status: "dead" });
+      
+      // Bersihkan data lokal
+      localStorage.clear();
+      window.location.hash = 'landing';
+      window.location.reload();
+    }
+  };
+
+  // --- Handlers Buat & Join ---
   const handleCreateRoom = (name) => {
     const finalName = name || "Moderator";
     setPlayerName(finalName);
-
     const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const roomRef = ref(db, 'rooms/' + newCode);
     const hostId = "host_" + Date.now();
     
-    set(roomRef, {
+    set(ref(db, 'rooms/' + newCode), {
       status: "waiting",
       host: finalName,
       createdAt: Date.now(),
+      timer: { isActive: false, seconds: 300 },
       players: {
-        [hostId]: { 
-          name: finalName + " (Moderator)", 
-          role: "Moderator", 
-          status: "alive" 
-        }
+        [hostId]: { name: finalName + " (Moderator)", role: "Moderator", status: "alive" }
       }
     });
 
@@ -110,10 +135,12 @@ function App() {
   const handleJoinRoom = (code, inputName) => {
     const finalName = inputName || "Player";
     setPlayerName(finalName);
-
     const playerRef = ref(db, `rooms/${code}/players`);
     const newPlayerRef = push(playerRef);
     const playerId = newPlayerRef.key;
+
+    // FITUR ON DISCONNECT: Jika tab ditutup/sinyal hilang, otomatis MATI
+    onDisconnect(ref(db, `rooms/${code}/players/${playerId}/status`)).set("dead");
 
     set(newPlayerRef, {
       name: finalName,
@@ -130,7 +157,7 @@ function App() {
   const handleStartGame = () => {
     const playersWithRoles = distributeRoles(players);
     playersWithRoles.forEach(p => {
-      set(ref(db, `rooms/${roomCode}/players/${p.id}/role`), p.role);
+      update(ref(db, `rooms/${roomCode}/players/${p.id}`), { role: p.role });
     });
     set(ref(db, `rooms/${roomCode}/status`), "playing");
   };
@@ -138,11 +165,11 @@ function App() {
   const handleKillPlayer = (playerId, currentStatus) => {
     if (!isHost) return;
     const newStatus = currentStatus === 'dead' ? 'alive' : 'dead';
-    set(ref(db, `rooms/${roomCode}/players/${playerId}/status`), newStatus);
+    update(ref(db, `rooms/${roomCode}/players/${playerId}`), { status: newStatus });
   };
 
   const handleExitGame = () => {
-    if (window.confirm("Apakah Anda yakin ingin keluar? Semua progress room akan hilang dari perangkat ini.")) {
+    if (window.confirm("Bubarkan room? Semua data akan dihapus.")) {
       localStorage.clear();
       window.location.hash = 'landing';
       window.location.reload();
@@ -159,36 +186,21 @@ function App() {
       case 'introduction':
         return <Introduction onNext={() => setCurrentPage('room-setup')} onBack={() => setCurrentPage('landing')} />;
       case 'room-setup':
-        return (
-          <Room 
-            onCreate={handleCreateRoom} 
-            onJoin={handleJoinRoom} 
-            onBack={() => setCurrentPage('introduction')}
-          />
-        );
+        return <Room onCreate={handleCreateRoom} onJoin={handleJoinRoom} onBack={() => setCurrentPage('introduction')} />;
       case 'room-lobby':
-        return (
-          <Lobby 
-            roomCode={roomCode} 
-            players={players} 
-            isHost={isHost} 
-            onStart={handleStartGame} 
-            onBack={() => setCurrentPage('room-setup')} 
-          />
-        );
+        return <Lobby roomCode={roomCode} players={players} isHost={isHost} onStart={handleStartGame} onBack={() => setCurrentPage('room-setup')} />;
       case 'view-role':
         return isHost ? (
           <ModeratorDashboard 
-            players={players} 
-            roomCode={roomCode} 
-            onKill={handleKillPlayer} 
-            onExit={handleExitGame}
+            players={players} roomCode={roomCode} 
+            onKill={handleKillPlayer} onExit={handleExitGame}
+            onToggleTimer={handleToggleTimer} onResetTimer={handleResetTimer}
           />
         ) : (
           <ViewRole 
-            playerData={myData} 
-            roomCode={roomCode} 
-            onNext={() => setCurrentPage('mechanics')} 
+            playerData={myData} roomCode={roomCode} 
+            onNext={() => setCurrentPage('game-board')} 
+            onLeave={handlePlayerLeave} // Kirim fungsi leave ke pemain
           />
         );
       case 'mechanics':

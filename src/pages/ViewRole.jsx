@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, Shield, Skull, HelpCircle, BookOpen, X, Zap, Info } from 'lucide-react';
+import SharedTimer from '../components/SharedTimer';
 
 // --- Komponen Pop-up Mechanics Internal ---
 const RoleModal = ({ role, isOpen, onClose }) => {
@@ -60,26 +61,29 @@ const RoleModal = ({ role, isOpen, onClose }) => {
   );
 };
 
-const ViewRole = ({ playerData, roomCode, onNext }) => {
+const ViewRole = ({ playerData, roomCode, onNext, onLeave }) => {
   const [isRevealed, setIsRevealed] = useState(false);
   const [showMechanics, setShowMechanics] = useState(false);
 
-  const getRoleTheme = (role) => {
-    if (!role) return { color: "text-slate-400", bg: "bg-slate-900", icon: HelpCircle };
-    const r = role.toLowerCase();
-    if (r.includes('werewolf') || r.includes('warlock')) 
+  const theme = (() => {
+    const role = playerData?.role?.toLowerCase() || "";
+    if (role.includes('werewolf') || role.includes('warlock')) 
       return { color: "text-red-500", bg: "bg-red-950/20", border: "border-red-600", icon: Skull };
-    if (r === 'moderator') 
+    if (role.includes('moderator')) 
       return { color: "text-amber-500", bg: "bg-amber-950/20", border: "border-amber-600", icon: Shield };
     return { color: "text-blue-500", bg: "bg-blue-950/20", border: "border-blue-600", icon: Shield };
-  };
+  })();
 
-  const theme = getRoleTheme(playerData?.role);
   const RoleIcon = theme.icon;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-6 flex flex-col items-center justify-center font-sans">
       
+      {/* Timer Sinkron */}
+      <div className="fixed top-8 left-1/2 -translate-x-1/2 z-40 scale-90 md:scale-100">
+        <SharedTimer roomCode={roomCode} isHost={false} />
+      </div>
+
       {/* Pop-up Mechanics */}
       <RoleModal 
         role={playerData?.role} 
@@ -87,13 +91,14 @@ const ViewRole = ({ playerData, roomCode, onNext }) => {
         onClose={() => setShowMechanics(false)} 
       />
 
-      <div className="max-w-md w-full space-y-8 text-center">
+      <div className="max-w-md w-full space-y-8 text-center pt-12">
         <div className="space-y-1">
           <p className="text-slate-500 text-[10px] uppercase tracking-[0.3em]">Identity Assigned</p>
           <h2 className="text-xl font-bold italic">{playerData?.name || "Pemain"}</h2>
           <p className="text-slate-600 text-xs font-mono uppercase tracking-widest">Room: {roomCode}</p>
         </div>
 
+        {/* Card Section */}
         <div className={`relative aspect-[3/4] w-full rounded-2xl border-2 transition-all duration-500 flex flex-col items-center justify-center p-8 overflow-hidden
             ${isRevealed ? `${theme.bg} ${theme.border} shadow-[0_0_30px_rgba(220,38,38,0.2)]` : 'bg-slate-900 border-slate-800'}`}>
           {!isRevealed ? (
@@ -119,6 +124,7 @@ const ViewRole = ({ playerData, roomCode, onNext }) => {
           )}
         </div>
 
+        {/* Action Buttons */}
         <div className="space-y-6">
           <button 
             onMouseDown={() => setIsRevealed(true)}
@@ -126,29 +132,38 @@ const ViewRole = ({ playerData, roomCode, onNext }) => {
             onTouchStart={() => setIsRevealed(true)}
             onTouchEnd={() => setIsRevealed(false)}
             className={`w-full py-5 rounded-xl font-black uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-3 select-none
-              ${isRevealed ? 'bg-slate-100 text-slate-950' : 'bg-red-700 hover:bg-red-600 shadow-lg shadow-red-900/20'}`}>
+              ${isRevealed ? 'bg-slate-100 text-slate-950 shadow-inner' : 'bg-red-700 hover:bg-red-600 shadow-lg shadow-red-900/20'}`}>
             {isRevealed ? <EyeOff size={20} /> : <Eye size={20} />}
             {isRevealed ? "LEPASKAN UNTUK SEMBUNYI" : "TAHAN UNTUK INTIP ROLE"}
           </button>
 
-          {isRevealed && (
-            <div className="flex flex-col gap-4">
-              <button 
-                onClick={() => setShowMechanics(true)}
-                className="flex items-center justify-center gap-2 text-amber-500 hover:text-amber-400 text-[10px] uppercase font-black tracking-[0.2em] animate-in slide-in-from-bottom-2"
-              >
-                <BookOpen size={14} /> Panduan Peran ({playerData?.role})
-              </button>
-              
-              {/* Tombol ke GameBoard (Daftar Kematian) */}
-              <button 
-                onClick={onNext}
-                className="text-slate-500 hover:text-white text-[10px] uppercase font-bold tracking-[0.2em]"
-              >
-                Lanjut ke Daftar Pemain
-              </button>
-            </div>
-          )}
+          <div className="flex flex-col gap-6 items-center">
+            {isRevealed && (
+              <div className="flex flex-col gap-4 w-full animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <button 
+                  onClick={() => setShowMechanics(true)}
+                  className="flex items-center justify-center gap-2 text-amber-500 hover:text-amber-400 text-[10px] uppercase font-black tracking-[0.2em]"
+                >
+                  <BookOpen size={14} /> Panduan Peran ({playerData?.role})
+                </button>
+                
+                <button 
+                  onClick={onNext}
+                  className="w-full py-4 border border-slate-800 text-slate-500 hover:text-white rounded-xl text-[10px] uppercase font-bold tracking-[0.2em] transition-all"
+                >
+                  Lanjut ke Daftar Pemain
+                </button>
+              </div>
+            )}
+
+            {/* Tombol Keluar Manual */}
+            <button 
+              onClick={onLeave}
+              className="text-[9px] text-slate-700 hover:text-red-500 font-bold uppercase tracking-[0.3em] transition-colors flex items-center gap-2 border-t border-slate-900 pt-4 w-full justify-center"
+            >
+              <X size={12} /> Keluar & Menyerah
+            </button>
+          </div>
         </div>
       </div>
     </div>
