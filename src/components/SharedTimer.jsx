@@ -10,10 +10,11 @@ const SharedTimer = ({ roomCode }) => {
     phase: "Persiapan" 
   });
 
-  // Gunakan Ref untuk menyimpan angka detik yang paling akurat tanpa trigger loop
+  // KUNCI: Gunakan Ref untuk menyimpan nilai detik agar tidak terpengaruh re-render
   const secondsRef = useRef(300);
+  const intervalRef = useRef(null);
 
-  // 1. Listen data timer & phase langsung dari Firebase
+  // 1. Sinkronisasi Tunggal dengan Firebase
   useEffect(() => {
     if (!roomCode) return;
 
@@ -21,37 +22,42 @@ const SharedTimer = ({ roomCode }) => {
     const unsubscribe = onValue(timerRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
+        // Update state utama
         setTimerData(data);
-        // Sinkronkan Ref dengan data terbaru dari Firebase
+        
+        // Update nilai referensi detik
         secondsRef.current = data.seconds;
+
+        // LOGIKA PAUSE/PLAY:
+        if (!data.isActive) {
+          // Jika Firebase bilang PAUSE, langsung bunuh interval lokal tanpa ampun
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
+        } else {
+          // Jika Firebase bilang PLAY dan interval belum jalan, mulai hitung mundur
+          if (!intervalRef.current && data.seconds > 0) {
+            intervalRef.current = setInterval(() => {
+              if (secondsRef.current > 0) {
+                secondsRef.current -= 1;
+                // Update UI secara halus
+                setTimerData(prev => ({ ...prev, seconds: secondsRef.current }));
+              } else {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+              }
+            }, 1000);
+          }
+        }
       }
     });
 
-    return () => unsubscribe();
-  }, [roomCode]);
-
-  // 2. Hitung mundur lokal yang "Disiplin"
-  useEffect(() => {
-    let interval = null;
-
-    // Hanya menghitung secara lokal jika Firebase bilang isActive: true
-    if (timerData.isActive && timerData.seconds > 0) {
-      interval = setInterval(() => {
-        if (secondsRef.current > 0) {
-          secondsRef.current -= 1;
-          // Update tampilan state agar UI berubah halus (4:59 -> 4:58)
-          setTimerData(prev => ({ ...prev, seconds: secondsRef.current }));
-        }
-      }, 1000);
-    } else {
-      // Jika isActive: false (PAUSE), bersihkan interval agar detik berhenti total
-      if (interval) clearInterval(interval);
-    }
-
     return () => {
-      if (interval) clearInterval(interval);
+      unsubscribe();
+      if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [timerData.isActive]); // Hanya trigger ulang jika status aktif berubah dari Firebase
+  }, [roomCode]);
 
   const formatTime = (s) => {
     const mins = Math.floor(s / 60);
@@ -68,9 +74,8 @@ const SharedTimer = ({ roomCode }) => {
   };
 
   return (
-    <div className={`flex flex-col items-center gap-1 px-6 py-3 bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl shadow-2xl transition-all duration-500 ${timerData.isActive ? 'border-red-900/40 ring-1 ring-red-500/10' : 'opacity-80'}`}>
+    <div className={`flex flex-col items-center gap-1 px-6 py-3 bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl shadow-2xl transition-all duration-500 ${timerData.isActive ? 'border-red-900/40 ring-1 ring-red-500/10' : 'opacity-70 shadow-none'}`}>
       
-      {/* Badge Nama Fase */}
       <div className="flex items-center gap-2 mb-0.5">
         {getPhaseIcon()}
         <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 italic">
@@ -78,7 +83,6 @@ const SharedTimer = ({ roomCode }) => {
         </span>
       </div>
 
-      {/* Tampilan Waktu */}
       <div className="flex items-center gap-3">
         <TimerIcon 
           size={18} 
@@ -91,10 +95,9 @@ const SharedTimer = ({ roomCode }) => {
         </span>
       </div>
 
-      {/* Indikator Status */}
       {!timerData.isActive && timerData.seconds > 0 && (
         <span className="text-[7px] font-bold text-amber-500/50 uppercase tracking-widest animate-pulse mt-1">
-          Paused by Moderator
+          Waktu Terhenti
         </span>
       )}
     </div>
