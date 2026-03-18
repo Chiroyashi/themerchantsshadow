@@ -11,12 +11,14 @@ const ModeratorDashboard = ({
   players, roomCode, onKill, onExit, 
   onToggleTimer, onResetTimer, onSetPhase, onEditTimer 
 }) => {
-  // State untuk memantau data timer dari Firebase
   const [globalTimer, setGlobalTimer] = useState({ isActive: false, seconds: 300, phase: "Pagi (Diskusi)" });
   const [isEditing, setIsEditing] = useState(false);
+  
+  // State untuk input teks format MM:SS
+  const [timeInput, setTimeInput] = useState("05:00");
   const [tempSeconds, setTempSeconds] = useState(300);
 
-  // 1. Sinkronisasi Data Timer dari Firebase
+  // 1. Sync data timer dari Firebase
   useEffect(() => {
     if (!roomCode) return;
     const timerRef = ref(db, `rooms/${roomCode}/timer`);
@@ -24,16 +26,19 @@ const ModeratorDashboard = ({
       const data = snapshot.val();
       if (data) {
         setGlobalTimer(data);
-        // Update tempSeconds hanya jika sedang tidak mengetik manual
         if (!isEditing) {
           setTempSeconds(data.seconds);
+          // Konversi detik ke format MM:SS untuk ditampilkan di input
+          const mins = Math.floor(data.seconds / 60).toString().padStart(2, '0');
+          const secs = (data.seconds % 60).toString().padStart(2, '0');
+          setTimeInput(`${mins}:${secs}`);
         }
       }
     });
     return () => unsubscribe();
   }, [roomCode, isEditing]);
 
-  // 2. Logika Hitung Mundur Lokal (Agar UI Moderator Smooth)
+  // 2. Logika Hitung Mundur Lokal agar UI Smooth
   useEffect(() => {
     let interval = null;
     if (globalTimer.isActive && tempSeconds > 0) {
@@ -43,6 +48,19 @@ const ModeratorDashboard = ({
     }
     return () => clearInterval(interval);
   }, [globalTimer.isActive, tempSeconds]);
+
+  // 3. Fungsi Konversi MM:SS ke Total Detik
+  const handleTimeSubmit = () => {
+    // Memisahkan string berdasarkan ":" (misal "10:00" jadi ["10", "00"])
+    const parts = timeInput.split(':');
+    if (parts.length === 2) {
+      const minutes = parseInt(parts[0]) || 0;
+      const seconds = parseInt(parts[1]) || 0;
+      const totalSeconds = (minutes * 60) + seconds;
+      onEditTimer(totalSeconds);
+    }
+    setIsEditing(false);
+  };
 
   const aliveCount = players.filter(p => p.status !== 'dead' && p.role !== 'Moderator').length;
 
@@ -95,7 +113,7 @@ const ModeratorDashboard = ({
             ))}
           </div>
 
-          {/* 2. Timer Display & Quick Actions */}
+          {/* 2. Timer Display & Edit Manual (Format MM:SS) */}
           <div className="bg-slate-950/50 border border-slate-800 p-4 rounded-2xl flex flex-col items-center gap-4">
             <div className="flex items-center gap-4">
               <SharedTimer roomCode={roomCode} />
@@ -112,14 +130,15 @@ const ModeratorDashboard = ({
             {isEditing ? (
               <div className="flex items-center gap-2 animate-in fade-in zoom-in duration-200">
                 <input 
-                  type="number" 
-                  value={tempSeconds}
-                  onChange={(e) => setTempSeconds(parseInt(e.target.value) || 0)}
-                  className="bg-slate-900 border border-slate-700 text-white text-xs p-2 rounded-lg w-20 text-center outline-none focus:border-blue-500"
+                  type="text" 
+                  value={timeInput}
+                  placeholder="00:00"
+                  onChange={(e) => setTimeInput(e.target.value)}
+                  className="bg-slate-900 border border-slate-700 text-white text-xs p-2 rounded-lg w-24 text-center outline-none focus:border-blue-500 font-mono tracking-widest"
                 />
                 <button 
-                  onClick={() => { onEditTimer(tempSeconds); setIsEditing(false); }}
-                  className="bg-blue-600 text-white text-[10px] px-3 py-2 rounded-lg font-black"
+                  onClick={handleTimeSubmit}
+                  className="bg-blue-600 text-white text-[10px] px-3 py-2 rounded-lg font-black uppercase"
                 >
                   SET
                 </button>
@@ -127,9 +146,9 @@ const ModeratorDashboard = ({
             ) : (
               <button 
                 onClick={() => setIsEditing(true)}
-                className="text-slate-600 hover:text-white flex items-center gap-1 text-[9px] font-bold transition-colors"
+                className="text-slate-600 hover:text-white flex items-center gap-1 text-[9px] font-bold transition-colors uppercase tracking-widest"
               >
-                <Edit3 size={10} /> EDIT DETIK MANUAL
+                <Edit3 size={10} /> Edit Waktu (MM:SS)
               </button>
             )}
           </div>
@@ -220,7 +239,7 @@ const ModeratorDashboard = ({
       <footer className="mt-12 p-6 bg-slate-900/20 border border-slate-800/50 rounded-2xl flex items-center gap-4 border-dashed text-slate-500">
         <Info size={20} className="text-amber-500 shrink-0" />
         <p className="text-[11px] leading-relaxed italic">
-          <strong>Moderator Power:</strong> Gunakan panel "Time God" untuk mengatur alur cerita. Jangan lupa untuk mem-pause timer sebelum berganti fase agar kamu bisa memberikan narasi pembuka yang dramatis kepada anak-anak PCC.
+          <strong>MM:SS Format:</strong> Sekarang kamu bisa mengetik waktu diskusi lebih mudah (contoh: 10:00 untuk 10 menit). Tekan SET untuk menyinkronkan ke seluruh pemain.
         </p>
       </footer>
     </div>
