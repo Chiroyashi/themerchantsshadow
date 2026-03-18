@@ -23,6 +23,7 @@ const Mechanics = ({ onNext, onBack }) => {
           <button onClick={onBack} className="absolute -top-10 left-0 flex items-center gap-1 text-slate-500 hover:text-red-500 transition-colors text-sm uppercase tracking-widest font-bold">
             <ChevronLeft size={16} /> Back
           </button>
+          <h2 className="text-amber-500 font-bold tracking-widest text-sm uppercase">TUTORIAL</h2>
           <h1 className="text-4xl font-black italic uppercase">Jejak Mata Angin</h1>
         </header>
 
