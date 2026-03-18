@@ -2,6 +2,7 @@
   "name": "themerchantsshadow",
   "private": true,
   "version": "0.0.0",
+  "homepage": "https://chiroyashi.github.io/themerchantsshadow",
   "type": "module",
   "scripts": {
     "dev": "vite",
