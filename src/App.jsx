@@ -68,14 +68,24 @@ function App() {
     }
   }, [roomCode]);
 
-  // Redirect otomatis saat Game dimulai oleh Moderator
+  // Memantau Status Room (Redirect Game Start & Auto-Kick Bubar)
   useEffect(() => {
     if (roomCode) {
       const statusRef = ref(db, `rooms/${roomCode}/status`);
       const unsubscribe = onValue(statusRef, (snapshot) => {
         const status = snapshot.val();
+        
+        // JIKA GAME DIMULAI: Redirect dari Lobby ke ViewRole
         if (status === "playing" && currentPage === "room-lobby") {
           setCurrentPage('view-role');
+        }
+
+        // JIKA MODERATOR MEMBUBARKAN ROOM: Semua pemain keluar
+        if (status === "destroyed") {
+          alert("Room telah dibubarkan oleh Moderator.");
+          localStorage.clear();
+          window.location.hash = 'landing';
+          window.location.reload();
         }
       });
       return () => unsubscribe();
@@ -189,11 +199,19 @@ function App() {
     });
   };
 
-  const handleExitGame = () => {
-    if (window.confirm("Bubarkan room? Semua data akan dihapus.")) {
-      localStorage.clear();
-      window.location.hash = 'landing';
-      window.location.reload();
+  const handleExitGame = async () => {
+    if (window.confirm("Bubarkan room? Semua pemain akan otomatis keluar.")) {
+      try {
+        // 1. Beritahu Firebase bahwa room ini sudah bubar (status: destroyed)
+        await update(ref(db, `rooms/${roomCode}`), { status: "destroyed" });
+        
+        // 2. Bersihkan data moderator sendiri
+        localStorage.clear();
+        window.location.hash = 'landing';
+        window.location.reload();
+      } catch (error) {
+        console.error("Gagal membubarkan room:", error);
+      }
     }
   };
 
