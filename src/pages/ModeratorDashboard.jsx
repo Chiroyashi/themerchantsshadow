@@ -1,19 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { ref, onValue } from "firebase/database";
 import { db } from "../lib/firebase";
-import { Skull, Heart, Play, Pause, RefreshCw, Info, LogOut } from 'lucide-react';
+import { 
+  Skull, Heart, Play, Pause, RefreshCw, Info, LogOut, 
+  Sun, Sunset, Moon, Plus, Edit3, Clock 
+} from 'lucide-react';
 import SharedTimer from '../components/SharedTimer';
 
-const ModeratorDashboard = ({ players, roomCode, onKill, onExit, onToggleTimer, onResetTimer }) => {
-  // State lokal untuk memantau status timer di Firebase (untuk UI tombol)
-  const [globalTimer, setGlobalTimer] = useState({ isActive: false, seconds: 300 });
+const ModeratorDashboard = ({ 
+  players, roomCode, onKill, onExit, 
+  onToggleTimer, onResetTimer, onSetPhase, onEditTimer 
+}) => {
+  const [globalTimer, setGlobalTimer] = useState({ isActive: false, seconds: 300, phase: "Pagi (Diskusi)" });
+  const [isEditing, setIsEditing] = useState(false);
+  const [tempSeconds, setTempSeconds] = useState(300);
 
+  // Sync data timer dari Firebase
   useEffect(() => {
     if (!roomCode) return;
     const timerRef = ref(db, `rooms/${roomCode}/timer`);
     const unsubscribe = onValue(timerRef, (snapshot) => {
       const data = snapshot.val();
-      if (data) setGlobalTimer(data);
+      if (data) {
+        setGlobalTimer(data);
+        setTempSeconds(data.seconds);
+      }
     });
     return () => unsubscribe();
   }, [roomCode]);
@@ -23,13 +34,12 @@ const ModeratorDashboard = ({ players, roomCode, onKill, onExit, onToggleTimer, 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-sans">
       {/* Header Section */}
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-6 border-b border-slate-800 pb-6">
+      <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-8 border-b border-slate-800 pb-8">
         <div className="flex flex-col gap-4">
           <div>
             <h1 className="text-3xl font-black text-red-600 uppercase italic leading-none tracking-tighter">Command Center</h1>
             <p className="text-[10px] text-slate-500 font-mono mt-2 tracking-[0.2em]">OPERATIONAL ROOM: {roomCode}</p>
           </div>
-          
           <button 
             onClick={onExit}
             className="flex items-center gap-2 px-4 py-2 bg-red-900/10 text-red-500 border border-red-900/30 rounded-lg hover:bg-red-900/20 transition-all text-[10px] font-black uppercase tracking-widest w-fit"
@@ -38,34 +48,100 @@ const ModeratorDashboard = ({ players, roomCode, onKill, onExit, onToggleTimer, 
           </button>
         </div>
 
-        {/* Global Timer Control */}
-        <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col items-center gap-3 shadow-2xl min-w-[200px]">
-          <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Waktu Diskusi Global</p>
-          
-          {/* Komponen Timer Sinkron */}
-          <SharedTimer roomCode={roomCode} isHost={true} />
+        {/* TIME GOD PANEL */}
+        <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-2xl w-full lg:max-w-md space-y-6">
+          <div className="flex justify-between items-center">
+             <p className="text-[10px] uppercase tracking-widest text-slate-500 font-black flex items-center gap-2">
+               <Clock size={12} /> Time God Controller
+             </p>
+             <span className="px-2 py-0.5 bg-red-600/10 text-red-500 text-[8px] font-black rounded border border-red-600/20 uppercase">Live Sync</span>
+          </div>
 
-          <div className="flex gap-2 w-full">
+          {/* 1. Periode Selector */}
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { id: "Pagi (Diskusi)", label: "Pagi", icon: Sun, color: "text-amber-500", bg: "bg-amber-500/10" },
+              { id: "Siang (Voting)", label: "Siang", icon: Sunset, color: "text-orange-500", bg: "bg-orange-500/10" },
+              { id: "Malam (Eksekusi)", label: "Malam", icon: Moon, color: "text-purple-500", bg: "bg-purple-500/10" },
+            ].map((phase) => (
+              <button
+                key={phase.id}
+                onClick={() => onSetPhase(phase.id)}
+                className={`flex flex-col items-center gap-1 p-3 rounded-xl border transition-all ${
+                  globalTimer.phase === phase.id 
+                    ? `${phase.bg} border-${phase.color.split('-')[1]}-500/50 ${phase.color}` 
+                    : 'border-slate-800 text-slate-600 hover:border-slate-700'
+                }`}
+              >
+                <phase.icon size={18} />
+                <span className="text-[8px] font-black uppercase tracking-tighter">{phase.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* 2. Timer & Edit Tools */}
+          <div className="bg-slate-950/50 border border-slate-800 p-4 rounded-2xl flex flex-col items-center gap-4">
+            <div className="flex items-center gap-4">
+              <SharedTimer roomCode={roomCode} />
+              
+              <button 
+                onClick={() => onEditTimer(globalTimer.seconds + 60)}
+                className="p-2.5 bg-blue-600/10 text-blue-500 border border-blue-600/20 rounded-xl hover:bg-blue-600/20 transition-all flex flex-col items-center"
+              >
+                <Plus size={14} />
+                <span className="text-[8px] font-black uppercase">01:00</span>
+              </button>
+            </div>
+
+            {isEditing ? (
+              <div className="flex items-center gap-2 animate-in fade-in zoom-in duration-200">
+                <input 
+                  type="number" 
+                  value={tempSeconds}
+                  onChange={(e) => setTempSeconds(parseInt(e.target.value))}
+                  className="bg-slate-900 border border-slate-700 text-white text-xs p-2 rounded-lg w-20 text-center outline-none focus:border-blue-500"
+                />
+                <button 
+                  onClick={() => { onEditTimer(tempSeconds); setIsEditing(false); }}
+                  className="bg-blue-600 text-white text-[10px] px-3 py-2 rounded-lg font-black"
+                >
+                  SET
+                </button>
+              </div>
+            ) : (
+              <button 
+                onClick={() => setIsEditing(true)}
+                className="text-slate-600 hover:text-white flex items-center gap-1 text-[9px] font-bold transition-colors"
+              >
+                <Edit3 size={10} /> EDIT DETIK MANUAL
+              </button>
+            )}
+          </div>
+
+          {/* 3. Main Playback Controls */}
+          <div className="flex gap-2">
             <button 
               onClick={() => onToggleTimer(globalTimer.isActive, globalTimer.seconds)}
-              className={`flex-1 flex justify-center items-center p-3 rounded-xl transition-all shadow-lg ${
+              className={`flex-1 flex justify-center items-center gap-3 p-4 rounded-2xl font-black transition-all shadow-lg active:scale-95 ${
                 globalTimer.isActive 
                   ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-900/20' 
                   : 'bg-green-700 hover:bg-green-600 shadow-green-900/20'
               }`}
             >
               {globalTimer.isActive ? <Pause size={20} /> : <Play size={20} fill="currentColor" />}
+              <span className="uppercase tracking-widest text-xs">{globalTimer.isActive ? 'Pause' : 'Play'}</span>
             </button>
+            
             <button 
               onClick={onResetTimer}
-              className="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl transition-all text-slate-400 hover:text-white"
+              className="p-4 bg-slate-800 hover:bg-slate-700 rounded-2xl transition-all text-slate-400 hover:text-white group"
             >
-              <RefreshCw size={20} />
+              <RefreshCw size={20} className="group-active:rotate-180 transition-transform duration-500" />
             </button>
           </div>
         </div>
 
-        <div className="hidden lg:block text-right">
+        <div className="hidden xl:block text-right">
           <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Pemain Aktif</p>
           <p className="text-3xl font-black text-blue-500 tracking-tighter">{aliveCount} <span className="text-xs text-slate-700">/ {players.length - 1}</span></p>
         </div>
@@ -89,7 +165,8 @@ const ModeratorDashboard = ({ players, roomCode, onKill, onExit, onToggleTimer, 
                 </h3>
                 <p className={`text-[10px] font-black uppercase tracking-wider mt-1 ${
                   p.role.toLowerCase().includes('werewolf') ? 'text-red-500' : 
-                  p.role.toLowerCase().includes('warlock') ? 'text-purple-500' : 'text-blue-400'
+                  p.role.toLowerCase().includes('warlock') ? 'text-purple-500' : 
+                  p.role.toLowerCase().includes('seer') ? 'text-emerald-500' : 'text-blue-400'
                 }`}>
                   {p.role}
                 </p>
@@ -121,11 +198,10 @@ const ModeratorDashboard = ({ players, roomCode, onKill, onExit, onToggleTimer, 
         ))}
       </div>
 
-      {/* Info Footer */}
       <footer className="mt-12 p-6 bg-slate-900/20 border border-slate-800/50 rounded-2xl flex items-center gap-4 border-dashed text-slate-500">
         <Info size={20} className="text-amber-500 shrink-0" />
         <p className="text-[11px] leading-relaxed italic">
-          <strong>Moderator Mode:</strong> Waktu yang kamu Play/Pause di sini akan muncul secara otomatis di layar setiap pemain. Gunakan fitur ini untuk mendisiplinkan waktu debat warga.
+          <strong>Time God Mode:</strong> Gunakan panel di atas untuk mengatur fase permainan. Setiap ganti fase, timer akan otomatis ter-pause agar kamu bisa memberikan narasi sebelum diskusi dimulai.
         </p>
       </footer>
     </div>

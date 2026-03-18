@@ -10,7 +10,7 @@ import Room from './pages/Room';
 import Lobby from './pages/Lobby';
 import ViewRole from './pages/ViewRole';
 import ModeratorDashboard from './pages/ModeratorDashboard';
-import GameBoard from './pages/GameBoard'; // Pastikan file ini sudah dibuat
+import GameBoard from './pages/GameBoard';
 
 function App() {
   // --- 1. State Initialization ---
@@ -25,7 +25,7 @@ function App() {
   const [players, setPlayers] = useState([]);
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('player_name') || '');
 
-  // --- 2. Handle Browser Back/Forward (URL Hash Sync) ---
+  // --- 2. URL & LocalStorage Sync ---
   useEffect(() => {
     const handlePopState = () => {
       const hash = window.location.hash.replace('#', '') || 'landing';
@@ -35,7 +35,6 @@ function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // --- 3. Sync State to LocalStorage & Hash URL ---
   useEffect(() => {
     if (window.location.hash !== `#${currentPage}`) {
       window.history.pushState(null, '', `#${currentPage}`);
@@ -47,7 +46,7 @@ function App() {
     if (myPlayerId) localStorage.setItem('my_player_id', myPlayerId);
   }, [currentPage, roomCode, isHost, myPlayerId, playerName]);
 
-  // --- 4. Logic Firebase: Listen Players ---
+  // --- 3. Firebase Listeners ---
   useEffect(() => {
     if (roomCode) {
       const playersRef = ref(db, `rooms/${roomCode}/players`);
@@ -55,8 +54,7 @@ function App() {
         const data = snapshot.val();
         if (data) {
           const playerList = Object.entries(data).map(([id, val]) => ({
-            id,
-            ...val
+            id, ...val
           }));
           setPlayers(playerList);
         }
@@ -65,13 +63,11 @@ function App() {
     }
   }, [roomCode]);
 
-  // --- 5. Logic Firebase: Auto-Redirect to ViewRole ---
   useEffect(() => {
     if (roomCode) {
       const statusRef = ref(db, `rooms/${roomCode}/status`);
       const unsubscribe = onValue(statusRef, (snapshot) => {
         const status = snapshot.val();
-        // Redirect otomatis hanya jika pemain masih di Lobby
         if (status === "playing" && currentPage === "room-lobby") {
           setCurrentPage('view-role');
         }
@@ -80,7 +76,9 @@ function App() {
     }
   }, [roomCode, currentPage]);
 
-  // --- 6. Global Timer Handlers ---
+  // --- 4. TIME GOD HANDLERS (Moderator Power) ---
+  
+  // A. Toggle Play/Pause
   const handleToggleTimer = (isActive, currentSeconds) => {
     if (!isHost) return;
     update(ref(db, `rooms/${roomCode}/timer`), {
@@ -89,17 +87,35 @@ function App() {
     });
   };
 
+  // B. Reset Timer ke Default
   const handleResetTimer = () => {
     if (!isHost) return;
-    set(ref(db, `rooms/${roomCode}/timer`), {
+    update(ref(db, `rooms/${roomCode}/timer`), {
       isActive: false,
       seconds: 300
     });
   };
 
-  // --- 7. Handlers Keluar Permainan ---
+  // C. Tambah atau Edit Waktu Manual
+  const handleEditTimer = (newSeconds) => {
+    if (!isHost) return;
+    update(ref(db, `rooms/${roomCode}/timer`), {
+      seconds: Math.max(0, newSeconds)
+    });
+  };
+
+  // D. Ganti Periode/Fase (Pagi, Siang, Malam)
+  const handleSetPhase = (newPhase) => {
+    if (!isHost) return;
+    update(ref(db, `rooms/${roomCode}/timer`), {
+      phase: newPhase,
+      isActive: false // Otomatis pause saat ganti fase sesuai request
+    });
+  };
+
+  // --- 5. Game Handlers ---
   const handlePlayerLeave = () => {
-    if (window.confirm("Apakah Anda yakin ingin menyerah dan keluar? Status Anda akan menjadi MATI di layar teman-temanmu.")) {
+    if (window.confirm("Apakah Anda yakin ingin menyerah dan keluar? Status Anda akan menjadi MATI.")) {
       update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), { status: "dead" });
       localStorage.clear();
       window.location.hash = 'landing';
@@ -107,7 +123,6 @@ function App() {
     }
   };
 
-  // --- 8. Handlers Buat & Join ---
   const handleCreateRoom = (name) => {
     const finalName = name || "Moderator";
     setPlayerName(finalName);
@@ -118,7 +133,11 @@ function App() {
       status: "waiting",
       host: finalName,
       createdAt: Date.now(),
-      timer: { isActive: false, seconds: 300 },
+      timer: { 
+        isActive: false, 
+        seconds: 300,
+        phase: "Pagi (Diskusi)" // Fase default
+      },
       players: {
         [hostId]: { name: finalName + " (Moderator)", role: "Moderator", status: "alive" }
       }
@@ -137,7 +156,6 @@ function App() {
     const newPlayerRef = push(playerRef);
     const playerId = newPlayerRef.key;
 
-    // FITUR ON DISCONNECT: Jika tab ditutup, otomatis MATI
     onDisconnect(ref(db, `rooms/${code}/players/${playerId}/status`)).set("dead");
 
     set(newPlayerRef, {
@@ -176,7 +194,7 @@ function App() {
 
   const myData = players.find(p => p.id === myPlayerId);
 
-  // --- 9. Render Logic ---
+  // --- 6. Render Logic ---
   const renderPage = () => {
     switch (currentPage) {
       case 'landing':
@@ -190,24 +208,25 @@ function App() {
       case 'view-role':
         return isHost ? (
           <ModeratorDashboard 
-            players={players} roomCode={roomCode} 
-            onKill={handleKillPlayer} onExit={handleExitGame}
-            onToggleTimer={handleToggleTimer} onResetTimer={handleResetTimer}
+            players={players} 
+            roomCode={roomCode} 
+            onKill={handleKillPlayer} 
+            onExit={handleExitGame}
+            onToggleTimer={handleToggleTimer} 
+            onResetTimer={handleResetTimer}
+            onEditTimer={handleEditTimer}
+            onSetPhase={handleSetPhase}
           />
         ) : (
           <ViewRole 
-            playerData={myData} roomCode={roomCode} 
+            playerData={myData} 
+            roomCode={roomCode} 
             onNext={() => setCurrentPage('game-board')} 
             onLeave={handlePlayerLeave} 
           />
         );
       case 'game-board':
-        return (
-          <GameBoard 
-            players={players} roomCode={roomCode} 
-            onBack={() => setCurrentPage('view-role')} 
-          />
-        );
+        return <GameBoard players={players} roomCode={roomCode} onBack={() => setCurrentPage('view-role')} />;
       default:
         return <LandingPage onNext={() => setCurrentPage('introduction')} />;
     }
