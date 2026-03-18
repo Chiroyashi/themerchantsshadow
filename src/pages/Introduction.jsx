@@ -24,9 +24,7 @@ const Introduction = ({ onNext, onBack }) => {
         {/* Header Section */}
         <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div className="space-y-2">
-            <h2 className="text-red-500 font-bold tracking-widest text-sm uppercase">II. Distribusi Peran</h2>
             <h1 className="text-4xl md:text-5xl font-black italic uppercase italic">The Roles</h1>
-            <p className="text-slate-500">Komposisi 18 Pemain: 5 Antagonis & 13 Protagonis</p>
           </div>
           <div className="flex gap-3">
              <button onClick={onBack} className="p-3 border border-slate-800 rounded-full hover:bg-slate-900 transition-colors">
