@@ -98,13 +98,6 @@ const ViewRole = ({ playerData, roomCode, onNext, onLeave }) => {
                 >
                   <BookOpen size={14} /> Panduan Peran ({playerData?.role})
                 </button>
-                
-                <button 
-                  onClick={onNext}
-                  className="w-full py-4 border border-slate-800 text-slate-500 hover:text-white rounded-xl text-[10px] uppercase font-bold tracking-[0.2em] transition-all"
-                >
-                  Lanjut ke Daftar Pemain
-                </button>
               </div>
             )}
 
