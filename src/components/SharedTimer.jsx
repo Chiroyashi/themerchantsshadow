@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ref, onValue } from "firebase/database";
 import { db } from "../lib/firebase";
 import { Timer as TimerIcon, Sun, Sunset, Moon } from 'lucide-react';
@@ -10,6 +10,9 @@ const SharedTimer = ({ roomCode }) => {
     phase: "Persiapan" 
   });
 
+  // Gunakan Ref untuk menyimpan angka detik yang paling akurat tanpa trigger loop
+  const secondsRef = useRef(300);
+
   // 1. Listen data timer & phase langsung dari Firebase
   useEffect(() => {
     if (!roomCode) return;
@@ -19,22 +22,36 @@ const SharedTimer = ({ roomCode }) => {
       const data = snapshot.val();
       if (data) {
         setTimerData(data);
+        // Sinkronkan Ref dengan data terbaru dari Firebase
+        secondsRef.current = data.seconds;
       }
     });
 
     return () => unsubscribe();
   }, [roomCode]);
 
-  // 2. Hitung mundur lokal agar pergerakan detik halus
+  // 2. Hitung mundur lokal yang "Disiplin"
   useEffect(() => {
     let interval = null;
+
+    // Hanya menghitung secara lokal jika Firebase bilang isActive: true
     if (timerData.isActive && timerData.seconds > 0) {
       interval = setInterval(() => {
-        setTimerData(prev => ({ ...prev, seconds: Math.max(0, prev.seconds - 1) }));
+        if (secondsRef.current > 0) {
+          secondsRef.current -= 1;
+          // Update tampilan state agar UI berubah halus (4:59 -> 4:58)
+          setTimerData(prev => ({ ...prev, seconds: secondsRef.current }));
+        }
       }, 1000);
+    } else {
+      // Jika isActive: false (PAUSE), bersihkan interval agar detik berhenti total
+      if (interval) clearInterval(interval);
     }
-    return () => clearInterval(interval);
-  }, [timerData.isActive, timerData.seconds]);
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [timerData.isActive]); // Hanya trigger ulang jika status aktif berubah dari Firebase
 
   const formatTime = (s) => {
     const mins = Math.floor(s / 60);
@@ -42,7 +59,6 @@ const SharedTimer = ({ roomCode }) => {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  // Mendapatkan Icon berdasarkan Fase
   const getPhaseIcon = () => {
     const p = timerData.phase?.toLowerCase() || "";
     if (p.includes("pagi")) return <Sun size={14} className="text-amber-500" />;
@@ -52,7 +68,7 @@ const SharedTimer = ({ roomCode }) => {
   };
 
   return (
-    <div className={`flex flex-col items-center gap-1 px-6 py-3 bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl shadow-2xl transition-all duration-500 ${timerData.isActive ? 'border-red-900/40 ring-1 ring-red-500/10' : ''}`}>
+    <div className={`flex flex-col items-center gap-1 px-6 py-3 bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl shadow-2xl transition-all duration-500 ${timerData.isActive ? 'border-red-900/40 ring-1 ring-red-500/10' : 'opacity-80'}`}>
       
       {/* Badge Nama Fase */}
       <div className="flex items-center gap-2 mb-0.5">
@@ -75,9 +91,9 @@ const SharedTimer = ({ roomCode }) => {
         </span>
       </div>
 
-      {/* Indikator Status (Kecil di bawah) */}
+      {/* Indikator Status */}
       {!timerData.isActive && timerData.seconds > 0 && (
-        <span className="text-[7px] font-bold text-amber-500/50 uppercase tracking-widest animate-pulse">
+        <span className="text-[7px] font-bold text-amber-500/50 uppercase tracking-widest animate-pulse mt-1">
           Paused by Moderator
         </span>
       )}
