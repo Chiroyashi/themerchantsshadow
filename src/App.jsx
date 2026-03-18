@@ -6,11 +6,11 @@ import { distributeRoles } from './utils/gameLogic';
 // Import Pages
 import LandingPage from './pages/LandingPage';
 import Introduction from './pages/Introduction';
-import Mechanics from './pages/Mechanics';
 import Room from './pages/Room';
 import Lobby from './pages/Lobby';
 import ViewRole from './pages/ViewRole';
 import ModeratorDashboard from './pages/ModeratorDashboard';
+import GameBoard from './pages/GameBoard'; // Pastikan file ini sudah dibuat
 
 function App() {
   // --- 1. State Initialization ---
@@ -25,7 +25,7 @@ function App() {
   const [players, setPlayers] = useState([]);
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('player_name') || '');
 
-  // --- 2. Handle Browser Back/Forward ---
+  // --- 2. Handle Browser Back/Forward (URL Hash Sync) ---
   useEffect(() => {
     const handlePopState = () => {
       const hash = window.location.hash.replace('#', '') || 'landing';
@@ -65,12 +65,13 @@ function App() {
     }
   }, [roomCode]);
 
-  // --- 5. Logic Firebase: Auto-Redirect ---
+  // --- 5. Logic Firebase: Auto-Redirect to ViewRole ---
   useEffect(() => {
     if (roomCode) {
       const statusRef = ref(db, `rooms/${roomCode}/status`);
       const unsubscribe = onValue(statusRef, (snapshot) => {
         const status = snapshot.val();
+        // Redirect otomatis hanya jika pemain masih di Lobby
         if (status === "playing" && currentPage === "room-lobby") {
           setCurrentPage('view-role');
         }
@@ -96,20 +97,17 @@ function App() {
     });
   };
 
-  // --- 7. Pemain Keluar Handlers ---
+  // --- 7. Handlers Keluar Permainan ---
   const handlePlayerLeave = () => {
-    if (window.confirm("Apakah Anda yakin ingin menyerah dan keluar? Status Anda akan menjadi MATI.")) {
-      // Set status mati di database
+    if (window.confirm("Apakah Anda yakin ingin menyerah dan keluar? Status Anda akan menjadi MATI di layar teman-temanmu.")) {
       update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), { status: "dead" });
-      
-      // Bersihkan data lokal
       localStorage.clear();
       window.location.hash = 'landing';
       window.location.reload();
     }
   };
 
-  // --- Handlers Buat & Join ---
+  // --- 8. Handlers Buat & Join ---
   const handleCreateRoom = (name) => {
     const finalName = name || "Moderator";
     setPlayerName(finalName);
@@ -139,7 +137,7 @@ function App() {
     const newPlayerRef = push(playerRef);
     const playerId = newPlayerRef.key;
 
-    // FITUR ON DISCONNECT: Jika tab ditutup/sinyal hilang, otomatis MATI
+    // FITUR ON DISCONNECT: Jika tab ditutup, otomatis MATI
     onDisconnect(ref(db, `rooms/${code}/players/${playerId}/status`)).set("dead");
 
     set(newPlayerRef, {
@@ -178,7 +176,7 @@ function App() {
 
   const myData = players.find(p => p.id === myPlayerId);
 
-  // --- Render Logic ---
+  // --- 9. Render Logic ---
   const renderPage = () => {
     switch (currentPage) {
       case 'landing':
@@ -200,11 +198,16 @@ function App() {
           <ViewRole 
             playerData={myData} roomCode={roomCode} 
             onNext={() => setCurrentPage('game-board')} 
-            onLeave={handlePlayerLeave} // Kirim fungsi leave ke pemain
+            onLeave={handlePlayerLeave} 
           />
         );
-      case 'mechanics':
-        return <Mechanics onBack={() => setCurrentPage('view-role')} />;
+      case 'game-board':
+        return (
+          <GameBoard 
+            players={players} roomCode={roomCode} 
+            onBack={() => setCurrentPage('view-role')} 
+          />
+        );
       default:
         return <LandingPage onNext={() => setCurrentPage('introduction')} />;
     }
