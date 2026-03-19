@@ -28,9 +28,9 @@ function App() {
   
   // STATE TIMER & HARI GLOBAL
   const [globalPhase, setGlobalPhase] = useState("Pagi (Diskusi)");
-  const [globalSeconds, setGlobalSeconds] = useState(300);
+  const [globalSeconds, setGlobalSeconds] = useState(120);
   const [isTimerActive, setIsTimerActive] = useState(false);
-  const [globalDay, setGlobalDay] = useState(1); // Tambahan state hari
+  const [globalDay, setGlobalDay] = useState(1);
 
   const [notification, setNotification] = useState({
     show: false, title: "", message: "", type: "info", onConfirm: null
@@ -94,7 +94,7 @@ function App() {
 
       if (data.timer) {
         setGlobalPhase(data.timer.phase || "Pagi (Diskusi)");
-        setGlobalDay(data.timer.day || 1); // Sinkronkan Hari
+        setGlobalDay(data.timer.day || 1);
         const firebaseActive = data.timer.isActive || false;
         setIsTimerActive(firebaseActive);
         
@@ -150,14 +150,14 @@ function App() {
   // --- 5. HANDLERS ---
   const handleToggleTimer = (isActive, currentSeconds) => {
     if (!isHost) return;
-    const secondsToSent = (currentSeconds <= 0 && !isActive) ? 300 : currentSeconds;
+    const secondsToSent = (currentSeconds <= 0 && !isActive) ? 120 : currentSeconds;
     update(ref(db, `rooms/${roomCode}/timer`), { isActive: !isActive, seconds: secondsToSent });
   };
 
   const handleResetTimer = () => {
     if (!isHost) return;
-    update(ref(db, `rooms/${roomCode}/timer`), { isActive: false, seconds: 300 });
-    setGlobalSeconds(300);
+    update(ref(db, `rooms/${roomCode}/timer`), { isActive: false, seconds: 120 });
+    setGlobalSeconds(120);
   };
 
   const handleEditTimer = (newSeconds) => {
@@ -173,13 +173,11 @@ function App() {
     const updates = {};
     let nextDay = globalDay;
 
-    // Logika Ganti Hari: Jika pindah dari Malam ke Pagi
     if (globalPhase.toLowerCase().includes("malam") && newPhase.toLowerCase().includes("pagi")) {
       nextDay += 1;
       updates[`rooms/${roomCode}/timer/day`] = nextDay;
     }
 
-    // Logika Hitung Voting (Siang ke Malam)
     if (globalPhase.toLowerCase().includes("siang") && newPhase.toLowerCase().includes("malam")) {
         const roomSnapshot = await get(ref(db, `rooms/${roomCode}`));
         const data = roomSnapshot.val();
@@ -199,9 +197,8 @@ function App() {
 
     updates[`rooms/${roomCode}/timer/phase`] = newPhase;
     updates[`rooms/${roomCode}/timer/isActive`] = false; 
-    updates[`rooms/${roomCode}/timer/seconds`] = 300; 
+    updates[`rooms/${roomCode}/timer/seconds`] = 120; 
     updates[`rooms/${roomCode}/votes`] = null; 
-    updates[`rooms/${roomCode}/nightActions`] = null; // Reset aksi malam setiap ganti fase
     
     update(ref(db), updates);
   };
@@ -212,20 +209,45 @@ function App() {
     const hostId = "host_" + Date.now();
     set(ref(db, 'rooms/' + newCode), {
       status: "waiting", host: finalName,
-      timer: { isActive: false, seconds: 300, phase: "Pagi (Diskusi)", day: 1 },
+      timer: { isActive: false, seconds: 120, phase: "Pagi (Diskusi)", day: 1 },
       players: { [hostId]: { name: finalName + " (Moderator)", role: "Moderator", status: "alive" } }
     });
     setRoomCode(newCode); setMyPlayerId(hostId); setIsHost(true); setCurrentPage('room-lobby');
   };
 
-  const handleJoinRoom = (code, inputName) => {
+  // LOGIKA JOIN ROOM DENGAN PROTEKSI LOCK STATUS
+  const handleJoinRoom = async (code, inputName) => {
     const finalName = inputName || "Player";
-    const playerRef = ref(db, `rooms/${code}/players`);
-    const newPlayerRef = push(playerRef);
-    onDisconnect(ref(db, `rooms/${code}/players/${newPlayerRef.key}/status`)).set("dead");
-    set(newPlayerRef, { name: finalName, role: "Pending", status: "alive" }).then(() => {
-      setRoomCode(code); setMyPlayerId(newPlayerRef.key); setIsHost(false); setCurrentPage('room-lobby');
-    });
+    const roomRef = ref(db, `rooms/${code}`);
+    
+    try {
+      const snapshot = await get(roomRef);
+      if (!snapshot.exists()) {
+        showNotif("Gagal Masuk", "Room dengan kode tersebut tidak ditemukan.", "error");
+        return;
+      }
+
+      const roomData = snapshot.val();
+      if (roomData.status === "playing") {
+        showNotif("Akses Ditolak", "Permainan sudah dimulai. Pintu masuk telah dikunci oleh Moderator.", "error");
+        return;
+      }
+
+      // Jika masih waiting, proses masuk
+      const playersRef = ref(db, `rooms/${code}/players`);
+      const newPlayerRef = push(playersRef);
+      
+      onDisconnect(ref(db, `rooms/${code}/players/${newPlayerRef.key}/status`)).set("dead");
+      
+      await set(newPlayerRef, { name: finalName, role: "Pending", status: "alive" });
+      setRoomCode(code); 
+      setMyPlayerId(newPlayerRef.key); 
+      setIsHost(false); 
+      setCurrentPage('room-lobby');
+
+    } catch (error) {
+      showNotif("Error", "Terjadi kesalahan saat mencoba masuk room.", "error");
+    }
   };
 
   const handleStartGame = () => {
@@ -273,7 +295,6 @@ function App() {
 
   // --- 7. RENDER LOGIC ---
   const renderPage = () => {
-    // TimerProps sekarang membawa data Hari (Day)
     const timerProps = { 
       seconds: globalSeconds, 
       phase: globalPhase, 
@@ -294,6 +315,7 @@ function App() {
             onExit={() => showNotif("Bubarkan Room?", "Data akan dihapus.", "confirm", () => set(ref(db, `rooms/${roomCode}`), { status: "destroyed" }))}
             onToggleTimer={handleToggleTimer} onResetTimer={handleResetTimer}
             onEditTimer={handleEditTimer} onSetPhase={handleSetPhase}
+            onStartGame={handleStartGame}
             {...timerProps}
           />
         ) : (

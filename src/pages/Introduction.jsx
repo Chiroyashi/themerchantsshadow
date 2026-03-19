@@ -6,9 +6,7 @@ const RoleCard = ({ role, color }) => (
   <div className={`p-4 rounded-lg bg-slate-900 border-l-4 ${color} hover:bg-slate-800 transition-all duration-300 shadow-xl`}>
     <div className="flex justify-between items-start mb-2">
       <h4 className="font-bold text-lg tracking-tight">{role.name}</h4>
-      <span className="text-xs bg-slate-800 px-2 py-1 rounded-md text-slate-400 font-mono">
-        x{role.count}
-      </span>
+      {/* Count x3, dll dihapus dari sini */}
     </div>
     <p className="text-sm text-slate-400 leading-relaxed font-light">
       {role.desc}
@@ -18,13 +16,13 @@ const RoleCard = ({ role, color }) => (
 
 const Introduction = ({ onNext, onBack }) => {
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-12">
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-12 font-sans">
       <div className="max-w-6xl mx-auto space-y-12">
         
         {/* Header Section */}
         <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div className="space-y-2">
-            <h1 className="text-4xl md:text-5xl font-black italic uppercase italic">The Roles</h1>
+            <h1 className="text-4xl md:text-5xl font-black italic uppercase italic tracking-tighter">The Roles</h1>
           </div>
           <div className="flex gap-3">
              <button onClick={onBack} className="p-3 border border-slate-800 rounded-full hover:bg-slate-900 transition-colors">
