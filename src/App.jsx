@@ -38,12 +38,13 @@ function App() {
 
   const myData = players.find(p => p.id === myPlayerId);
 
+  // --- 2. FUNGSI PEMBANTU ---
   const showNotif = (title, message, type = "info", onConfirm = null) => {
     setNotification({ show: true, title, message, type, onConfirm });
   };
   const closeNotif = () => setNotification(prev => ({ ...prev, show: false }));
 
-  // --- 2. SYNC URL & LOCAL STORAGE ---
+  // --- 3. SYNC URL & LOCAL STORAGE ---
   useEffect(() => {
     const handlePopState = () => {
       const hash = window.location.hash.replace('#', '') || 'landing';
@@ -64,50 +65,52 @@ function App() {
     if (myPlayerId) localStorage.setItem('my_player_id', myPlayerId);
   }, [currentPage, roomCode, isHost, myPlayerId, playerName]);
 
-  // --- 3. FIREBASE LISTENERS ---
+  // --- 4. FIREBASE LISTENERS ---
   
-  // Monitor Room, Status, dan Timer
+  // FIXED EFFECT: Monitor Room, Status, dan Timer secara stabil
   useEffect(() => {
-    if (roomCode) {
-      const roomRef = ref(db, `rooms/${roomCode}`);
-      const unsubscribe = onValue(roomRef, (snapshot) => {
-        const data = snapshot.val();
-        if (!data) return;
+    if (!roomCode) return;
 
-        if (data.players) {
-          const playerList = Object.entries(data.players).map(([id, val]) => ({ id, ...val }));
-          setPlayers(playerList);
-        }
+    const roomRef = ref(db, `rooms/${roomCode}`);
+    const unsubscribe = onValue(roomRef, (snapshot) => {
+      const data = snapshot.val();
+      if (!data) return;
 
-        // SYNC TIMER DARI FIREBASE
-        if (data.timer) {
-          setGlobalPhase(data.timer.phase);
-          setIsTimerActive(data.timer.isActive);
-          // Hanya override globalSeconds jika angkanya berubah signifikan di Firebase (misal: di-reset atau di-edit)
-          // Ini mencegah "lompatan" detik karena latency internet
-          setGlobalSeconds(data.timer.seconds);
-        }
-        
-        if (data.status === "playing" && currentPage === "room-lobby") {
-          setCurrentPage('view-role');
-        }
+      // Sync Daftar Pemain
+      if (data.players) {
+        const playerList = Object.entries(data.players).map(([id, val]) => ({ id, ...val }));
+        setPlayers(playerList);
+      }
 
-        if (data.status === "destroyed" && !hasShownDestroyed) {
-          setHasShownDestroyed(true); 
-          showNotif("Room Dibubarkan", "Moderator telah menutup permainan ini.", "error");
-          setTimeout(() => {
-            localStorage.clear();
-            window.location.hash = 'landing';
-            window.location.reload();
-          }, 3500);
-        }
-      });
-      return () => unsubscribe();
-    }
+      // Sync Timer
+      if (data.timer) {
+        setGlobalPhase(data.timer.phase);
+        setIsTimerActive(data.timer.isActive);
+        setGlobalSeconds(data.timer.seconds);
+      }
+      
+      // Auto Redirect Game Start
+      if (data.status === "playing" && currentPage === "room-lobby") {
+        setCurrentPage('view-role');
+      }
+
+      // Handle Room Destroyed (Anti-Loop Fix)
+      if (data.status === "destroyed" && !hasShownDestroyed) {
+        setHasShownDestroyed(true); 
+        showNotif("Room Dibubarkan", "Moderator telah menutup permainan ini.", "error");
+        setTimeout(() => {
+          localStorage.clear();
+          window.location.hash = 'landing';
+          window.location.reload();
+        }, 3500);
+      }
+    });
+    
+    return () => unsubscribe();
+    // Dependency array stabil: hanya trigered jika roomCode berubah
   }, [roomCode, currentPage, hasShownDestroyed]);
 
   // LOGIKA HITUNG MUNDUR (GLOBAL INTERVAL)
-  // Berjalan terus di App.jsx tanpa peduli ganti page
   useEffect(() => {
     let interval = null;
     if (isTimerActive && globalSeconds > 0) {
@@ -120,21 +123,20 @@ function App() {
 
   // Listener Eksekusi Voting
   useEffect(() => {
-    if (roomCode) {
-      const execRef = ref(db, `rooms/${roomCode}/lastExecution`);
-      const unsubscribe = onValue(execRef, (snapshot) => {
-        const data = snapshot.val();
-        if (data && data.timestamp > (Date.now() - 10000)) {
-          const isPeaceful = data.victimName === "Tidak ada";
-          showNotif(
-            isPeaceful ? "Hasil Voting" : "Eksekusi Warga",
-            isPeaceful ? "Warga memutuskan tidak ada eksekusi." : `Warga sepakat mengeksekusi ${data.victimName.toUpperCase()}.`,
-            isPeaceful ? "success" : "error"
-          );
-        }
-      });
-      return () => unsubscribe();
-    }
+    if (!roomCode) return;
+    const execRef = ref(db, `rooms/${roomCode}/lastExecution`);
+    const unsubscribe = onValue(execRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data && data.timestamp > (Date.now() - 10000)) {
+        const isPeaceful = data.victimName === "Tidak ada";
+        showNotif(
+          isPeaceful ? "Hasil Voting" : "Eksekusi Warga",
+          isPeaceful ? "Warga memutuskan tidak ada eksekusi." : `Warga sepakat mengeksekusi ${data.victimName.toUpperCase()}.`,
+          isPeaceful ? "success" : "error"
+        );
+      }
+    });
+    return () => unsubscribe();
   }, [roomCode]);
 
   useEffect(() => {
@@ -143,8 +145,7 @@ function App() {
     }
   }, [myData?.status, currentPage]);
 
-  // --- 4. HANDLERS ---
-  
+  // --- 5. HANDLERS ---
   const handleToggleTimer = (isActive, currentSeconds) => {
     if (!isHost) return;
     update(ref(db, `rooms/${roomCode}/timer`), { isActive: !isActive, seconds: currentSeconds });
@@ -183,13 +184,6 @@ function App() {
     updates[`rooms/${roomCode}/timer/isActive`] = false; 
     updates[`rooms/${roomCode}/votes`] = null; 
     update(ref(db), updates);
-  };
-
-  const handlePlayerLeave = () => {
-    showNotif("Konfirmasi Keluar", "Apakah kamu yakin ingin menyerah?", "confirm", () => {
-      update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), { status: "dead" });
-      localStorage.clear(); window.location.hash = 'landing'; window.location.reload();
-    });
   };
 
   const handleCreateRoom = (name) => {
@@ -236,10 +230,41 @@ function App() {
     });
   };
 
-  // --- 5. RENDER LOGIC ---
+  // --- 6. COMPONENTS (Pindahkan ke dalam fungsi App sebelum return) ---
+  const GameNotification = () => {
+    if (!notification.show) return null;
+    const icons = {
+      info: <Info className="text-blue-500" size={40} />,
+      error: <XCircle className="text-red-500" size={40} />,
+      success: <CheckCircle2 className="text-emerald-500" size={40} />,
+      confirm: <AlertCircle className="text-amber-500" size={40} />
+    };
+    return (
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+        <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2rem] shadow-2xl max-w-sm w-full text-center space-y-6">
+          <div className="flex justify-center">{icons[notification.type]}</div>
+          <div className="space-y-2">
+            <h2 className="text-xl font-black text-white uppercase italic tracking-tighter">{notification.title}</h2>
+            <p className="text-slate-400 text-sm leading-relaxed">{notification.message}</p>
+          </div>
+          <div className="flex flex-col gap-2 pt-2">
+            {notification.type === "confirm" ? (
+              <div className="flex gap-2">
+                <button onClick={closeNotif} className="flex-1 py-3 bg-slate-800 text-slate-300 rounded-2xl font-bold uppercase text-[10px]">Batal</button>
+                <button onClick={() => { notification.onConfirm(); closeNotif(); }} className="flex-1 py-3 bg-red-600 text-white rounded-2xl font-bold uppercase text-[10px] shadow-lg">Ya, Lanjut</button>
+              </div>
+            ) : (
+              <button onClick={closeNotif} className="w-full py-3 bg-blue-600 text-white rounded-2xl font-bold uppercase text-[10px] shadow-lg">Dimengerti</button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // --- 7. RENDER LOGIC ---
   const renderPage = () => {
-    // Shared Props yang mengandung detik global
-    const timerProps = { seconds: globalSeconds, phase: globalPhase };
+    const timerProps = { seconds: globalSeconds, phase: globalPhase, isActive: isTimerActive };
 
     switch (currentPage) {
       case 'landing': return <LandingPage onNext={() => setCurrentPage('introduction')} />;
@@ -253,17 +278,21 @@ function App() {
             onKill={handleKillPlayer} onExit={handleExitGame}
             onToggleTimer={handleToggleTimer} onResetTimer={handleResetTimer}
             onEditTimer={handleEditTimer} onSetPhase={handleSetPhase}
-            {...timerProps} // Kirim seconds & phase
+            {...timerProps}
           />
         ) : (
           <ViewRole 
             playerData={myData} roomCode={roomCode} 
-            {...timerProps} // Kirim seconds & phase
-            onNext={() => setCurrentPage('game-board')} onLeave={handlePlayerLeave} 
+            onNext={() => setCurrentPage('game-board')} 
+            onLeave={() => showNotif("Keluar?", "Statusmu akan jadi MATI.", "confirm", () => {
+              update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), { status: "dead" });
+              window.location.reload();
+            })}
+            {...timerProps}
           />
         );
       case 'game-board': 
-        return <GameBoard players={players} roomCode={roomCode} {...timerProps} onBack={() => setCurrentPage('view-role')} />;
+        return <GameBoard players={players} roomCode={roomCode} onBack={() => setCurrentPage('view-role')} {...timerProps} />;
       default: return <LandingPage onNext={() => setCurrentPage('introduction')} />;
     }
   };
