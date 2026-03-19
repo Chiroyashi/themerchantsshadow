@@ -26,27 +26,20 @@ const NightOverlay = ({ phase, isDead }) => {
   );
 };
 
-const GameBoard = ({ players, roomCode, phase, onBack }) => {
-  const [globalTimer, setGlobalTimer] = useState({ phase: "Pagi", isActive: false });
+const GameBoard = ({ players, roomCode, phase, seconds, isActive, onBack }) => {
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [hasVoted, setHasVoted] = useState(false);
-
   const myPlayerId = localStorage.getItem('my_player_id');
 
+  // HANYA MONITOR STATUS VOTE SAYA
   useEffect(() => {
     if (!roomCode || !myPlayerId) return;
 
-    const timerRef = ref(db, `rooms/${roomCode}/timer`);
-    const unsubscribeTimer = onValue(timerRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        setGlobalTimer(data);
-        if (!data.phase?.toLowerCase().includes("siang")) {
-          setHasVoted(false);
-          setSelectedPlayer(null);
-        }
-      }
-    });
+    // Reset pilihan visual jika fase berubah dari Siang ke fase lain
+    if (!phase?.toLowerCase().includes("siang")) {
+      setHasVoted(false);
+      setSelectedPlayer(null);
+    }
 
     const myVoteRef = ref(db, `rooms/${roomCode}/votes/${myPlayerId}`);
     const unsubscribeVote = onValue(myVoteRef, (snapshot) => {
@@ -56,13 +49,10 @@ const GameBoard = ({ players, roomCode, phase, onBack }) => {
       }
     });
 
-    return () => {
-      unsubscribeTimer();
-      unsubscribeVote();
-    };
-  }, [roomCode, myPlayerId]);
+    return () => unsubscribeVote();
+  }, [roomCode, myPlayerId, phase]);
 
-  const isVotingTime = globalTimer.phase?.toLowerCase().includes("siang");
+  const isVotingTime = phase?.toLowerCase().includes("siang");
   const isDead = players.find(p => p.id === myPlayerId)?.status === 'dead';
   const gamePlayers = players.filter(p => p.role !== 'Moderator');
 
@@ -85,13 +75,15 @@ const GameBoard = ({ players, roomCode, phase, onBack }) => {
           <h1 className={`text-4xl font-black uppercase italic tracking-tighter leading-none transition-colors duration-500 ${isVotingTime ? 'text-orange-500 animate-pulse' : 'text-red-600'}`}>
             {isVotingTime ? "Sesi Voting" : "Daftar Pemain"}
           </h1>
-          <p className="text-[9px] text-slate-600 uppercase tracking-widest font-bold italic">
-            {isVotingTime ? "Ketuk kartu pemain untuk memilih" : "Pantau status warga kota"}
-          </p>
         </div>
-        <div className="scale-110"><SharedTimer roomCode={roomCode} /></div>
+        
+        {/* SINKRONISASI TIMER: Menggunakan props dari App.jsx */}
+        <div className="scale-110">
+            <SharedTimer seconds={seconds} phase={phase} isActive={isActive} />
+        </div>
       </header>
 
+      {/* ... Player Grid Tetap Sama ... */}
       <div className="max-w-4xl w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-32">
         {gamePlayers.map((player) => {
           const pDead = player.status === 'dead';
@@ -108,15 +100,10 @@ const GameBoard = ({ players, roomCode, phase, onBack }) => {
                 ${isTarget ? 'border-orange-500 ring-4 ring-orange-500/10' : ''}
               `}
             >
-              {/* --- UI WHILE HOVER VOTE --- */}
               {isVotingTime && !pDead && !hasVoted && (
                 <div className="absolute inset-0 bg-orange-600/20 opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center backdrop-blur-[2px] z-30">
-                  <div className="bg-orange-500 p-3 rounded-full shadow-[0_0_20px_rgba(249,115,22,0.5)] animate-in zoom-in duration-300">
-                    <CheckCircle2 size={32} className="text-white" />
-                  </div>
-                  <span className="text-[10px] font-black text-white uppercase tracking-widest mt-2 drop-shadow-lg">
-                    Berikan Suara
-                  </span>
+                  <CheckCircle2 size={32} className="text-white animate-in zoom-in duration-300" />
+                  <span className="text-[10px] font-black text-white uppercase tracking-widest mt-2">Berikan Suara</span>
                 </div>
               )}
 
@@ -127,17 +114,14 @@ const GameBoard = ({ players, roomCode, phase, onBack }) => {
                     {pDead ? <Skull size={20} /> : <User size={20} />}
                   </div>
                   <div className="overflow-hidden">
-                    <p className={`text-sm font-black truncate leading-tight transition-colors
-                      ${pDead ? 'line-through text-slate-600' : 'text-slate-100'}`}>
+                    <p className={`text-sm font-black truncate leading-tight ${pDead ? 'line-through text-slate-600' : 'text-slate-100'}`}>
                       {player.name} {isMe && "(Anda)"}
                     </p>
-                    <p className={`text-[8px] uppercase tracking-[0.2em] font-black mt-0.5
-                      ${pDead ? 'text-red-900' : 'text-slate-600'}`}>
+                    <p className={`text-[8px] uppercase tracking-[0.2em] font-black mt-0.5 ${pDead ? 'text-red-900' : 'text-slate-600'}`}>
                       {pDead ? 'Gugur' : 'Aktif'}
                     </p>
                   </div>
                 </div>
-
                 {isTarget && (
                   <div className="bg-orange-500 p-1.5 rounded-full animate-in fade-in zoom-in">
                     <CheckCircle2 size={16} className="text-slate-950" />
@@ -153,36 +137,21 @@ const GameBoard = ({ players, roomCode, phase, onBack }) => {
         <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-slate-950 via-slate-950 to-transparent z-50">
           <div className="max-w-sm mx-auto space-y-3">
             {!hasVoted ? (
-               <button 
-                onClick={() => handleVote('skip')} 
-                className={`w-full py-4 bg-slate-900 border-2 border-slate-800 hover:border-slate-600 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 transition-all ${isDead ? 'opacity-30 cursor-not-allowed' : 'hover:bg-slate-800 shadow-lg'}`}
-                disabled={isDead}
-               >
+               <button onClick={() => handleVote('skip')} className={`w-full py-4 bg-slate-900 border-2 border-slate-800 hover:border-slate-600 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 transition-all ${isDead ? 'opacity-30 cursor-not-allowed' : 'hover:bg-slate-800'}`} disabled={isDead}>
                 <FastForward size={16} /> Skip Voting
                </button>
             ) : (
               <div className="bg-orange-600/10 border-2 border-orange-500/30 p-4 rounded-2xl text-center animate-in slide-in-from-bottom-4 shadow-xl">
                 <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-1 italic">Pilihan Terkunci</p>
                 <p className="text-[11px] text-slate-300 font-medium">
-                  {selectedPlayer === 'skip' ? (
-                    "Anda memilih untuk: MELEWATI"
-                  ) : (
-                    <>Memilih: <span className="text-white font-bold">{players.find(p => p.id === selectedPlayer)?.name}</span></>
-                  )}
+                  {selectedPlayer === 'skip' ? "Anda memilih untuk: MELEWATI" : <>Memilih: <span className="text-white font-bold">{players.find(p => p.id === selectedPlayer)?.name}</span></>}
                 </p>
               </div>
-            )}
-            
-            {isDead && (
-              <p className="text-[7px] text-red-600 font-black uppercase text-center tracking-widest animate-pulse">
-                <AlertTriangle size={8} className="inline mr-1 mb-0.5" /> Arwah tidak dapat mengikuti voting
-              </p>
             )}
           </div>
         </div>
       )}
 
-      {/* --- OVERLAY MALAM --- */}
       <NightOverlay phase={phase} isDead={isDead} />
     </div>
   );
