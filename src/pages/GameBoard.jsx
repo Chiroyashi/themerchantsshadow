@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ref, onValue } from "firebase/database";
+import { ref, onValue, set } from "firebase/database";
 import { db } from "../lib/firebase";
 import { 
   Skull, Heart, ArrowLeft, CheckCircle2, 
@@ -12,41 +12,62 @@ const GameBoard = ({ players, roomCode, onBack }) => {
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [hasVoted, setHasVoted] = useState(false);
 
-  // 1. Monitor Fase Game dari Firebase untuk mengaktifkan fitur Vote
+  // Ambil ID diri sendiri dari LocalStorage
+  const myPlayerId = localStorage.getItem('my_player_id');
+
+  // 1. Monitor Fase Game & Status Vote Saya
   useEffect(() => {
-    if (!roomCode) return;
+    if (!roomCode || !myPlayerId) return;
+
+    // Monitor Fase
     const timerRef = ref(db, `rooms/${roomCode}/timer`);
-    const unsubscribe = onValue(timerRef, (snapshot) => {
+    const unsubscribeTimer = onValue(timerRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         setGlobalTimer(data);
-        // Reset pilihan lokal jika fase berubah (biar tiap siang bisa milih lagi)
+        // Reset state lokal jika fase berubah dari siang ke fase lain
         if (!data.phase?.toLowerCase().includes("siang")) {
           setHasVoted(false);
           setSelectedPlayer(null);
         }
       }
     });
-    return () => unsubscribe();
-  }, [roomCode]);
+
+    // Monitor apakah saya sudah pernah vote (biar kalau refresh tetep terkunci)
+    const myVoteRef = ref(db, `rooms/${roomCode}/votes/${myPlayerId}`);
+    const unsubscribeVote = onValue(myVoteRef, (snapshot) => {
+      if (snapshot.exists()) {
+        setHasVoted(true);
+        setSelectedPlayer(snapshot.val());
+      }
+    });
+
+    return () => {
+      unsubscribeTimer();
+      unsubscribeVote();
+    };
+  }, [roomCode, myPlayerId]);
 
   const isVotingTime = globalTimer.phase?.toLowerCase().includes("siang");
-  const myPlayerId = localStorage.getItem('my_player_id');
   const isDead = players.find(p => p.id === myPlayerId)?.status === 'dead';
   const gamePlayers = players.filter(p => p.role !== 'Moderator');
 
-  // 2. Handler Voting
+  // 2. Handler Voting (Dikirim ke Firebase)
   const handleVote = (targetId) => {
     if (hasVoted || isDead || !isVotingTime) return;
-    setHasVoted(true);
-    setSelectedPlayer(targetId);
+
+    // Simpan ke Firebase agar Moderator bisa menghitung
+    const voteRef = ref(db, `rooms/${roomCode}/votes/${myPlayerId}`);
+    set(voteRef, targetId).then(() => {
+      setHasVoted(true);
+      setSelectedPlayer(targetId);
+    });
   };
 
   return (
-    <div className={`min-h-screen transition-colors duration-1000 p-6 font-sans flex flex-col items-center ${isVotingTime ? 'bg-slate-950' : 'bg-slate-950'}`}>
+    <div className="min-h-screen bg-slate-950 transition-colors duration-1000 p-6 font-sans flex flex-col items-center">
       
       <header className="max-w-4xl w-full flex flex-col items-center gap-6 mb-8">
-        {/* Tombol Kembali */}
         <button 
           onClick={onBack} 
           className="self-start flex items-center gap-2 text-slate-600 hover:text-white transition-all text-[10px] uppercase font-black tracking-widest group"
@@ -55,7 +76,6 @@ const GameBoard = ({ players, roomCode, onBack }) => {
           Kembali ke Peran
         </button>
 
-        {/* Status Section */}
         <div className="text-center space-y-2">
           <h2 className="text-slate-500 uppercase tracking-[0.4em] text-[10px] font-black italic">
             {isVotingTime ? "The Decision" : "Informasi Kota"}
@@ -68,7 +88,6 @@ const GameBoard = ({ players, roomCode, onBack }) => {
           </p>
         </div>
 
-        {/* Timer Center */}
         <div className="scale-110">
           <SharedTimer roomCode={roomCode} />
         </div>
@@ -79,6 +98,7 @@ const GameBoard = ({ players, roomCode, onBack }) => {
         {gamePlayers.map((player) => {
           const pDead = player.status === 'dead';
           const isTarget = selectedPlayer === player.id;
+          const isMe = player.id === myPlayerId;
 
           return (
             <div 
@@ -92,7 +112,7 @@ const GameBoard = ({ players, roomCode, onBack }) => {
                 ${isTarget ? 'border-orange-500 ring-2 ring-orange-500/20 scale-[1.02]' : ''}
               `}
             >
-              {/* VOTE HOVER OVERLAY (Hanya PC/Laptop) */}
+              {/* HOVER OVERLAY: Muncul centang saat hover di fase Siang & belum vote */}
               {isVotingTime && !pDead && !hasVoted && (
                 <div className="absolute inset-0 bg-orange-600/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[1px] z-20">
                   <CheckCircle2 size={40} className="text-orange-500 animate-in zoom-in duration-300" />
@@ -109,7 +129,7 @@ const GameBoard = ({ players, roomCode, onBack }) => {
                   <div className="overflow-hidden">
                     <p className={`text-sm font-black truncate leading-tight
                       ${pDead ? 'line-through text-slate-600' : 'text-slate-100'}`}>
-                      {player.name}
+                      {player.name} {isMe && "(You)"}
                     </p>
                     <p className={`text-[8px] uppercase tracking-[0.2em] font-black mt-0.5
                       ${pDead ? 'text-red-900' : 'text-slate-600'}`}>
@@ -118,7 +138,6 @@ const GameBoard = ({ players, roomCode, onBack }) => {
                   </div>
                 </div>
 
-                {/* Indikator Terpilih */}
                 {isTarget && (
                   <CheckCircle2 size={24} className="text-orange-500 animate-in fade-in" />
                 )}
@@ -134,7 +153,7 @@ const GameBoard = ({ players, roomCode, onBack }) => {
           <div className="max-w-sm mx-auto space-y-4">
             {!hasVoted ? (
                <button 
-                onClick={() => { setHasVoted(true); setSelectedPlayer('skip'); }}
+                onClick={() => handleVote('skip')}
                 className={`w-full py-4 bg-slate-900 border border-slate-800 rounded-2xl flex items-center justify-center gap-3 text-slate-400 hover:text-white transition-all group ${isDead && 'opacity-30 grayscale cursor-not-allowed'}`}
                 disabled={isDead}
               >
@@ -143,8 +162,14 @@ const GameBoard = ({ players, roomCode, onBack }) => {
               </button>
             ) : (
               <div className="bg-orange-600/10 border border-orange-500/30 p-4 rounded-2xl text-center animate-in slide-in-from-bottom-4">
-                <p className="text-[8px] font-black text-orange-500 uppercase tracking-widest mb-1 italic">Suara Terkunci</p>
-                <p className="text-[11px] text-slate-300 font-medium">Kamu memilih: <span className="text-white font-bold">{selectedPlayer === 'skip' ? 'SKIP' : players.find(p => p.id === selectedPlayer)?.name}</span></p>
+                <p className="text-[8px] font-black text-orange-500 uppercase tracking-widest mb-1 italic text-shadow-sm">Suara Terkunci</p>
+                <p className="text-[11px] text-slate-300 font-medium">
+                  {selectedPlayer === 'skip' ? (
+                    "Kamu memilih untuk: SKIP"
+                  ) : (
+                    <>Kamu memilih: <span className="text-white font-bold">{players.find(p => p.id === selectedPlayer)?.name}</span></>
+                  )}
+                </p>
               </div>
             )}
             
@@ -156,13 +181,6 @@ const GameBoard = ({ players, roomCode, onBack }) => {
           </div>
         </div>
       )}
-
-      {/* Footer Branding */}
-      <footer className={`mt-auto pt-12 text-center ${isVotingTime ? 'hidden' : 'block'}`}>
-        <p className="text-[10px] text-slate-800 uppercase tracking-[0.5em] font-black italic">
-          The Merchant's Shadow • PCC Edition
-        </p>
-      </footer>
     </div>
   );
 };
