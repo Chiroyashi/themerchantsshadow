@@ -26,7 +26,7 @@ function App() {
   const [players, setPlayers] = useState([]);
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('player_name') || '');
   
-  // STATE TIMER GLOBAL (BENTENG ANTI-NaN)
+  // STATE TIMER GLOBAL (BENTENG ANTI-NaN & ANTI-00:00)
   const [globalPhase, setGlobalPhase] = useState("Pagi (Diskusi)");
   const [globalSeconds, setGlobalSeconds] = useState(300);
   const [isTimerActive, setIsTimerActive] = useState(false);
@@ -75,18 +75,21 @@ function App() {
       if (!data) return;
 
       if (data.players) {
-        const playerList = Object.entries(data.players).map(([id, val]) => ({ id, ...val }));
-        setPlayers(playerList);
+        setPlayers(Object.entries(data.players).map(([id, val]) => ({ id, ...val })));
       }
 
-      // SYNC TIMER DARI FIREBASE (DENGAN PENGECEKAN ANGKA VALID)
+      // SYNC TIMER DARI FIREBASE (DENGAN PENGECEKAN)
       if (data.timer) {
         setGlobalPhase(data.timer.phase || "Pagi (Diskusi)");
         setIsTimerActive(data.timer.isActive || false);
         
         const incomingSecs = parseInt(data.timer.seconds);
         if (!isNaN(incomingSecs)) {
-          setGlobalSeconds(incomingSecs);
+          // Hanya update jika waktu > 0 atau sedang aktif, 
+          // untuk mencegah loncatan ke 00:00 saat inisialisasi awal
+          if (incomingSecs > 0 || data.timer.isActive) {
+            setGlobalSeconds(incomingSecs);
+          }
         }
       }
       
@@ -136,16 +139,16 @@ function App() {
     return () => unsubscribe();
   }, [roomCode]);
 
-  useEffect(() => {
-    if (myData?.status === 'dead' && currentPage === 'view-role') {
-      setCurrentPage('game-board');
-    }
-  }, [myData?.status, currentPage]);
-
   // --- 5. HANDLERS ---
   const handleToggleTimer = (isActive, currentSeconds) => {
     if (!isHost) return;
-    update(ref(db, `rooms/${roomCode}/timer`), { isActive: !isActive, seconds: currentSeconds });
+    // JIKA MAU PLAY TAPI WAKTU HABIS (0), RESET KE 300 DULU OTOMATIS
+    const secondsToSent = (currentSeconds <= 0 && !isActive) ? 300 : currentSeconds;
+    
+    update(ref(db, `rooms/${roomCode}/timer`), { 
+      isActive: !isActive, 
+      seconds: secondsToSent 
+    });
   };
 
   const handleResetTimer = () => {
@@ -161,6 +164,7 @@ function App() {
 
   const handleSetPhase = async (newPhase) => {
     if (!isHost) return;
+    // Logika Auto-Kill (Tetap dipertahankan)
     if (globalPhase.toLowerCase().includes("siang") && newPhase.toLowerCase().includes("malam")) {
       const roomSnapshot = await get(ref(db, `rooms/${roomCode}`));
       const data = roomSnapshot.val();
@@ -177,13 +181,16 @@ function App() {
       await update(ref(db, `rooms/${roomCode}`), { lastExecution: { victimName, timestamp: Date.now() } });
       if (victimId) { await update(ref(db, `rooms/${roomCode}/players/${victimId}`), { status: "dead" }); }
     }
+
     const updates = {};
     updates[`rooms/${roomCode}/timer/phase`] = newPhase;
     updates[`rooms/${roomCode}/timer/isActive`] = false; 
+    updates[`rooms/${roomCode}/timer/seconds`] = 300; // Reset ke 5 menit tiap ganti fase
     updates[`rooms/${roomCode}/votes`] = null; 
     update(ref(db), updates);
   };
 
+  // ... sisa handler (handleCreateRoom, handleJoinRoom, dll) tetap sama ...
   const handleCreateRoom = (name) => {
     const finalName = name || "Moderator";
     const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -238,8 +245,8 @@ function App() {
       confirm: <AlertCircle className="text-amber-500" size={40} />
     };
     return (
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-        <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2rem] shadow-2xl max-w-sm w-full text-center space-y-6">
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
+        <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2rem] shadow-2xl max-w-sm w-full text-center space-y-6 transform animate-in zoom-in-95 duration-300">
           <div className="flex justify-center">{icons[notification.type]}</div>
           <div className="space-y-2">
             <h2 className="text-xl font-black text-white uppercase italic tracking-tighter">{notification.title}</h2>
@@ -281,12 +288,12 @@ function App() {
         ) : (
           <ViewRole 
             playerData={myData} roomCode={roomCode} 
+            {...timerProps}
             onNext={() => setCurrentPage('game-board')} 
             onLeave={() => showNotif("Keluar?", "Statusmu akan jadi MATI.", "confirm", () => {
               update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), { status: "dead" });
               window.location.reload();
             })}
-            {...timerProps}
           />
         );
       case 'game-board': 
