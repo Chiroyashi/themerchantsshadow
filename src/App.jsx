@@ -38,12 +38,13 @@ function App() {
 
   const myData = players.find(p => p.id === myPlayerId);
 
+  // --- 2. FUNGSI PEMBANTU ---
   const showNotif = (title, message, type = "info", onConfirm = null) => {
     setNotification({ show: true, title, message, type, onConfirm });
   };
   const closeNotif = () => setNotification(prev => ({ ...prev, show: false }));
 
-  // --- 2. SYNC URL & STORAGE ---
+  // --- 3. SYNC URL & STORAGE ---
   useEffect(() => {
     const handlePopState = () => {
       const hash = window.location.hash.replace('#', '') || 'landing';
@@ -64,10 +65,9 @@ function App() {
     if (myPlayerId) localStorage.setItem('my_player_id', myPlayerId);
   }, [currentPage, roomCode, isHost, myPlayerId, playerName]);
 
-  // --- 3. FIREBASE LISTENERS ---
+  // --- 4. FIREBASE LISTENERS ---
   useEffect(() => {
     if (!roomCode) return;
-
     const roomRef = ref(db, `rooms/${roomCode}`);
     const unsubscribe = onValue(roomRef, (snapshot) => {
       const data = snapshot.val();
@@ -77,17 +77,15 @@ function App() {
         setPlayers(Object.entries(data.players).map(([id, val]) => ({ id, ...val })));
       }
 
-      // SYNC TIMER DARI FIREBASE (DENGAN PENGECEKAN KETAT)
       if (data.timer) {
         setGlobalPhase(data.timer.phase || "Pagi (Diskusi)");
         setIsTimerActive(data.timer.isActive || false);
         
-        const incomingSecs = parseInt(data.timer.seconds);
-        if (!isNaN(incomingSecs)) {
-          // Hanya update globalSeconds jika server mengirim angka yang valid (> 0)
-          // atau jika timer sedang aktif, agar tidak ter-reset ke 00:00 oleh data kosong.
-          if (incomingSecs > 0 || data.timer.isActive) {
-            setGlobalSeconds(incomingSecs);
+        // SYNC STRATEGY: Koreksi HP pemain jika selisih > 2 detik dari moderator
+        const firebaseSecs = parseInt(data.timer.seconds);
+        if (!isNaN(firebaseSecs)) {
+          if (Math.abs(globalSeconds - firebaseSecs) > 2) {
+            setGlobalSeconds(firebaseSecs);
           }
         }
       }
@@ -107,18 +105,23 @@ function App() {
       }
     });
     return () => unsubscribe();
-  }, [roomCode, currentPage, hasShownDestroyed]);
+  }, [roomCode, currentPage, hasShownDestroyed, globalSeconds]);
 
-  // LOGIKA HITUNG MUNDUR (GLOBAL INTERVAL)
+  // LOGIKA HITUNG MUNDUR & BROADCAST (MODERATOR TUGASNYA BROADCAST TIAP 5 DETIK)
   useEffect(() => {
     let interval = null;
     if (isTimerActive && globalSeconds > 0) {
       interval = setInterval(() => {
-        setGlobalSeconds((prev) => Math.max(0, prev - 1));
+        const nextSecs = globalSeconds - 1;
+        setGlobalSeconds(nextSecs);
+
+        if (isHost && nextSecs % 5 === 0) {
+          update(ref(db, `rooms/${roomCode}/timer`), { seconds: nextSecs });
+        }
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [isTimerActive, globalSeconds]);
+  }, [isTimerActive, globalSeconds, isHost, roomCode]);
 
   // Listener Eksekusi Voting
   useEffect(() => {
@@ -138,26 +141,17 @@ function App() {
     return () => unsubscribe();
   }, [roomCode]);
 
-  // --- 4. HANDLERS ---
+  // --- 5. HANDLERS ---
   const handleToggleTimer = (isActive, currentSeconds) => {
     if (!isHost) return;
-    
-    // SAFETY: Jika mau play tapi waktu di database/lokal adalah 0, paksa reset ke 300 (05:00)
     const secondsToSent = (currentSeconds <= 0 && !isActive) ? 300 : currentSeconds;
-
-    update(ref(db, `rooms/${roomCode}/timer`), { 
-      isActive: !isActive, 
-      seconds: secondsToSent 
-    });
+    update(ref(db, `rooms/${roomCode}/timer`), { isActive: !isActive, seconds: secondsToSent });
   };
 
   const handleResetTimer = () => {
     if (!isHost) return;
-    update(ref(db, `rooms/${roomCode}/timer`), { 
-      isActive: false, 
-      seconds: 300 
-    });
-    setGlobalSeconds(300); // Paksa update lokal juga
+    update(ref(db, `rooms/${roomCode}/timer`), { isActive: false, seconds: 300 });
+    setGlobalSeconds(300);
   };
 
   const handleEditTimer = (newSeconds) => {
@@ -169,44 +163,29 @@ function App() {
 
   const handleSetPhase = async (newPhase) => {
     if (!isHost) return;
-    
-    // Logika Auto-Kill (Pindah Malam)
+    // Logika auto-kill logic
     if (globalPhase.toLowerCase().includes("siang") && newPhase.toLowerCase().includes("malam")) {
-      const roomSnapshot = await get(ref(db, `rooms/${roomCode}`));
-      const data = roomSnapshot.val();
-      const votes = data.votes || {};
-      const currentPlayers = Object.entries(data.players || {}).map(([id, val]) => ({ id, ...val }));
-      const activePlayers = currentPlayers.filter(p => p.status !== 'dead' && p.role !== 'Moderator');
-      const threshold = Math.floor(activePlayers.length / 2) + 1;
-      
-      const counts = {};
-      Object.values(votes).forEach(targetId => {
-        if (targetId !== 'skip') counts[targetId] = (counts[targetId] || 0) + 1;
-      });
-      
-      const victimId = Object.keys(counts).find(id => counts[id] >= threshold);
-      const victimName = victimId ? (currentPlayers.find(p => p.id === victimId)?.name || "Pemain") : "Tidak ada";
-      
-      await update(ref(db, `rooms/${roomCode}`), { 
-        lastExecution: { victimName, timestamp: Date.now() } 
-      });
-      
-      if (victimId) { 
-        await update(ref(db, `rooms/${roomCode}/players/${victimId}`), { status: "dead" }); 
-      }
+        const roomSnapshot = await get(ref(db, `rooms/${roomCode}`));
+        const data = roomSnapshot.val();
+        const votes = data.votes || {};
+        const currentPlayers = Object.entries(data.players || {}).map(([id, val]) => ({ id, ...val }));
+        const activePlayers = currentPlayers.filter(p => p.status !== 'dead' && p.role !== 'Moderator');
+        const threshold = Math.floor(activePlayers.length / 2) + 1;
+        const counts = {};
+        Object.values(votes).forEach(targetId => { if (targetId !== 'skip') counts[targetId] = (counts[targetId] || 0) + 1; });
+        const victimId = Object.keys(counts).find(id => counts[id] >= threshold);
+        const victimName = victimId ? (currentPlayers.find(p => p.id === victimId)?.name || "Pemain") : "Tidak ada";
+        await update(ref(db, `rooms/${roomCode}`), { lastExecution: { victimName, timestamp: Date.now() } });
+        if (victimId) { await update(ref(db, `rooms/${roomCode}/players/${victimId}`), { status: "dead" }); }
     }
-
-    // UPDATE FIREBASE DENGAN RESET DETIK KE 300
     const updates = {};
     updates[`rooms/${roomCode}/timer/phase`] = newPhase;
     updates[`rooms/${roomCode}/timer/isActive`] = false; 
     updates[`rooms/${roomCode}/timer/seconds`] = 300; 
     updates[`rooms/${roomCode}/votes`] = null; 
-    
     update(ref(db), updates);
   };
 
-  // --- Handlers Pembuatan Room & Join Tetap Sama ---
   const handleCreateRoom = (name) => {
     const finalName = name || "Moderator";
     const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -223,10 +202,9 @@ function App() {
     const finalName = inputName || "Player";
     const playerRef = ref(db, `rooms/${code}/players`);
     const newPlayerRef = push(playerRef);
-    const playerId = newPlayerRef.key;
-    onDisconnect(ref(db, `rooms/${code}/players/${playerId}/status`)).set("dead");
+    onDisconnect(ref(db, `rooms/${code}/players/${newPlayerRef.key}/status`)).set("dead");
     set(newPlayerRef, { name: finalName, role: "Pending", status: "alive" }).then(() => {
-      setRoomCode(code); setMyPlayerId(playerId); setIsHost(false); setCurrentPage('room-lobby');
+      setRoomCode(code); setMyPlayerId(newPlayerRef.key); setIsHost(false); setCurrentPage('room-lobby');
     });
   };
 
@@ -236,22 +214,12 @@ function App() {
     set(ref(db, `rooms/${roomCode}/status`), "playing");
   };
 
-  const handleKillPlayer = (playerId, currentStatus) => {
+  const handleKillPlayer = (id, status) => {
     if (!isHost) return;
-    update(ref(db, `rooms/${roomCode}/players/${playerId}`), { status: currentStatus === 'dead' ? 'alive' : 'dead' });
+    update(ref(db, `rooms/${roomCode}/players/${id}`), { status: status === 'dead' ? 'alive' : 'dead' });
   };
 
-  const handleExitGame = async () => {
-    showNotif("Bubarkan Room?", "Semua data akan dihapus otomatis.", "confirm", async () => {
-      try {
-        setHasShownDestroyed(true); 
-        await update(ref(db, `rooms/${roomCode}`), { status: "destroyed" });
-        localStorage.clear(); window.location.hash = 'landing'; window.location.reload();
-      } catch (error) { console.error(error); }
-    });
-  };
-
-  // --- 5. COMPONENT NOTIFIKASI ---
+  // --- 6. KOMPONEN NOTIFIKASI ---
   const GameNotification = () => {
     if (!notification.show) return null;
     const icons = {
@@ -262,18 +230,18 @@ function App() {
     };
     return (
       <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-        <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2rem] shadow-2xl max-w-sm w-full text-center space-y-6 transform animate-in zoom-in-95 duration-300">
+        <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2rem] shadow-2xl max-w-sm w-full text-center space-y-6 animate-in zoom-in-95 duration-300">
           <div className="flex justify-center">{icons[notification.type]}</div>
           <div className="space-y-2">
             <h2 className="text-xl font-black text-white uppercase italic tracking-tighter">{notification.title}</h2>
             <p className="text-slate-400 text-sm leading-relaxed">{notification.message}</p>
           </div>
-          <div className="flex flex-col gap-2 pt-2">
+          <div className="flex gap-2 pt-2">
             {notification.type === "confirm" ? (
-              <div className="flex gap-2">
+              <>
                 <button onClick={closeNotif} className="flex-1 py-3 bg-slate-800 text-slate-300 rounded-2xl font-bold uppercase text-[10px]">Batal</button>
                 <button onClick={() => { notification.onConfirm(); closeNotif(); }} className="flex-1 py-3 bg-red-600 text-white rounded-2xl font-bold uppercase text-[10px] shadow-lg">Ya, Lanjut</button>
-              </div>
+              </>
             ) : (
               <button onClick={closeNotif} className="w-full py-3 bg-blue-600 text-white rounded-2xl font-bold uppercase text-[10px] shadow-lg">Dimengerti</button>
             )}
@@ -283,7 +251,7 @@ function App() {
     );
   };
 
-  // --- 6. RENDER LOGIC ---
+  // --- 7. RENDER LOGIC ---
   const renderPage = () => {
     const timerProps = { seconds: globalSeconds, phase: globalPhase, isActive: isTimerActive };
 
@@ -296,7 +264,8 @@ function App() {
         return isHost ? (
           <ModeratorDashboard 
             players={players} roomCode={roomCode} 
-            onKill={handleKillPlayer} onExit={handleExitGame}
+            onKill={handleKillPlayer} 
+            onExit={() => showNotif("Bubarkan Room?", "Data akan dihapus.", "confirm", () => set(ref(db, `rooms/${roomCode}`), { status: "destroyed" }))}
             onToggleTimer={handleToggleTimer} onResetTimer={handleResetTimer}
             onEditTimer={handleEditTimer} onSetPhase={handleSetPhase}
             {...timerProps}
@@ -305,9 +274,10 @@ function App() {
           <ViewRole 
             playerData={myData} roomCode={roomCode} 
             onNext={() => setCurrentPage('game-board')} 
-            onLeave={() => showNotif("Keluar?", "Statusmu akan jadi MATI.", "confirm", () => {
-              update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), { status: "dead" });
-              window.location.reload();
+            onLeave={() => showNotif("Keluar?", "Statusmu jadi MATI.", "confirm", () => {
+                update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), { status: "dead" });
+                localStorage.clear();
+                window.location.reload();
             })}
             {...timerProps}
           />

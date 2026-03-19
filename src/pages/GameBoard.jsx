@@ -31,11 +31,10 @@ const GameBoard = ({ players, roomCode, phase, seconds, isActive, onBack }) => {
   const [hasVoted, setHasVoted] = useState(false);
   const myPlayerId = localStorage.getItem('my_player_id');
 
-  // HANYA MONITOR STATUS VOTE SAYA
+  // HANYA UNTUK LOGIKA VOTING
   useEffect(() => {
     if (!roomCode || !myPlayerId) return;
 
-    // Reset pilihan visual jika fase berubah dari Siang ke fase lain
     if (!phase?.toLowerCase().includes("siang")) {
       setHasVoted(false);
       setSelectedPlayer(null);
@@ -77,13 +76,12 @@ const GameBoard = ({ players, roomCode, phase, seconds, isActive, onBack }) => {
           </h1>
         </div>
         
-        {/* SINKRONISASI TIMER: Menggunakan props dari App.jsx */}
+        {/* SINKRONISASI MUTLAK: Detik mengalir dari App.jsx tanpa dihitung ulang */}
         <div className="scale-110">
             <SharedTimer seconds={seconds} phase={phase} isActive={isActive} />
         </div>
       </header>
 
-      {/* ... Player Grid Tetap Sama ... */}
       <div className="max-w-4xl w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-32">
         {gamePlayers.map((player) => {
           const pDead = player.status === 'dead';
@@ -114,7 +112,8 @@ const GameBoard = ({ players, roomCode, phase, seconds, isActive, onBack }) => {
                     {pDead ? <Skull size={20} /> : <User size={20} />}
                   </div>
                   <div className="overflow-hidden">
-                    <p className={`text-sm font-black truncate leading-tight ${pDead ? 'line-through text-slate-600' : 'text-slate-100'}`}>
+                    <p className={`text-sm font-black truncate leading-tight transition-colors
+                      ${pDead ? 'line-through text-slate-600' : 'text-slate-100'}`}>
                       {player.name} {isMe && "(Anda)"}
                     </p>
                     <p className={`text-[8px] uppercase tracking-[0.2em] font-black mt-0.5 ${pDead ? 'text-red-900' : 'text-slate-600'}`}>

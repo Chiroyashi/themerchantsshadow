@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'; // FIXED: Ditambahkan import Hooks
+import React, { useState } from 'react'; 
 import { Eye, EyeOff, Shield, Skull, HelpCircle, BookOpen, X, Ghost, LayoutGrid, Moon } from 'lucide-react';
 import SharedTimer from '../components/SharedTimer';
 import RoleModal from '../components/RoleModal';
@@ -12,10 +12,7 @@ const NightOverlay = ({ phase, isDead }) => {
     <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center overflow-hidden animate-in fade-in duration-1000">
       <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-purple-900/20 via-transparent to-transparent animate-pulse"></div>
       <div className="relative z-10 text-center space-y-6">
-        <div className="relative">
-           <Moon size={80} className="text-slate-800 mx-auto animate-bounce duration-[3000ms]" />
-           <div className="absolute inset-0 blur-2xl bg-purple-600/20 rounded-full"></div>
-        </div>
+        <Moon size={80} className="text-slate-800 mx-auto animate-bounce duration-[3000ms]" />
         <div className="space-y-2">
           <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter">Malam Telah Tiba</h2>
           <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.4em] animate-pulse">
@@ -36,11 +33,9 @@ const ViewRole = ({ playerData, roomCode, phase, seconds, isActive, onNext, onLe
 
   const isDead = playerData?.status === 'dead';
 
-  // Menentukan tema visual kartu berdasarkan role
   const theme = (() => {
     const role = playerData?.role?.toLowerCase() || "";
     if (isDead) return { color: "text-slate-500", bg: "bg-slate-900/50", border: "border-slate-800", icon: Ghost };
-    
     if (role.includes('werewolf') || role.includes('warlock')) 
       return { color: "text-red-500", bg: "bg-red-950/20", border: "border-red-600", icon: Skull };
     if (role.includes('moderator')) 
@@ -53,7 +48,7 @@ const ViewRole = ({ playerData, roomCode, phase, seconds, isActive, onNext, onLe
   return (
     <div className={`min-h-screen transition-colors duration-1000 p-6 flex flex-col items-center justify-center font-sans ${isDead ? 'bg-black' : 'bg-slate-950'}`}>
       
-      {/* Timer Sinkron (Data dari Parent App.jsx) */}
+      {/* TIMER SINKRON: Langsung menggunakan props seconds dari App.jsx */}
       <div className="fixed top-8 left-1/2 -translate-x-1/2 z-40 scale-90 md:scale-100">
         <SharedTimer seconds={seconds} phase={phase} isActive={isActive} />
       </div>
@@ -68,11 +63,9 @@ const ViewRole = ({ playerData, roomCode, phase, seconds, isActive, onNext, onLe
           </h2>
         </div>
 
-        {/* Kartu Role */}
         <div className={`relative aspect-[3/4] w-full rounded-2xl border-2 transition-all duration-700 flex flex-col items-center justify-center p-8 overflow-hidden
             ${isRevealed ? `${theme.bg} ${theme.border} ${!isDead && 'shadow-[0_0_30px_rgba(220,38,38,0.2)]'}` : 'bg-slate-900 border-slate-800'}
             ${isDead && 'grayscale'}`}>
-          
           {!isRevealed ? (
             <div className="space-y-4 animate-pulse">
               <div className="w-20 h-20 mx-auto rounded-full bg-slate-800 flex items-center justify-center">
@@ -97,7 +90,6 @@ const ViewRole = ({ playerData, roomCode, phase, seconds, isActive, onNext, onLe
           )}
         </div>
 
-        {/* Action Buttons */}
         <div className="space-y-4 w-full">
           <button 
             onMouseDown={() => setIsRevealed(true)}
@@ -112,30 +104,20 @@ const ViewRole = ({ playerData, roomCode, phase, seconds, isActive, onNext, onLe
           </button>
 
           <div className="grid grid-cols-2 gap-3">
-            <button 
-              onClick={() => setShowMechanics(true)} 
-              className="flex items-center justify-center gap-2 py-4 bg-slate-900 border border-slate-800 rounded-2xl text-amber-500 font-black text-[9px] uppercase tracking-widest hover:bg-slate-800 transition-colors"
-            >
+            <button onClick={() => setShowMechanics(true)} className="flex items-center justify-center gap-2 py-4 bg-slate-900 border border-slate-800 rounded-2xl text-amber-500 font-black text-[9px] uppercase tracking-widest hover:bg-slate-800 transition-colors">
               <BookOpen size={14} /> Panduan
             </button>
-            <button 
-              onClick={onNext} 
-              className="flex items-center justify-center gap-2 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-[9px] uppercase tracking-widest shadow-lg shadow-blue-900/20 transition-all"
-            >
+            <button onClick={onNext} className="flex items-center justify-center gap-2 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-[9px] uppercase tracking-widest shadow-lg shadow-blue-900/20 transition-all">
               <LayoutGrid size={14} /> {isDead ? "Spectator" : "Papan Game"}
             </button>
           </div>
 
-          <button 
-            onClick={onLeave} 
-            className="w-full pt-4 text-[9px] text-slate-700 hover:text-red-500 font-bold uppercase tracking-[0.3em] transition-colors flex items-center justify-center gap-2"
-          >
+          <button onClick={onLeave} className="w-full pt-4 text-[9px] text-slate-700 hover:text-red-500 font-bold uppercase tracking-[0.3em] transition-colors flex items-center justify-center gap-2">
             <X size={12} /> {isDead ? "Keluar Ke Lobby" : "Keluar & Menyerah"}
           </button>
         </div>
       </div>
 
-      {/* Overlay Malam */}
       <NightOverlay phase={phase} isDead={isDead} />
     </div>
   );
