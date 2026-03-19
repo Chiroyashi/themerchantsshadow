@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ref, set, onValue, push, update, onDisconnect } from "firebase/database"; 
+import { ref, set, onValue, push, update, onDisconnect, get } from "firebase/database"; 
 import { db } from "./lib/firebase";
 import { distributeRoles } from './utils/gameLogic';
 import { AlertCircle, XCircle, Info, CheckCircle2 } from 'lucide-react';
@@ -25,6 +25,7 @@ function App() {
   const [myPlayerId, setMyPlayerId] = useState(() => localStorage.getItem('my_player_id') || null);
   const [players, setPlayers] = useState([]);
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('player_name') || '');
+  const [globalPhase, setGlobalPhase] = useState("Pagi (Diskusi)");
 
   // STATE NOTIFIKASI & ANTI-LOOP FLAG
   const [notification, setNotification] = useState({
@@ -34,7 +35,6 @@ function App() {
 
   const myData = players.find(p => p.id === myPlayerId);
 
-  // Fungsi Pembantu Notifikasi
   const showNotif = (title, message, type = "info", onConfirm = null) => {
     setNotification({ show: true, title, message, type, onConfirm });
   };
@@ -65,38 +65,31 @@ function App() {
   
   useEffect(() => {
     if (roomCode) {
-      const playersRef = ref(db, `rooms/${roomCode}/players`);
-      const unsubscribe = onValue(playersRef, (snapshot) => {
+      const roomRef = ref(db, `rooms/${roomCode}`);
+      const unsubscribe = onValue(roomRef, (snapshot) => {
         const data = snapshot.val();
-        if (data) {
-          const playerList = Object.entries(data).map(([id, val]) => ({ id, ...val }));
+        if (!data) return;
+
+        // Sync Daftar Pemain
+        if (data.players) {
+          const playerList = Object.entries(data.players).map(([id, val]) => ({ id, ...val }));
           setPlayers(playerList);
         }
-      });
-      return () => unsubscribe();
-    }
-  }, [roomCode]);
 
-  useEffect(() => {
-    if (roomCode) {
-      const statusRef = ref(db, `rooms/${roomCode}/status`);
-      const unsubscribe = onValue(statusRef, (snapshot) => {
-        const status = snapshot.val();
+        // Sync Fase untuk Night Overlay
+        if (data.timer?.phase) {
+          setGlobalPhase(data.timer.phase);
+        }
         
-        if (status === "playing" && currentPage === "room-lobby") {
+        // Handle Game Start
+        if (data.status === "playing" && currentPage === "room-lobby") {
           setCurrentPage('view-role');
         }
 
-        // ANTI-LOOP: Hanya jalankan jika status destroyed DAN belum pernah ditampilkan
-        if (status === "destroyed" && !hasShownDestroyed) {
+        // Handle Room Destroyed (Anti-Loop)
+        if (data.status === "destroyed" && !hasShownDestroyed) {
           setHasShownDestroyed(true); 
-          
-          showNotif(
-            "Room Dibubarkan", 
-            "Moderator telah menutup permainan ini. Kamu akan diarahkan kembali ke menu utama.", 
-            "error"
-          );
-          
+          showNotif("Room Dibubarkan", "Moderator telah menutup permainan ini.", "error");
           setTimeout(() => {
             localStorage.clear();
             window.location.hash = 'landing';
@@ -107,6 +100,28 @@ function App() {
       return () => unsubscribe();
     }
   }, [roomCode, currentPage, hasShownDestroyed]);
+
+  // LISTENER KHUSUS: Hasil Eksekusi Voting
+  useEffect(() => {
+    if (roomCode) {
+      const execRef = ref(db, `rooms/${roomCode}/lastExecution`);
+      const unsubscribe = onValue(execRef, (snapshot) => {
+        const data = snapshot.val();
+        // Hanya munculkan jika data dikirim dalam 10 detik terakhir (biar gak muncul tiap refresh)
+        if (data && data.timestamp > (Date.now() - 10000)) {
+          const isPeaceful = data.victimName === "Tidak ada";
+          showNotif(
+            isPeaceful ? "Hasil Voting" : "Eksekusi Warga",
+            isPeaceful 
+              ? "Warga kota memutuskan tidak ada yang dieksekusi hari ini." 
+              : `Warga kota telah sepakat untuk mengeksekusi ${data.victimName.toUpperCase()}.`,
+            isPeaceful ? "success" : "error"
+          );
+        }
+      });
+      return () => unsubscribe();
+    }
+  }, [roomCode]);
 
   useEffect(() => {
     if (myData?.status === 'dead' && currentPage === 'view-role') {
@@ -131,32 +146,56 @@ function App() {
     update(ref(db, `rooms/${roomCode}/timer`), { seconds: Math.max(0, parseInt(newSeconds)) });
   };
 
-  // DISESUAIKAN: Sekarang handleSetPhase otomatis membersihkan data voting
-  const handleSetPhase = (newPhase) => {
+  // LOGIKA UTAMA: GANTI FASE + HITUNG VOTE OTOMATIS
+  const handleSetPhase = async (newPhase) => {
     if (!isHost) return;
-    
+
+    // Jika pindah dari SIANG ke MALAM, hitung hasil voting dulu
+    if (globalPhase.toLowerCase().includes("siang") && newPhase.toLowerCase().includes("malam")) {
+      const roomSnapshot = await get(ref(db, `rooms/${roomCode}`));
+      const data = roomSnapshot.val();
+      
+      const votes = data.votes || {};
+      const currentPlayers = Object.entries(data.players || {}).map(([id, val]) => ({ id, ...val }));
+      const activePlayers = currentPlayers.filter(p => p.status !== 'dead' && p.role !== 'Moderator');
+      const threshold = Math.floor(activePlayers.length / 2) + 1;
+
+      // Hitung perolehan suara
+      const counts = {};
+      Object.values(votes).forEach(targetId => {
+        if (targetId !== 'skip') counts[targetId] = (counts[targetId] || 0) + 1;
+      });
+
+      // Cari siapa yang mencapai target
+      const victimId = Object.keys(counts).find(id => counts[id] >= threshold);
+      const victimName = victimId ? (currentPlayers.find(p => p.id === victimId)?.name || "Pemain") : "Tidak ada";
+
+      // 1. Simpan pengumuman eksekusi
+      await update(ref(db, `rooms/${roomCode}`), {
+        lastExecution: { victimName, timestamp: Date.now() }
+      });
+
+      // 2. Jika ada yang mati, update statusnya di Firebase
+      if (victimId) {
+        await update(ref(db, `rooms/${roomCode}/players/${victimId}`), { status: "dead" });
+      }
+    }
+
+    // 3. Update Fase & Bersihkan node votes
     const updates = {};
     updates[`rooms/${roomCode}/timer/phase`] = newPhase;
-    updates[`rooms/${roomCode}/timer/isActive`] = false; // Selalu pause saat ganti fase
-    
-    // BERSIHKAN DATA VOTING TIAP GANTI FASE
+    updates[`rooms/${roomCode}/timer/isActive`] = false; 
     updates[`rooms/${roomCode}/votes`] = null; 
-
     update(ref(db), updates);
   };
 
   const handlePlayerLeave = () => {
-    showNotif(
-      "Konfirmasi Keluar", 
-      "Apakah kamu yakin ingin menyerah? Statusmu akan menjadi MATI.", 
-      "confirm",
-      () => {
-        update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), { status: "dead" });
-        localStorage.clear();
-        window.location.hash = 'landing';
-        window.location.reload();
-      }
-    );
+    showNotif("Konfirmasi Keluar", "Apakah kamu yakin ingin menyerah?", "confirm", () => {
+      update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), { status: "dead" });
+      localStorage.clear();
+      window.location.hash = 'landing';
+      window.location.reload();
+    });
   };
 
   const handleCreateRoom = (name) => {
@@ -168,10 +207,7 @@ function App() {
       timer: { isActive: false, seconds: 300, phase: "Pagi (Diskusi)" },
       players: { [hostId]: { name: finalName + " (Moderator)", role: "Moderator", status: "alive" } }
     });
-    setRoomCode(newCode);
-    setMyPlayerId(hostId);
-    setIsHost(true);
-    setCurrentPage('room-lobby');
+    setRoomCode(newCode); setMyPlayerId(hostId); setIsHost(true); setCurrentPage('room-lobby');
   };
 
   const handleJoinRoom = (code, inputName) => {
@@ -181,10 +217,7 @@ function App() {
     const playerId = newPlayerRef.key;
     onDisconnect(ref(db, `rooms/${code}/players/${playerId}/status`)).set("dead");
     set(newPlayerRef, { name: finalName, role: "Pending", status: "alive" }).then(() => {
-      setRoomCode(code);
-      setMyPlayerId(playerId);
-      setIsHost(false);
-      setCurrentPage('room-lobby');
+      setRoomCode(code); setMyPlayerId(playerId); setIsHost(false); setCurrentPage('room-lobby');
     });
   };
 
@@ -200,25 +233,16 @@ function App() {
   };
 
   const handleExitGame = async () => {
-    showNotif(
-      "Bubarkan Room?", 
-      "Semua data akan dihapus dan pemain akan dikeluarkan otomatis.", 
-      "confirm",
-      async () => {
-        try {
-          setHasShownDestroyed(true); 
-          await update(ref(db, `rooms/${roomCode}`), { status: "destroyed" });
-          localStorage.clear();
-          window.location.hash = 'landing';
-          window.location.reload();
-        } catch (error) {
-          console.error("Gagal membubarkan room:", error);
-        }
-      }
-    );
+    showNotif("Bubarkan Room?", "Semua data akan dihapus otomatis.", "confirm", async () => {
+      try {
+        setHasShownDestroyed(true); 
+        await update(ref(db, `rooms/${roomCode}`), { status: "destroyed" });
+        localStorage.clear(); window.location.hash = 'landing'; window.location.reload();
+      } catch (error) { console.error(error); }
+    });
   };
 
-  // --- 5. CUSTOM NOTIFICATION COMPONENT ---
+  // --- 5. COMPONENT NOTIFIKASI ---
   const GameNotification = () => {
     if (!notification.show) return null;
     const icons = {
@@ -268,10 +292,11 @@ function App() {
         ) : (
           <ViewRole 
             playerData={myData} roomCode={roomCode} 
+            phase={globalPhase}
             onNext={() => setCurrentPage('game-board')} onLeave={handlePlayerLeave} 
           />
         );
-      case 'game-board': return <GameBoard players={players} roomCode={roomCode} onBack={() => setCurrentPage('view-role')} />;
+      case 'game-board': return <GameBoard players={players} roomCode={roomCode} phase={globalPhase} onBack={() => setCurrentPage('view-role')} />;
       default: return <LandingPage onNext={() => setCurrentPage('introduction')} />;
     }
   };
