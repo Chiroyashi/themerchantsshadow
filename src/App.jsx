@@ -89,7 +89,7 @@ function App() {
 
         // ANTI-LOOP: Hanya jalankan jika status destroyed DAN belum pernah ditampilkan
         if (status === "destroyed" && !hasShownDestroyed) {
-          setHasShownDestroyed(true); // Kunci agar tidak loop
+          setHasShownDestroyed(true); 
           
           showNotif(
             "Room Dibubarkan", 
@@ -131,9 +131,18 @@ function App() {
     update(ref(db, `rooms/${roomCode}/timer`), { seconds: Math.max(0, parseInt(newSeconds)) });
   };
 
+  // DISESUAIKAN: Sekarang handleSetPhase otomatis membersihkan data voting
   const handleSetPhase = (newPhase) => {
     if (!isHost) return;
-    update(ref(db, `rooms/${roomCode}/timer`), { phase: newPhase, isActive: false });
+    
+    const updates = {};
+    updates[`rooms/${roomCode}/timer/phase`] = newPhase;
+    updates[`rooms/${roomCode}/timer/isActive`] = false; // Selalu pause saat ganti fase
+    
+    // BERSIHKAN DATA VOTING TIAP GANTI FASE
+    updates[`rooms/${roomCode}/votes`] = null; 
+
+    update(ref(db), updates);
   };
 
   const handlePlayerLeave = () => {
@@ -197,7 +206,7 @@ function App() {
       "confirm",
       async () => {
         try {
-          setHasShownDestroyed(true); // Moderator juga mengunci notif lokalnya
+          setHasShownDestroyed(true); 
           await update(ref(db, `rooms/${roomCode}`), { status: "destroyed" });
           localStorage.clear();
           window.location.hash = 'landing';

@@ -13,16 +13,15 @@ const ModeratorDashboard = ({
   onToggleTimer, onResetTimer, onSetPhase, onEditTimer 
 }) => {
   const [globalTimer, setGlobalTimer] = useState({ isActive: false, seconds: 300, phase: "Pagi (Diskusi)" });
-  const [votes, setVotes] = useState({}); // State baru untuk menyimpan data voting
+  const [votes, setVotes] = useState({});
   const [isEditing, setIsEditing] = useState(false);
   const [timeInput, setTimeInput] = useState("05:00");
   const [tempSeconds, setTempSeconds] = useState(300);
 
-  // 1. Sinkronisasi Data Timer & Voting dari Firebase
+  // 1. SINKRONISASI DATA (Timer & Voting)
   useEffect(() => {
     if (!roomCode) return;
     
-    // Listener Timer
     const timerRef = ref(db, `rooms/${roomCode}/timer`);
     const unsubscribeTimer = onValue(timerRef, (snapshot) => {
       const data = snapshot.val();
@@ -37,7 +36,6 @@ const ModeratorDashboard = ({
       }
     });
 
-    // Listener Voting (Baru)
     const votesRef = ref(db, `rooms/${roomCode}/votes`);
     const unsubscribeVotes = onValue(votesRef, (snapshot) => {
       setVotes(snapshot.val() || {});
@@ -49,7 +47,7 @@ const ModeratorDashboard = ({
     };
   }, [roomCode, isEditing]);
 
-  // 2. Logika Hitung Mundur Lokal
+  // 2. LOGIKA HITUNG MUNDUR LOKAL
   useEffect(() => {
     let interval = null;
     if (globalTimer.isActive && tempSeconds > 0) {
@@ -60,15 +58,35 @@ const ModeratorDashboard = ({
     return () => clearInterval(interval);
   }, [globalTimer.isActive, tempSeconds]);
 
-  // 3. Kalkulasi Statistik Voting
+  // 3. LOGIKA AUTO-PHASE PROGRESSION (Pindah Otomatis)
+  useEffect(() => {
+    // Jalankan hanya jika timer sedang aktif dan menyentuh angka 0
+    if (globalTimer.isActive && tempSeconds <= 0) {
+      let nextPhase = "";
+      const current = globalTimer.phase?.toLowerCase() || "";
+
+      if (current.includes("pagi")) {
+        nextPhase = "Siang (Voting)";
+      } else if (current.includes("siang")) {
+        nextPhase = "Malam (Eksekusi)";
+      } else if (current.includes("malam")) {
+        nextPhase = "Pagi (Diskusi)";
+      }
+
+      if (nextPhase) {
+        onSetPhase(nextPhase); // Fungsi ini otomatis mem-pause timer di Firebase
+        onEditTimer(300);      // Reset waktu ke 5 menit untuk fase berikutnya
+      }
+    }
+  }, [tempSeconds, globalTimer.isActive, globalTimer.phase, onSetPhase, onEditTimer]);
+
+  // 4. KALKULASI VOTING
   const activePlayers = players.filter(p => p.status !== 'dead' && p.role !== 'Moderator');
   const totalPossibleVoters = activePlayers.length;
   const votesData = Object.values(votes);
   const totalVotesReceived = votesData.length;
   const skipCount = votesData.filter(v => v === 'skip').length;
   const targetVotesCount = votesData.filter(v => v !== 'skip').length;
-  
-  // Ambang batas mati (50% + 1)
   const killThreshold = Math.floor(totalPossibleVoters / 2) + 1;
 
   const handleTimeSubmit = () => {
@@ -80,8 +98,6 @@ const ModeratorDashboard = ({
     }
     setIsEditing(false);
   };
-
-  const aliveCount = activePlayers.length;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-sans selection:bg-blue-500/30">
@@ -98,11 +114,11 @@ const ModeratorDashboard = ({
           </button>
         </div>
 
-        {/* 1. TIME GOD PANEL */}
+        {/* TIME GOD PANEL */}
         <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-2xl w-full lg:max-w-md space-y-6">
           <div className="flex justify-between items-center text-[10px] uppercase tracking-widest text-slate-500 font-black">
              <span className="flex items-center gap-2"><Clock size={12} /> Time Controller</span>
-             <span className="px-2 py-0.5 bg-red-600/10 text-red-500 rounded border border-red-600/20 animate-pulse">Live</span>
+             <span className="px-2 py-0.5 bg-red-600/10 text-red-500 rounded border border-red-600/20 animate-pulse">Live Sync</span>
           </div>
 
           <div className="grid grid-cols-3 gap-2">
@@ -125,7 +141,7 @@ const ModeratorDashboard = ({
                   <div className="flex flex-col items-center gap-2 animate-in zoom-in absolute inset-0 z-20 bg-slate-900/95 p-2 rounded-xl justify-center">
                     <input type="text" value={timeInput} onChange={(e) => setTimeInput(e.target.value)} className="bg-transparent text-blue-500 text-5xl font-black w-32 text-center outline-none font-mono tracking-tighter" autoFocus />
                     <div className="flex gap-2 w-full mt-2">
-                        <button onClick={() => setIsEditing(false)} className="flex-1 py-1 text-[8px] font-black text-slate-500 uppercase">Batal</button>
+                        <button onClick={() => setIsEditing(false)} className="flex-1 py-1 text-[8px] font-black text-slate-500 uppercase text-center">Batal</button>
                         <button onClick={handleTimeSubmit} className="flex-[2] py-2 bg-blue-600 text-white rounded-lg font-black text-[10px] uppercase shadow-lg shadow-blue-900/40">Confirm</button>
                     </div>
                   </div>
@@ -155,69 +171,62 @@ const ModeratorDashboard = ({
           </div>
         </div>
 
-        {/* 2. VOTING MONITOR PANEL (Baru) */}
+        {/* VOTING MONITOR PANEL */}
         <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-2xl w-full lg:max-w-md space-y-4">
-          <div className="flex justify-between items-center">
-             <p className="text-[10px] uppercase tracking-widest text-orange-500 font-black flex items-center gap-2">
-               <BarChart3 size={14} /> Voting Monitor
-             </p>
-             <span className="text-[10px] font-mono text-slate-500">{totalVotesReceived} / {totalPossibleVoters} Voted</span>
+          <div className="flex justify-between items-center text-[10px] uppercase font-black">
+             <span className="text-orange-500 flex items-center gap-2"><BarChart3 size={14} /> Voting Monitor</span>
+             <span className="text-slate-500 font-mono">{totalVotesReceived} / {totalPossibleVoters} Voted</span>
           </div>
-
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col items-center justify-center text-center">
-              <FastForward size={14} className="text-slate-500 mb-2" />
-              <p className="text-[8px] font-bold text-slate-600 uppercase tracking-widest">Skip / Abstain</p>
-              <p className="text-3xl font-black text-white font-mono">{skipCount}</p>
+            <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 text-center">
+              <FastForward size={14} className="text-slate-500 mx-auto mb-2" />
+              <p className="text-[8px] font-bold text-slate-600 uppercase tracking-widest">Skip</p>
+              <p className="text-3xl font-black text-white">{skipCount}</p>
             </div>
-            <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col items-center justify-center text-center relative overflow-hidden">
-              <Skull size={14} className="text-orange-500 mb-2" />
-              <p className="text-[8px] font-bold text-slate-600 uppercase tracking-widest">Target Vote</p>
-              <p className="text-3xl font-black text-orange-500 font-mono">{targetVotesCount}</p>
+            <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 text-center relative overflow-hidden">
+              <Skull size={14} className="text-orange-500 mx-auto mb-2" />
+              <p className="text-[8px] font-bold text-slate-600 uppercase tracking-widest">Target</p>
+              <p className="text-3xl font-black text-orange-500">{targetVotesCount}</p>
               <div className="absolute bottom-0 left-0 w-full h-1 bg-orange-600/10">
-                <div className="h-full bg-orange-600 transition-all duration-500" style={{ width: `${(totalVotesReceived / totalPossibleVoters) * 100}%` }}></div>
+                <div className="h-full bg-orange-600 transition-all duration-500" style={{ width: `${(totalVotesReceived / (totalPossibleVoters || 1)) * 100}%` }}></div>
               </div>
             </div>
           </div>
-          
-          <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800/50 text-center">
-            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
-              Execution Threshold: <span className="text-red-500">{killThreshold} Votes</span>
-            </p>
+          <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800/50 text-center text-[9px] font-black text-slate-500 uppercase">
+             Execution Threshold: <span className="text-red-500">{killThreshold} Votes</span>
           </div>
         </div>
       </header>
 
-      {/* PLAYER GRID WITH VOTE COUNTER */}
+      {/* PLAYER GRID */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {players.filter(p => p.role !== 'Moderator').map((p) => {
-          // Hitung berapa suara yang masuk untuk pemain ini
           const voteCount = votesData.filter(v => v === p.id).length;
           const isDanger = voteCount >= killThreshold;
+          const isDead = p.status === 'dead';
 
           return (
-            <div key={p.id} className={`group relative p-5 rounded-2xl border transition-all duration-300 ${p.status === 'dead' ? 'bg-slate-950 border-red-900/20 opacity-40 grayscale scale-[0.98]' : isDanger ? 'bg-orange-900/10 border-orange-500 shadow-[0_0_20px_rgba(249,115,22,0.2)]' : 'bg-slate-900 border-slate-800 hover:border-slate-600 shadow-xl'}`}>
+            <div key={p.id} className={`group relative p-5 rounded-2xl border transition-all duration-300 ${isDead ? 'bg-slate-950 border-red-900/20 opacity-40 grayscale scale-[0.98]' : isDanger ? 'bg-orange-900/10 border-orange-500 shadow-[0_0_20px_rgba(249,115,22,0.2)]' : 'bg-slate-900 border-slate-800 hover:border-slate-600 shadow-xl'}`}>
               
-              {/* Vote Badge (Badge Angka) */}
-              {voteCount > 0 && p.status !== 'dead' && (
-                <div className={`absolute -top-3 -right-3 w-8 h-8 rounded-full border-2 border-slate-950 flex items-center justify-center font-black text-xs shadow-xl animate-in zoom-in duration-300 ${isDanger ? 'bg-red-600 text-white animate-bounce' : 'bg-orange-500 text-slate-950'}`}>
+              {voteCount > 0 && !isDead && (
+                <div className={`absolute -top-3 -right-3 w-8 h-8 rounded-full border-2 border-slate-950 flex items-center justify-center font-black text-xs shadow-xl animate-in zoom-in ${isDanger ? 'bg-red-600 text-white animate-bounce' : 'bg-orange-500 text-slate-950'}`}>
                   {voteCount}
                 </div>
               )}
 
               <div className="flex justify-between items-start mb-4">
                 <div className="overflow-hidden">
-                  <h3 className={`font-bold truncate ${p.status === 'dead' ? 'text-slate-600 line-through' : 'text-white'}`}>{p.name}</h3>
+                  <h3 className={`font-bold truncate ${isDead ? 'text-slate-600 line-through' : 'text-white'}`}>{p.name}</h3>
                   <p className={`text-[10px] font-black uppercase tracking-wider mt-1 ${p.role.toLowerCase().includes('werewolf') ? 'text-red-500' : p.role.toLowerCase().includes('warlock') ? 'text-purple-500' : p.role.toLowerCase().includes('seer') ? 'text-emerald-500' : 'text-blue-400'}`}>{p.role}</p>
                 </div>
-                <button onClick={() => onKill(p.id, p.status)} className={`p-2.5 rounded-xl transition-all ${p.status === 'dead' ? 'bg-red-900/30 text-red-500 shadow-inner' : isDanger ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-500 hover:bg-red-700 hover:text-white hover:rotate-12 shadow-lg'}`}>
-                  {p.status === 'dead' ? <Skull size={18} /> : <Heart size={18} />}
+                <button onClick={() => onKill(p.id, p.status)} className={`p-2.5 rounded-xl transition-all ${isDead ? 'bg-red-900/30 text-red-500' : isDanger ? 'bg-red-600 text-white shadow-red-900/50' : 'bg-slate-800 text-slate-500 hover:bg-red-700 hover:text-white shadow-lg'}`}>
+                  {isDead ? <Skull size={18} /> : <Heart size={18} />}
                 </button>
               </div>
 
               <div className="flex items-center gap-2 pt-2 border-t border-slate-800/50">
-                <div className={`w-2 h-2 rounded-full ${p.role.toLowerCase().includes('werewolf') || p.role.toLowerCase().includes('warlock') ? 'bg-red-600 shadow-[0_0_8px_rgba(220,38,38,0.5)]' : 'bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.5)]'}`}></div>
-                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest text-shadow-sm">{p.role.toLowerCase().includes('werewolf') || p.role.toLowerCase().includes('warlock') ? 'Antagonis' : 'Protagonis'}</span>
+                <div className={`w-2 h-2 rounded-full ${p.role.toLowerCase().includes('werewolf') || p.role.toLowerCase().includes('warlock') ? 'bg-red-600' : 'bg-blue-600'}`}></div>
+                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{p.role.toLowerCase().includes('werewolf') || p.role.toLowerCase().includes('warlock') ? 'Antagonis' : 'Protagonis'}</span>
               </div>
             </div>
           );
