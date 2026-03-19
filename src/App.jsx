@@ -26,7 +26,7 @@ function App() {
   const [players, setPlayers] = useState([]);
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('player_name') || '');
   
-  // STATE TIMER GLOBAL
+  // STATE TIMER GLOBAL (BENTENG ANTI-NaN)
   const [globalPhase, setGlobalPhase] = useState("Pagi (Diskusi)");
   const [globalSeconds, setGlobalSeconds] = useState(300);
   const [isTimerActive, setIsTimerActive] = useState(false);
@@ -66,8 +66,6 @@ function App() {
   }, [currentPage, roomCode, isHost, myPlayerId, playerName]);
 
   // --- 4. FIREBASE LISTENERS ---
-  
-  // FIXED EFFECT: Monitor Room, Status, dan Timer secara stabil
   useEffect(() => {
     if (!roomCode) return;
 
@@ -76,25 +74,26 @@ function App() {
       const data = snapshot.val();
       if (!data) return;
 
-      // Sync Daftar Pemain
       if (data.players) {
         const playerList = Object.entries(data.players).map(([id, val]) => ({ id, ...val }));
         setPlayers(playerList);
       }
 
-      // Sync Timer
+      // SYNC TIMER DARI FIREBASE (DENGAN PENGECEKAN ANGKA VALID)
       if (data.timer) {
-        setGlobalPhase(data.timer.phase);
-        setIsTimerActive(data.timer.isActive);
-        setGlobalSeconds(data.timer.seconds);
+        setGlobalPhase(data.timer.phase || "Pagi (Diskusi)");
+        setIsTimerActive(data.timer.isActive || false);
+        
+        const incomingSecs = parseInt(data.timer.seconds);
+        if (!isNaN(incomingSecs)) {
+          setGlobalSeconds(incomingSecs);
+        }
       }
       
-      // Auto Redirect Game Start
       if (data.status === "playing" && currentPage === "room-lobby") {
         setCurrentPage('view-role');
       }
 
-      // Handle Room Destroyed (Anti-Loop Fix)
       if (data.status === "destroyed" && !hasShownDestroyed) {
         setHasShownDestroyed(true); 
         showNotif("Room Dibubarkan", "Moderator telah menutup permainan ini.", "error");
@@ -105,9 +104,7 @@ function App() {
         }, 3500);
       }
     });
-    
     return () => unsubscribe();
-    // Dependency array stabil: hanya trigered jika roomCode berubah
   }, [roomCode, currentPage, hasShownDestroyed]);
 
   // LOGIKA HITUNG MUNDUR (GLOBAL INTERVAL)
@@ -158,7 +155,8 @@ function App() {
 
   const handleEditTimer = (newSeconds) => {
     if (!isHost) return;
-    update(ref(db, `rooms/${roomCode}/timer`), { seconds: Math.max(0, parseInt(newSeconds)) });
+    const cleanSecs = parseInt(newSeconds) || 0;
+    update(ref(db, `rooms/${roomCode}/timer`), { seconds: Math.max(0, cleanSecs) });
   };
 
   const handleSetPhase = async (newPhase) => {
@@ -230,7 +228,7 @@ function App() {
     });
   };
 
-  // --- 6. COMPONENTS (Pindahkan ke dalam fungsi App sebelum return) ---
+  // --- 6. KOMPONEN NOTIFIKASI ---
   const GameNotification = () => {
     if (!notification.show) return null;
     const icons = {
