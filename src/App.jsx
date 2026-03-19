@@ -14,7 +14,7 @@ import ModeratorDashboard from './pages/ModeratorDashboard';
 import GameBoard from './pages/GameBoard';
 
 function App() {
-  // --- 1. INISIALISASI STATE ---
+  // --- 1. STATE MANAGEMENT ---
   const [currentPage, setCurrentPage] = useState(() => {
     const hash = window.location.hash.replace('#', '');
     return hash || localStorage.getItem('last_page') || 'landing';
@@ -26,7 +26,7 @@ function App() {
   const [players, setPlayers] = useState([]);
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('player_name') || '');
   
-  // STATE TIMER GLOBAL (BENTENG ANTI-NaN & ANTI-00:00)
+  // STATE TIMER GLOBAL
   const [globalPhase, setGlobalPhase] = useState("Pagi (Diskusi)");
   const [globalSeconds, setGlobalSeconds] = useState(300);
   const [isTimerActive, setIsTimerActive] = useState(false);
@@ -38,13 +38,12 @@ function App() {
 
   const myData = players.find(p => p.id === myPlayerId);
 
-  // --- 2. FUNGSI PEMBANTU ---
   const showNotif = (title, message, type = "info", onConfirm = null) => {
     setNotification({ show: true, title, message, type, onConfirm });
   };
   const closeNotif = () => setNotification(prev => ({ ...prev, show: false }));
 
-  // --- 3. SYNC URL & LOCAL STORAGE ---
+  // --- 2. SYNC URL & STORAGE ---
   useEffect(() => {
     const handlePopState = () => {
       const hash = window.location.hash.replace('#', '') || 'landing';
@@ -65,7 +64,7 @@ function App() {
     if (myPlayerId) localStorage.setItem('my_player_id', myPlayerId);
   }, [currentPage, roomCode, isHost, myPlayerId, playerName]);
 
-  // --- 4. FIREBASE LISTENERS ---
+  // --- 3. FIREBASE LISTENERS ---
   useEffect(() => {
     if (!roomCode) return;
 
@@ -78,15 +77,15 @@ function App() {
         setPlayers(Object.entries(data.players).map(([id, val]) => ({ id, ...val })));
       }
 
-      // SYNC TIMER DARI FIREBASE (DENGAN PENGECEKAN)
+      // SYNC TIMER DARI FIREBASE (DENGAN PENGECEKAN KETAT)
       if (data.timer) {
         setGlobalPhase(data.timer.phase || "Pagi (Diskusi)");
         setIsTimerActive(data.timer.isActive || false);
         
         const incomingSecs = parseInt(data.timer.seconds);
         if (!isNaN(incomingSecs)) {
-          // Hanya update jika waktu > 0 atau sedang aktif, 
-          // untuk mencegah loncatan ke 00:00 saat inisialisasi awal
+          // Hanya update globalSeconds jika server mengirim angka yang valid (> 0)
+          // atau jika timer sedang aktif, agar tidak ter-reset ke 00:00 oleh data kosong.
           if (incomingSecs > 0 || data.timer.isActive) {
             setGlobalSeconds(incomingSecs);
           }
@@ -131,7 +130,7 @@ function App() {
         const isPeaceful = data.victimName === "Tidak ada";
         showNotif(
           isPeaceful ? "Hasil Voting" : "Eksekusi Warga",
-          isPeaceful ? "Warga memutuskan tidak ada eksekusi." : `Warga sepakat mengeksekusi ${data.victimName.toUpperCase()}.`,
+          isPeaceful ? "Warga memutuskan damai." : `Warga sepakat mengeksekusi ${data.victimName.toUpperCase()}.`,
           isPeaceful ? "success" : "error"
         );
       }
@@ -139,12 +138,13 @@ function App() {
     return () => unsubscribe();
   }, [roomCode]);
 
-  // --- 5. HANDLERS ---
+  // --- 4. HANDLERS ---
   const handleToggleTimer = (isActive, currentSeconds) => {
     if (!isHost) return;
-    // JIKA MAU PLAY TAPI WAKTU HABIS (0), RESET KE 300 DULU OTOMATIS
-    const secondsToSent = (currentSeconds <= 0 && !isActive) ? 300 : currentSeconds;
     
+    // SAFETY: Jika mau play tapi waktu di database/lokal adalah 0, paksa reset ke 300 (05:00)
+    const secondsToSent = (currentSeconds <= 0 && !isActive) ? 300 : currentSeconds;
+
     update(ref(db, `rooms/${roomCode}/timer`), { 
       isActive: !isActive, 
       seconds: secondsToSent 
@@ -153,18 +153,24 @@ function App() {
 
   const handleResetTimer = () => {
     if (!isHost) return;
-    update(ref(db, `rooms/${roomCode}/timer`), { isActive: false, seconds: 300 });
+    update(ref(db, `rooms/${roomCode}/timer`), { 
+      isActive: false, 
+      seconds: 300 
+    });
+    setGlobalSeconds(300); // Paksa update lokal juga
   };
 
   const handleEditTimer = (newSeconds) => {
     if (!isHost) return;
-    const cleanSecs = parseInt(newSeconds) || 0;
-    update(ref(db, `rooms/${roomCode}/timer`), { seconds: Math.max(0, cleanSecs) });
+    const cleanSecs = Math.max(0, parseInt(newSeconds) || 0);
+    update(ref(db, `rooms/${roomCode}/timer`), { seconds: cleanSecs });
+    setGlobalSeconds(cleanSecs);
   };
 
   const handleSetPhase = async (newPhase) => {
     if (!isHost) return;
-    // Logika Auto-Kill (Tetap dipertahankan)
+    
+    // Logika Auto-Kill (Pindah Malam)
     if (globalPhase.toLowerCase().includes("siang") && newPhase.toLowerCase().includes("malam")) {
       const roomSnapshot = await get(ref(db, `rooms/${roomCode}`));
       const data = roomSnapshot.val();
@@ -172,25 +178,35 @@ function App() {
       const currentPlayers = Object.entries(data.players || {}).map(([id, val]) => ({ id, ...val }));
       const activePlayers = currentPlayers.filter(p => p.status !== 'dead' && p.role !== 'Moderator');
       const threshold = Math.floor(activePlayers.length / 2) + 1;
+      
       const counts = {};
       Object.values(votes).forEach(targetId => {
         if (targetId !== 'skip') counts[targetId] = (counts[targetId] || 0) + 1;
       });
+      
       const victimId = Object.keys(counts).find(id => counts[id] >= threshold);
       const victimName = victimId ? (currentPlayers.find(p => p.id === victimId)?.name || "Pemain") : "Tidak ada";
-      await update(ref(db, `rooms/${roomCode}`), { lastExecution: { victimName, timestamp: Date.now() } });
-      if (victimId) { await update(ref(db, `rooms/${roomCode}/players/${victimId}`), { status: "dead" }); }
+      
+      await update(ref(db, `rooms/${roomCode}`), { 
+        lastExecution: { victimName, timestamp: Date.now() } 
+      });
+      
+      if (victimId) { 
+        await update(ref(db, `rooms/${roomCode}/players/${victimId}`), { status: "dead" }); 
+      }
     }
 
+    // UPDATE FIREBASE DENGAN RESET DETIK KE 300
     const updates = {};
     updates[`rooms/${roomCode}/timer/phase`] = newPhase;
     updates[`rooms/${roomCode}/timer/isActive`] = false; 
-    updates[`rooms/${roomCode}/timer/seconds`] = 300; // Reset ke 5 menit tiap ganti fase
+    updates[`rooms/${roomCode}/timer/seconds`] = 300; 
     updates[`rooms/${roomCode}/votes`] = null; 
+    
     update(ref(db), updates);
   };
 
-  // ... sisa handler (handleCreateRoom, handleJoinRoom, dll) tetap sama ...
+  // --- Handlers Pembuatan Room & Join Tetap Sama ---
   const handleCreateRoom = (name) => {
     const finalName = name || "Moderator";
     const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -235,7 +251,7 @@ function App() {
     });
   };
 
-  // --- 6. KOMPONEN NOTIFIKASI ---
+  // --- 5. COMPONENT NOTIFIKASI ---
   const GameNotification = () => {
     if (!notification.show) return null;
     const icons = {
@@ -245,7 +261,7 @@ function App() {
       confirm: <AlertCircle className="text-amber-500" size={40} />
     };
     return (
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
         <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2rem] shadow-2xl max-w-sm w-full text-center space-y-6 transform animate-in zoom-in-95 duration-300">
           <div className="flex justify-center">{icons[notification.type]}</div>
           <div className="space-y-2">
@@ -267,7 +283,7 @@ function App() {
     );
   };
 
-  // --- 7. RENDER LOGIC ---
+  // --- 6. RENDER LOGIC ---
   const renderPage = () => {
     const timerProps = { seconds: globalSeconds, phase: globalPhase, isActive: isTimerActive };
 
@@ -288,12 +304,12 @@ function App() {
         ) : (
           <ViewRole 
             playerData={myData} roomCode={roomCode} 
-            {...timerProps}
             onNext={() => setCurrentPage('game-board')} 
             onLeave={() => showNotif("Keluar?", "Statusmu akan jadi MATI.", "confirm", () => {
               update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), { status: "dead" });
               window.location.reload();
             })}
+            {...timerProps}
           />
         );
       case 'game-board': 
