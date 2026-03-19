@@ -26,10 +26,11 @@ function App() {
   const [players, setPlayers] = useState([]);
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('player_name') || '');
   
-  // STATE TIMER GLOBAL
+  // STATE TIMER & HARI GLOBAL
   const [globalPhase, setGlobalPhase] = useState("Pagi (Diskusi)");
   const [globalSeconds, setGlobalSeconds] = useState(300);
   const [isTimerActive, setIsTimerActive] = useState(false);
+  const [globalDay, setGlobalDay] = useState(1); // Tambahan state hari
 
   const [notification, setNotification] = useState({
     show: false, title: "", message: "", type: "info", onConfirm: null
@@ -71,7 +72,21 @@ function App() {
     const roomRef = ref(db, `rooms/${roomCode}`);
     const unsubscribe = onValue(roomRef, (snapshot) => {
       const data = snapshot.val();
-      if (!data) return;
+
+      if (!data || data.status === "destroyed") {
+        if (!hasShownDestroyed) {
+          setHasShownDestroyed(true); 
+          showNotif("Room Dibubarkan", "Moderator telah menutup permainan ini.", "error");
+          setTimeout(() => {
+            localStorage.clear();
+            setRoomCode('');
+            setMyPlayerId(null);
+            setCurrentPage('landing');
+            window.location.hash = 'landing';
+          }, 3000);
+        }
+        return;
+      }
 
       if (data.players) {
         setPlayers(Object.entries(data.players).map(([id, val]) => ({ id, ...val })));
@@ -79,12 +94,14 @@ function App() {
 
       if (data.timer) {
         setGlobalPhase(data.timer.phase || "Pagi (Diskusi)");
-        setIsTimerActive(data.timer.isActive || false);
+        setGlobalDay(data.timer.day || 1); // Sinkronkan Hari
+        const firebaseActive = data.timer.isActive || false;
+        setIsTimerActive(firebaseActive);
         
-        // SYNC STRATEGY: Koreksi HP pemain jika selisih > 2 detik dari moderator
         const firebaseSecs = parseInt(data.timer.seconds);
         if (!isNaN(firebaseSecs)) {
-          if (Math.abs(globalSeconds - firebaseSecs) > 2) {
+          const timeDiff = Math.abs(globalSeconds - firebaseSecs);
+          if (!firebaseActive || timeDiff > 10) {
             setGlobalSeconds(firebaseSecs);
           }
         }
@@ -93,28 +110,17 @@ function App() {
       if (data.status === "playing" && currentPage === "room-lobby") {
         setCurrentPage('view-role');
       }
-
-      if (data.status === "destroyed" && !hasShownDestroyed) {
-        setHasShownDestroyed(true); 
-        showNotif("Room Dibubarkan", "Moderator telah menutup permainan ini.", "error");
-        setTimeout(() => {
-          localStorage.clear();
-          window.location.hash = 'landing';
-          window.location.reload();
-        }, 3500);
-      }
     });
     return () => unsubscribe();
-  }, [roomCode, currentPage, hasShownDestroyed, globalSeconds]);
+  }, [roomCode, currentPage, hasShownDestroyed, globalSeconds, isTimerActive]);
 
-  // LOGIKA HITUNG MUNDUR & BROADCAST (MODERATOR TUGASNYA BROADCAST TIAP 5 DETIK)
+  // LOGIKA HITUNG MUNDUR & BROADCAST
   useEffect(() => {
     let interval = null;
     if (isTimerActive && globalSeconds > 0) {
       interval = setInterval(() => {
         const nextSecs = globalSeconds - 1;
         setGlobalSeconds(nextSecs);
-
         if (isHost && nextSecs % 5 === 0) {
           update(ref(db, `rooms/${roomCode}/timer`), { seconds: nextSecs });
         }
@@ -123,7 +129,7 @@ function App() {
     return () => clearInterval(interval);
   }, [isTimerActive, globalSeconds, isHost, roomCode]);
 
-  // Listener Eksekusi Voting
+  // LISTENER POP-UP HASIL VOTING
   useEffect(() => {
     if (!roomCode) return;
     const execRef = ref(db, `rooms/${roomCode}/lastExecution`);
@@ -133,8 +139,8 @@ function App() {
         const isPeaceful = data.victimName === "Tidak ada";
         showNotif(
           isPeaceful ? "Hasil Voting" : "Eksekusi Warga",
-          isPeaceful ? "Warga memutuskan damai." : `Warga sepakat mengeksekusi ${data.victimName.toUpperCase()}.`,
-          isPeaceful ? "success" : "error"
+          isPeaceful ? "Warga memutuskan untuk tidak mengeksekusi siapapun." : `Warga sepakat mengeksekusi ${data.victimName.toUpperCase()}.`,
+          isPeaceful ? "info" : "error"
         );
       }
     });
@@ -163,7 +169,17 @@ function App() {
 
   const handleSetPhase = async (newPhase) => {
     if (!isHost) return;
-    // Logika auto-kill logic
+
+    const updates = {};
+    let nextDay = globalDay;
+
+    // Logika Ganti Hari: Jika pindah dari Malam ke Pagi
+    if (globalPhase.toLowerCase().includes("malam") && newPhase.toLowerCase().includes("pagi")) {
+      nextDay += 1;
+      updates[`rooms/${roomCode}/timer/day`] = nextDay;
+    }
+
+    // Logika Hitung Voting (Siang ke Malam)
     if (globalPhase.toLowerCase().includes("siang") && newPhase.toLowerCase().includes("malam")) {
         const roomSnapshot = await get(ref(db, `rooms/${roomCode}`));
         const data = roomSnapshot.val();
@@ -173,16 +189,20 @@ function App() {
         const threshold = Math.floor(activePlayers.length / 2) + 1;
         const counts = {};
         Object.values(votes).forEach(targetId => { if (targetId !== 'skip') counts[targetId] = (counts[targetId] || 0) + 1; });
+        
         const victimId = Object.keys(counts).find(id => counts[id] >= threshold);
         const victimName = victimId ? (currentPlayers.find(p => p.id === victimId)?.name || "Pemain") : "Tidak ada";
+        
         await update(ref(db, `rooms/${roomCode}`), { lastExecution: { victimName, timestamp: Date.now() } });
         if (victimId) { await update(ref(db, `rooms/${roomCode}/players/${victimId}`), { status: "dead" }); }
     }
-    const updates = {};
+
     updates[`rooms/${roomCode}/timer/phase`] = newPhase;
     updates[`rooms/${roomCode}/timer/isActive`] = false; 
     updates[`rooms/${roomCode}/timer/seconds`] = 300; 
     updates[`rooms/${roomCode}/votes`] = null; 
+    updates[`rooms/${roomCode}/nightActions`] = null; // Reset aksi malam setiap ganti fase
+    
     update(ref(db), updates);
   };
 
@@ -192,7 +212,7 @@ function App() {
     const hostId = "host_" + Date.now();
     set(ref(db, 'rooms/' + newCode), {
       status: "waiting", host: finalName,
-      timer: { isActive: false, seconds: 300, phase: "Pagi (Diskusi)" },
+      timer: { isActive: false, seconds: 300, phase: "Pagi (Diskusi)", day: 1 },
       players: { [hostId]: { name: finalName + " (Moderator)", role: "Moderator", status: "alive" } }
     });
     setRoomCode(newCode); setMyPlayerId(hostId); setIsHost(true); setCurrentPage('room-lobby');
@@ -229,7 +249,7 @@ function App() {
       confirm: <AlertCircle className="text-amber-500" size={40} />
     };
     return (
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
         <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2rem] shadow-2xl max-w-sm w-full text-center space-y-6 animate-in zoom-in-95 duration-300">
           <div className="flex justify-center">{icons[notification.type]}</div>
           <div className="space-y-2">
@@ -238,10 +258,10 @@ function App() {
           </div>
           <div className="flex gap-2 pt-2">
             {notification.type === "confirm" ? (
-              <>
+              <div className="flex gap-2 w-full">
                 <button onClick={closeNotif} className="flex-1 py-3 bg-slate-800 text-slate-300 rounded-2xl font-bold uppercase text-[10px]">Batal</button>
                 <button onClick={() => { notification.onConfirm(); closeNotif(); }} className="flex-1 py-3 bg-red-600 text-white rounded-2xl font-bold uppercase text-[10px] shadow-lg">Ya, Lanjut</button>
-              </>
+              </div>
             ) : (
               <button onClick={closeNotif} className="w-full py-3 bg-blue-600 text-white rounded-2xl font-bold uppercase text-[10px] shadow-lg">Dimengerti</button>
             )}
@@ -253,7 +273,13 @@ function App() {
 
   // --- 7. RENDER LOGIC ---
   const renderPage = () => {
-    const timerProps = { seconds: globalSeconds, phase: globalPhase, isActive: isTimerActive };
+    // TimerProps sekarang membawa data Hari (Day)
+    const timerProps = { 
+      seconds: globalSeconds, 
+      phase: globalPhase, 
+      isActive: isTimerActive, 
+      day: globalDay 
+    };
 
     switch (currentPage) {
       case 'landing': return <LandingPage onNext={() => setCurrentPage('introduction')} />;
@@ -273,11 +299,15 @@ function App() {
         ) : (
           <ViewRole 
             playerData={myData} roomCode={roomCode} 
+            players={players}
             onNext={() => setCurrentPage('game-board')} 
             onLeave={() => showNotif("Keluar?", "Statusmu jadi MATI.", "confirm", () => {
                 update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), { status: "dead" });
                 localStorage.clear();
-                window.location.reload();
+                setRoomCode('');
+                setMyPlayerId(null);
+                setCurrentPage('landing');
+                window.location.hash = 'landing';
             })}
             {...timerProps}
           />

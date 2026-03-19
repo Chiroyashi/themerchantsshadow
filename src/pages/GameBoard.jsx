@@ -3,35 +3,15 @@ import { ref, onValue, set } from "firebase/database";
 import { db } from "../lib/firebase";
 import { 
   Skull, Heart, ArrowLeft, CheckCircle2, 
-  FastForward, AlertTriangle, User, Moon 
+  FastForward, User 
 } from 'lucide-react';
 import SharedTimer from '../components/SharedTimer';
-
-// --- KOMPONEN NIGHT OVERLAY ---
-const NightOverlay = ({ phase, isDead }) => {
-  const isNight = phase?.toLowerCase().includes("malam");
-  if (!isNight || isDead) return null;
-
-  return (
-    <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center overflow-hidden animate-in fade-in duration-1000">
-      <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-purple-900/20 via-transparent to-transparent animate-pulse"></div>
-      <div className="relative z-10 text-center space-y-6">
-        <Moon size={80} className="text-slate-800 mx-auto animate-bounce duration-[3000ms]" />
-        <div className="space-y-2">
-          <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter">Malam Telah Tiba</h2>
-          <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.4em]">Jangan bersuara dan jangan mengintip.</p>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const GameBoard = ({ players, roomCode, phase, seconds, isActive, onBack }) => {
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [hasVoted, setHasVoted] = useState(false);
   const myPlayerId = localStorage.getItem('my_player_id');
 
-  // HANYA UNTUK LOGIKA VOTING
   useEffect(() => {
     if (!roomCode || !myPlayerId) return;
 
@@ -76,7 +56,6 @@ const GameBoard = ({ players, roomCode, phase, seconds, isActive, onBack }) => {
           </h1>
         </div>
         
-        {/* SINKRONISASI MUTLAK: Detik mengalir dari App.jsx tanpa dihitung ulang */}
         <div className="scale-110">
             <SharedTimer seconds={seconds} phase={phase} isActive={isActive} />
         </div>
@@ -150,8 +129,6 @@ const GameBoard = ({ players, roomCode, phase, seconds, isActive, onBack }) => {
           </div>
         </div>
       )}
-
-      <NightOverlay phase={phase} isDead={isDead} />
     </div>
   );
 };
