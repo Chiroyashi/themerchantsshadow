@@ -60,7 +60,7 @@ const Credits = ({ onBack }) => {
             
             <div className="flex items-center gap-4 relative z-10">
               {/* Logo Utama dengan Fallback UI Avatars */}
-              <div className="w-14 h-14 flex items-center justify-center shadow-2xl overflow-hidden rounded-2xl bg-slate-950 border border-white/10 group-hover:border-red-600/50 transition-colors">
+              <div className="w-14 h-14 flex items-center justify-center shadow-2xl overflow-hidden">
                 <img 
                   src={logoUrl} 
                   alt="Logo" 
