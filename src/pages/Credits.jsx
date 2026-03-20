@@ -59,11 +59,11 @@ const Credits = ({ onBack }) => {
             
             <div className="flex items-center gap-4 relative z-10">
               {/* Gambar Logo Utama */}
-              <div className="w-16 h-16 bg-slate-900 border border-white/10 rounded-2xl flex items-center justify-center shadow-xl overflow-hidden group-hover:border-red-600/50 transition-colors">
+              <div className="w-16 h-16 flex items-center justify-center shadow-xl overflow-hidden group-hover:border-red-600/50 transition-colors">
                 <img 
-                  src="/assets/logo.png" 
+                  src="public/assets/logo.png" 
                   alt="ChiroYashi Logo" 
-                  className="w-12 h-12 object-contain group-hover:scale-110 transition-transform duration-500"
+                  className="w-20 h-20 object-contain group-hover:scale-110 transition-transform duration-500"
                 />
               </div>
               <div>
