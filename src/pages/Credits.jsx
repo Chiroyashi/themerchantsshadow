@@ -12,8 +12,7 @@
 
 import React from 'react';
 import { 
-  Copyright, ShieldCheck, User, Star, 
-  ChevronLeft, Terminal, Lock, Code2, Coins,
+  Copyright, ShieldCheck, ChevronLeft, Lock, Code2, Coins,
   ShieldAlert, BookOpen
 } from 'lucide-react';
 
@@ -49,25 +48,35 @@ const Credits = ({ onBack }) => {
         <div className="grid md:grid-cols-2 gap-8 mb-20">
           {/* Main Creator Card */}
           <div className="bg-slate-900/40 border border-white/5 p-8 rounded-[2.5rem] space-y-6 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-8 opacity-5 text-white group-hover:scale-110 transition-transform font-black text-9xl italic select-none pointer-events-none">
-              A
+            {/* Besar Watermark di Background - Menggunakan Gambar Logo juga */}
+            <div className="absolute top-0 right-0 p-8 opacity-[0.02] group-hover:opacity-[0.05] group-hover:scale-110 transition-all duration-700 pointer-events-none">
+              <img 
+                src="/assets/logo.png" 
+                alt="Watermark" 
+                className="w-72 h-72 object-contain grayscale"
+              />
             </div>
             
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-red-600 rounded-2xl flex items-center justify-center font-black text-white text-2xl shadow-[0_0_30px_rgba(220,38,38,0.3)]">
-                A
+            <div className="flex items-center gap-4 relative z-10">
+              {/* Gambar Logo Utama */}
+              <div className="w-16 h-16 bg-slate-900 border border-white/10 rounded-2xl flex items-center justify-center shadow-xl overflow-hidden group-hover:border-red-600/50 transition-colors">
+                <img 
+                  src="/assets/logo.png" 
+                  alt="ChiroYashi Logo" 
+                  className="w-12 h-12 object-contain group-hover:scale-110 transition-transform duration-500"
+                />
               </div>
               <div>
-                <h2 className="text-2xl font-black text-white uppercase italic tracking-tighter">Akbar Muzaky</h2>
-                <p className="text-red-500 text-[9px] font-black uppercase tracking-[0.3em]">@chiroyashi</p>
+                <h2 className="text-2xl font-black text-white uppercase italic tracking-tighter hover:text-red-500 transition-colors">Akbar Muzaky</h2>
+                <p className="text-red-500 text-[9px] font-black uppercase tracking-[0.3em]">@chiroyashi Systems</p>
               </div>
             </div>
 
-            <div className="space-y-4 text-sm text-slate-400 italic leading-relaxed">
+            <div className="space-y-4 text-sm text-slate-400 italic leading-relaxed relative z-10">
               <p>"Seluruh aspek dalam permainan ini mulai dari logika kode, desain peran (RPG-Style), hingga mekanisme Trading & Ekonomi dirancang secara mandiri sebagai karya personal."</p>
             </div>
 
-            <div className="pt-4 border-t border-white/5">
+            <div className="pt-4 border-t border-white/5 relative z-10">
                <div className="flex flex-col">
                   <span className="text-[7px] font-black text-slate-600 uppercase tracking-widest">Ownership Status</span>
                   <span className="text-[10px] font-bold text-white uppercase italic">Independent Solo Developer</span>
@@ -107,7 +116,7 @@ const Credits = ({ onBack }) => {
               <h4 className="text-2xl font-black italic text-white uppercase tracking-tighter">Waranasura Chronicles: The Untold Story</h4>
               <p className="text-xs text-slate-500 italic max-w-md mx-auto">"Setiap keping koin di pasar Waranasura menyimpan rahasia berdarah yang belum terungkap..."</p>
            </div>
-           <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
+           <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] pointer-events-none"></div>
         </section>
 
         {/* Supporting Tech */}
@@ -137,7 +146,7 @@ const Credits = ({ onBack }) => {
                  <Copyright size={24} className="text-slate-500" />
               </div>
               <p className="text-slate-400 text-[11px] font-bold uppercase tracking-widest italic">
-                Copyright © 2026 THE MERCHANT'S SHADOW
+                Copyright © {new Date().getFullYear()} THE MERCHANT'S SHADOW
               </p>
               <p className="text-slate-600 text-[9px] font-black uppercase tracking-[0.3em]">
                 Original Concept & Code by Akbar (ChiroYashi)
