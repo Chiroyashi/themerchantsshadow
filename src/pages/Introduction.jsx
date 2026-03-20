@@ -1,12 +1,11 @@
 import React from 'react';
-import { TEAM_SERIGALA, TEAM_WARGA } from '../constants/roles';
-import { Skull, Users, ChevronRight, ChevronLeft } from 'lucide-react';
+import { TEAM_SERIGALA, TEAM_WARGA, ROLE_MODERATOR } from '../constants/roles';
+import { Skull, Users, ChevronRight, ChevronLeft, Crown } from 'lucide-react';
 
 const RoleCard = ({ role, color }) => (
   <div className={`p-4 rounded-lg bg-slate-900 border-l-4 ${color} hover:bg-slate-800 transition-all duration-300 shadow-xl`}>
     <div className="flex justify-between items-start mb-2">
       <h4 className="font-bold text-lg tracking-tight">{role.name}</h4>
-      {/* Count x3, dll dihapus dari sini */}
     </div>
     <p className="text-sm text-slate-400 leading-relaxed font-light">
       {role.desc}
@@ -16,28 +15,38 @@ const RoleCard = ({ role, color }) => (
 
 const Introduction = ({ onNext, onBack }) => {
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-12 font-sans">
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-12 font-sans selection:bg-red-600/30">
       <div className="max-w-6xl mx-auto space-y-12">
         
         {/* Header Section */}
         <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div className="space-y-2">
-            <h1 className="text-4xl md:text-5xl font-black italic uppercase italic tracking-tighter">The Roles</h1>
+            <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter">The Roles</h1>
+            <p className="text-slate-500 text-xs font-bold uppercase tracking-[0.3em]">Panduan Penduduk Waranasura</p>
           </div>
           <div className="flex gap-3">
              <button onClick={onBack} className="p-3 border border-slate-800 rounded-full hover:bg-slate-900 transition-colors">
                 <ChevronLeft className="w-5 h-5" />
              </button>
-             <button onClick={onNext} className="flex items-center gap-2 bg-red-700 hover:bg-red-600 px-6 py-3 rounded-full font-bold transition-all shadow-lg shadow-red-900/20">
+             <button onClick={onNext} className="flex items-center gap-2 bg-red-700 hover:bg-red-600 px-6 py-3 rounded-full font-bold transition-all shadow-lg shadow-red-900/20 active:scale-95 text-xs uppercase tracking-widest">
                 Next: Mekanisme <ChevronRight className="w-5 h-5" />
              </button>
           </div>
         </header>
 
+        {/* Section Moderator - The Orchestrator */}
+        <section className="animate-in fade-in slide-in-from-top-4 duration-700">
+          <div className="flex items-center gap-3 border-b border-amber-900/50 pb-4 mb-6">
+            <Crown className="text-amber-500 w-6 h-6" />
+            <h3 className="text-2xl font-bold tracking-tighter uppercase text-amber-500">The Orchestrator</h3>
+          </div>
+          <RoleCard role={ROLE_MODERATOR} color="border-amber-500" />
+        </section>
+
         <div className="grid md:grid-cols-2 gap-12">
           
           {/* Tim Serigala */}
-          <section className="space-y-6">
+          <section className="space-y-6 animate-in fade-in slide-in-from-left-4 duration-700">
             <div className="flex items-center gap-3 border-b border-red-900/50 pb-4">
               <Skull className="text-red-600 w-6 h-6" />
               <h3 className="text-2xl font-bold tracking-tighter uppercase text-red-500">Tim Serigala</h3>
@@ -48,19 +57,19 @@ const Introduction = ({ onNext, onBack }) => {
               ))}
             </div>
             <div className="p-4 bg-red-950/20 border border-red-900/30 rounded-md">
-                <p className="text-xs text-red-400 italic font-light">
-                  *Warlock dan Werewolf tidak mengetahui masing-masing identitas dalam permainan
+                <p className="text-[10px] text-red-400 italic font-bold uppercase tracking-wider">
+                  *Warlock dan Werewolf tidak mengetahui identitas satu sama lain.
                 </p>
             </div>
           </section>
 
           {/* Tim Warga */}
-          <section className="space-y-6">
+          <section className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-700">
             <div className="flex items-center gap-3 border-b border-blue-900/50 pb-4">
               <Users className="text-blue-500 w-6 h-6" />
               <h3 className="text-2xl font-bold tracking-tighter uppercase text-blue-400">Tim Warga</h3>
             </div>
-            <div className="grid sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="grid sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2 gap-4 text-left">
               {TEAM_WARGA.map((role) => (
                 <RoleCard key={role.name} role={role} color={role.type === "Special" ? "border-blue-500" : "border-slate-500"} />
               ))}

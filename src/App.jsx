@@ -12,6 +12,7 @@ import Lobby from './pages/Lobby';
 import ViewRole from './pages/ViewRole';
 import ModeratorDashboard from './pages/ModeratorDashboard';
 import GameBoard from './pages/GameBoard';
+import Credits from './pages/Credits'; // Pastikan file ini sudah dibuat
 
 function App() {
   // --- 1. STATE MANAGEMENT ---
@@ -139,24 +140,6 @@ function App() {
     return () => clearInterval(interval);
   }, [isTimerActive, globalSeconds, isHost, roomCode]);
 
-  // LISTENER POP-UP HASIL VOTING
-  useEffect(() => {
-    if (!roomCode) return;
-    const execRef = ref(db, `rooms/${roomCode}/lastExecution`);
-    const unsubscribe = onValue(execRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data && data.timestamp > (Date.now() - 10000)) {
-        const isPeaceful = data.victimName === "Tidak ada";
-        showNotif(
-          isPeaceful ? "Hasil Voting" : "Eksekusi Warga",
-          isPeaceful ? "Warga memutuskan untuk tidak mengeksekusi siapapun." : `Warga sepakat mengeksekusi ${data.victimName.toUpperCase()}.`,
-          isPeaceful ? "info" : "error"
-        );
-      }
-    });
-    return () => unsubscribe();
-  }, [roomCode]);
-
   // --- 5. HANDLERS ---
   const handleToggleTimer = (isActive, currentSeconds) => {
     if (!isHost) return;
@@ -179,7 +162,6 @@ function App() {
 
   const handleSetPhase = async (newPhase) => {
     if (!isHost) return;
-
     const updates = {};
     let nextDay = globalDay;
 
@@ -209,7 +191,6 @@ function App() {
     updates[`rooms/${roomCode}/timer/isActive`] = false; 
     updates[`rooms/${roomCode}/timer/seconds`] = 120; 
     updates[`rooms/${roomCode}/votes`] = null; 
-    
     update(ref(db), updates);
   };
 
@@ -228,51 +209,27 @@ function App() {
   const handleJoinRoom = async (code, inputName) => {
     const finalName = inputName || "Player";
     const roomRef = ref(db, `rooms/${code}`);
-    
     try {
       const snapshot = await get(roomRef);
-      if (!snapshot.exists()) {
-        showNotif("Gagal Masuk", "Room dengan kode tersebut tidak ditemukan.", "error");
-        return;
-      }
-
-      const roomData = snapshot.val();
-      if (roomData.status === "playing") {
-        showNotif("Akses Ditolak", "Permainan sudah dimulai.", "error");
-        return;
-      }
-
+      if (!snapshot.exists()) return showNotif("Gagal Masuk", "Room tidak ditemukan.", "error");
+      if (snapshot.val().status === "playing") return showNotif("Akses Ditolak", "Game sudah dimulai.", "error");
       const playersRef = ref(db, `rooms/${code}/players`);
       const newPlayerRef = push(playersRef);
-      
       onDisconnect(ref(db, `rooms/${code}/players/${newPlayerRef.key}/status`)).set("dead");
-      
       await set(newPlayerRef, { name: finalName, role: "Pending", status: "alive" });
-      setRoomCode(code); 
-      setMyPlayerId(newPlayerRef.key); 
-      setIsHost(false); 
-      setCurrentPage('room-lobby');
-
-    } catch (error) {
-      showNotif("Error", "Terjadi kesalahan saat mencoba masuk room.", "error");
-    }
+      setRoomCode(code); setMyPlayerId(newPlayerRef.key); setIsHost(false); setCurrentPage('room-lobby');
+    } catch (error) { showNotif("Error", "Gagal masuk room.", "error"); }
   };
 
   const handleStartGame = async () => {
-    if (players.length < 3) {
-      showNotif("Gagal", "Minimal 3 pemain untuk memulai!", "error");
-      return;
-    }
-
+    if (players.length < 6) return showNotif("Gagal", "Minimal 6 pemain (incl. Moderator)!", "error");
     const playersWithRoles = distributeRoles(players);
     const updates = {};
     playersWithRoles.forEach(p => {
       updates[`rooms/${roomCode}/players/${p.id}/role`] = p.role;
       updates[`rooms/${roomCode}/players/${p.id}/status`] = "alive";
-      updates[`rooms/${roomCode}/players/${p.id}/inventory`] = null;
       updates[`rooms/${roomCode}/players/${p.id}/underTruth`] = false;
     });
-    
     updates[`rooms/${roomCode}/status`] = "playing";
     await update(ref(db), updates);
   };
@@ -292,8 +249,8 @@ function App() {
       confirm: <AlertCircle className="text-amber-500" size={40} />
     };
     return (
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
-        <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2rem] shadow-2xl max-w-sm w-full text-center space-y-6 animate-in zoom-in-95 duration-300">
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+        <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2rem] shadow-2xl max-w-sm w-full text-center space-y-6">
           <div className="flex justify-center">{icons[notification.type]}</div>
           <div className="space-y-2">
             <h2 className="text-xl font-black text-white uppercase italic tracking-tighter">{notification.title}</h2>
@@ -301,12 +258,12 @@ function App() {
           </div>
           <div className="flex gap-2 pt-2">
             {notification.type === "confirm" ? (
-              <div className="flex gap-2 w-full">
+              <>
                 <button onClick={closeNotif} className="flex-1 py-3 bg-slate-800 text-slate-300 rounded-2xl font-bold uppercase text-[10px]">Batal</button>
-                <button onClick={() => { notification.onConfirm(); closeNotif(); }} className="flex-1 py-3 bg-red-600 text-white rounded-2xl font-bold uppercase text-[10px] shadow-lg">Ya, Lanjut</button>
-              </div>
+                <button onClick={() => { notification.onConfirm(); closeNotif(); }} className="flex-1 py-3 bg-red-600 text-white rounded-2xl font-bold uppercase text-[10px]">Lanjut</button>
+              </>
             ) : (
-              <button onClick={closeNotif} className="w-full py-3 bg-blue-600 text-white rounded-2xl font-bold uppercase text-[10px] shadow-lg">Dimengerti</button>
+              <button onClick={closeNotif} className="w-full py-3 bg-blue-600 text-white rounded-2xl font-bold uppercase text-[10px]">Dimengerti</button>
             )}
           </div>
         </div>
@@ -316,48 +273,41 @@ function App() {
 
   // --- 7. RENDER LOGIC ---
   const renderPage = () => {
-    const timerProps = { 
-      seconds: globalSeconds, 
-      phase: globalPhase, 
-      isActive: isTimerActive, 
-      day: globalDay 
-    };
+    const timerProps = { seconds: globalSeconds, phase: globalPhase, isActive: isTimerActive, day: globalDay };
 
     switch (currentPage) {
-      case 'landing': return <LandingPage onNext={() => setCurrentPage('introduction')} />;
-      case 'introduction': return <Introduction onNext={() => setCurrentPage('room-setup')} onBack={() => setCurrentPage('landing')} />;
-      case 'room-setup': return <Room onCreate={handleCreateRoom} onJoin={handleJoinRoom} onBack={() => setCurrentPage('introduction')} />;
-      case 'room-lobby': return <Lobby roomCode={roomCode} players={players} isHost={isHost} onStart={handleStartGame} onBack={() => setCurrentPage('room-setup')} />;
+      case 'landing': 
+        return <LandingPage onNext={() => setCurrentPage('introduction')} onCredits={() => setCurrentPage('credits')} />;
+      case 'introduction': 
+        return <Introduction onNext={() => setCurrentPage('room-setup')} onBack={() => setCurrentPage('landing')} />;
+      case 'credits': 
+        return <Credits onBack={() => setCurrentPage('landing')} />;
+      case 'room-setup': 
+        return <Room onCreate={handleCreateRoom} onJoin={handleJoinRoom} onBack={() => setCurrentPage('introduction')} />;
+      case 'room-lobby': 
+        return <Lobby roomCode={roomCode} players={players} isHost={isHost} onStart={handleStartGame} onBack={() => setCurrentPage('room-setup')} />;
       case 'view-role':
         return isHost ? (
           <ModeratorDashboard 
-            players={players} roomCode={roomCode} 
-            onKill={handleKillPlayer} 
-            onExit={() => showNotif("Bubarkan Room?", "Data akan dihapus.", "confirm", () => set(ref(db, `rooms/${roomCode}`), { status: "destroyed" }))}
-            onToggleTimer={handleToggleTimer} onResetTimer={handleResetTimer}
-            onEditTimer={handleEditTimer} onSetPhase={handleSetPhase}
-            onStartGame={handleStartGame}
+            players={players} roomCode={roomCode} onKill={handleKillPlayer} 
+            onExit={() => showNotif("Bubarkan?", "Data akan dihapus.", "confirm", () => set(ref(db, `rooms/${roomCode}`), { status: "destroyed" }))}
+            onToggleTimer={handleToggleTimer} onResetTimer={handleResetTimer} onEditTimer={handleEditTimer} onSetPhase={handleSetPhase}
             {...timerProps}
           />
         ) : (
           <ViewRole 
-            playerData={myData} roomCode={roomCode} 
-            players={players} winner={gameWinner}
+            playerData={myData} roomCode={roomCode} players={players} winner={gameWinner}
             onNext={() => setCurrentPage('game-board')} 
             onLeave={() => showNotif("Keluar?", "Statusmu jadi MATI.", "confirm", () => {
                 update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), { status: "dead" });
-                localStorage.clear();
-                setRoomCode('');
-                setMyPlayerId(null);
-                setCurrentPage('landing');
-                window.location.hash = 'landing';
+                localStorage.clear(); setRoomCode(''); setMyPlayerId(null); setCurrentPage('landing');
             })}
             {...timerProps}
           />
         );
       case 'game-board': 
         return <GameBoard players={players} roomCode={roomCode} onBack={() => setCurrentPage('view-role')} {...timerProps} />;
-      default: return <LandingPage onNext={() => setCurrentPage('introduction')} />;
+      default: return <LandingPage onNext={() => setCurrentPage('introduction')} onCredits={() => setCurrentPage('credits')} />;
     }
   };
 
