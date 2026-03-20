@@ -68,7 +68,7 @@ const Credits = ({ onBack }) => {
               </div>
               <div>
                 <h2 className="text-2xl font-black text-white uppercase italic tracking-tighter hover:text-red-500 transition-colors">Akbar Muzaky</h2>
-                <p className="text-red-500 text-[9px] font-black uppercase tracking-[0.3em]">@chiroyashi Systems</p>
+                <p className="text-red-500 text-[9px] font-black uppercase tracking-[0.3em]">@chiroyashi</p>
               </div>
             </div>
 
