@@ -51,7 +51,7 @@ const Credits = ({ onBack }) => {
             {/* Besar Watermark di Background - Menggunakan Gambar Logo juga */}
             <div className="absolute top-0 right-0 p-8 opacity-[0.02] group-hover:opacity-[0.05] group-hover:scale-110 transition-all duration-700 pointer-events-none">
               <img 
-                src="/assets/logo.png" 
+                src="public/assets/logo.png" 
                 alt="Watermark" 
                 className="w-72 h-72 object-contain grayscale"
               />
