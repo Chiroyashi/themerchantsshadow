@@ -14,8 +14,8 @@ import {
 } from 'lucide-react';
 
 const Credits = ({ onBack }) => {
-  // Path logo disesuaikan untuk standar Vite (tanpa 'public')
-  const logoPath = "/assets/logo.png";
+  // Metode URL Constructor: Cara paling aman di Vite untuk akses folder public
+  const logoUrl = new URL('/assets/logo.png', import.meta.url).href;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-red-600/30 overflow-x-hidden p-4 md:p-12">
@@ -51,18 +51,18 @@ const Credits = ({ onBack }) => {
             {/* Watermark Background */}
             <div className="absolute -top-10 -right-10 opacity-[0.02] group-hover:opacity-[0.05] group-hover:scale-110 transition-all duration-700 pointer-events-none">
               <img 
-                src={logoPath} 
+                src={logoUrl} 
                 alt="" 
                 className="w-48 h-48 md:w-72 md:h-72 object-contain grayscale"
-                onError={(e) => e.target.style.display = 'none'}
+                onError={(e) => { e.target.style.display = 'none'; }}
               />
             </div>
             
             <div className="flex items-center gap-4 relative z-10">
-              {/* Logo Utama dengan Fallback */}
+              {/* Logo Utama dengan Fallback UI Avatars */}
               <div className="w-14 h-14 flex items-center justify-center shadow-2xl overflow-hidden rounded-2xl bg-slate-950 border border-white/10 group-hover:border-red-600/50 transition-colors">
                 <img 
-                  src={logoPath} 
+                  src={logoUrl} 
                   alt="Logo" 
                   className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500"
                   onError={(e) => {
@@ -104,7 +104,7 @@ const Credits = ({ onBack }) => {
              <div className="p-5 md:p-6 bg-red-600/5 border border-red-600/20 rounded-3xl space-y-3">
                 <div className="flex items-center gap-2 text-red-500">
                   <ShieldAlert size={18} />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Anti-Plagiarism</span>
+                  <span className="text-[9px] font-black uppercase tracking-widest">Anti-Plagiarism</span>
                 </div>
                 <p className="text-[9px] text-slate-400 font-bold leading-relaxed uppercase tracking-widest italic">
                   Game ini tidak berafiliasi dengan organisasi mana pun. Hak moral sepenuhnya berada di tangan Akbar.
@@ -122,6 +122,20 @@ const Credits = ({ onBack }) => {
               <p className="text-[10px] text-slate-500 italic max-w-xs mx-auto">"Setiap keping koin di pasar Waranasura menyimpan rahasia berdarah..."</p>
            </div>
            <div className="absolute inset-0 opacity-5 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] pointer-events-none"></div>
+        </section>
+
+        {/* Supporting Tech Stack */}
+        <section className="border-t border-white/5 pt-8 mb-16 text-center">
+           <div className="flex items-center gap-2 justify-center mb-6">
+              <Code2 size={14} className="text-slate-600" />
+              <h3 className="text-[8px] font-black uppercase tracking-[0.5em] text-slate-600">Industrial Tech Stack</h3>
+           </div>
+           <div className="grid grid-cols-2 md:flex md:justify-center gap-6 md:gap-10 opacity-20 grayscale italic font-black text-sm md:text-xl tracking-tighter">
+              <span>REACT.JS</span>
+              <span>FIREBASE</span>
+              <span>VITE</span>
+              <span>LUCIDE</span>
+           </div>
         </section>
 
         {/* Final Footer Credits */}
