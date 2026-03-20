@@ -29,7 +29,7 @@ const Introduction = ({ onNext, onBack }) => {
                 <ChevronLeft className="w-5 h-5" />
              </button>
              <button onClick={onNext} className="flex items-center gap-2 bg-red-700 hover:bg-red-600 px-6 py-3 rounded-full font-bold transition-all shadow-lg shadow-red-900/20 active:scale-95 text-xs uppercase tracking-widest">
-                Next: Mekanisme <ChevronRight className="w-5 h-5" />
+                MAIN <ChevronRight className="w-5 h-5" />
              </button>
           </div>
         </header>
