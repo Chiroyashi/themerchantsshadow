@@ -5,7 +5,7 @@ export const TEAM_SERIGALA = [
 
 export const TEAM_WARGA = [
   { name: "Seer", desc: "Mengetahui role asli 1 pemain setiap malam.", type: "Special" },
-  { name: "Guard", desc: "Menjaga 1 pemain agar tidak mati. Tidak bisa menjaga orang yang sama berturut-turut.", type: "Special" },
+  { name: "Guard", desc: "Menjaga 1 pemain agar tidak mati selama 2 malam.", type: "Special" },
   { name: "Hakim", desc: "Memiliki skill Truth (paksa jujur) dan wajib berkata 'Wahai rakyatku' sebelum memberikan judgement.", type: "Special" },
   { name: "Hunter", desc: "Jika menembak Serigala, ia selamat. Jika salah tembak warga, ia ikut mati.", type: "Special" },
   { name: "Pedagang", desc: "Warga biasa yang menjual dagangan untuk Warlock. Meninggalkan jejak warlock setelah transaksi.", type: "Civilian" }
