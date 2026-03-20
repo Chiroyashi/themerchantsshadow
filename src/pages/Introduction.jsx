@@ -49,7 +49,7 @@ const Introduction = ({ onNext, onBack }) => {
             </div>
             <div className="p-4 bg-red-950/20 border border-red-900/30 rounded-md">
                 <p className="text-xs text-red-400 italic font-light">
-                  *Antagonis harus berkoordinasi secara rahasia via WhatsApp/DM tanpa diketahui warga di dunia nyata.
+                  *Warlock dan Werewolf tidak mengetahui masing-masing identitas dalam permainan
                 </p>
             </div>
           </section>

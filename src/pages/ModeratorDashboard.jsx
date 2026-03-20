@@ -73,9 +73,47 @@ const ModeratorDashboard = ({
       });
   };
 
+  // --- 4. LOGIKA GAME OVER (CHECK WINNER) ---
+  const checkGameState = (updatedPlayers) => {
+    const alive = updatedPlayers.filter(p => p.status === 'alive' && p.role !== 'Moderator');
+    const antagonists = alive.filter(p => 
+      p.role.toLowerCase().includes('werewolf') || 
+      p.role.toLowerCase().includes('warlock')
+    );
+
+    if (antagonists.length === 0) {
+      // WARGA MENANG
+      update(ref(db, `rooms/${roomCode}`), { 
+        status: 'ended', 
+        winner: 'WARGA',
+        endTime: Date.now() 
+      });
+      triggerNotif("GAME OVER: Antagonis Musnah!");
+    } else if (antagonists.length >= (alive.length - antagonists.length)) {
+      // WEREWOLF MENANG (Jika jumlah serigala >= warga)
+      update(ref(db, `rooms/${roomCode}`), { 
+        status: 'ended', 
+        winner: 'WEREWOLF',
+        endTime: Date.now() 
+      });
+      triggerNotif("GAME OVER: Waranasura Jatuh!");
+    }
+  };
+
   const handleModeratorKill = (targetId, currentStatus) => {
     if (!targetId || targetId === "none") return;
+    
+    // Eksekusi Kill via Props
     onKill(targetId, currentStatus);
+    
+    // Tunggu sebentar agar status 'dead' terupdate di local players, lalu cek kemenangan
+    setTimeout(() => {
+      const updatedPlayers = players.map(p => 
+        p.id === targetId ? { ...p, status: currentStatus === 'alive' ? 'dead' : 'alive' } : p
+      );
+      checkGameState(updatedPlayers);
+    }, 500);
+
     triggerNotif("Status Diperbarui");
   };
 
@@ -156,6 +194,10 @@ const ModeratorDashboard = ({
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <div className="lg:col-span-3 space-y-6">
+          <div className="flex justify-between items-center px-2">
+            <span className="text-orange-500 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"><BarChart3 size={14} /> Population Monitor</span>
+            <span className="text-slate-600 text-[9px] font-black uppercase">Threshold: {killThreshold} Votes</span>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {players.filter(p => p.role !== 'Moderator').map((p) => {
               const voteCount = votesData.filter(v => v === p.id).length;
@@ -196,7 +238,6 @@ const ModeratorDashboard = ({
                       const isBeli = act.action.includes("TRANSAKSI");
                       const isAttackAction = act.role.toLowerCase().includes('werewolf') || act.action.includes("Gunakan Poison");
                       
-                      // LOGIKA PROTEKSI: Cek apakah target sedang dijaga oleh Guard
                       const todaysActions = nightHistory[malamKey] || {};
                       const isTargetProtected = Object.values(todaysActions).some(
                         protectionAct => 
@@ -210,8 +251,6 @@ const ModeratorDashboard = ({
                           <div className="flex justify-between items-start">
                             <div className="flex items-center gap-2">
                               <p className="text-[7px] font-black uppercase text-blue-500">{act.role}</p>
-                              
-                              {/* INDIKATOR PROTEKSI VISUAL */}
                               {isAttackAction && isTargetProtected && (
                                 <div className="flex items-center gap-1 bg-blue-500/20 px-1.5 py-0.5 rounded border border-blue-500/30">
                                   <Shield size={8} className="text-blue-400" />
@@ -220,7 +259,6 @@ const ModeratorDashboard = ({
                               )}
                             </div>
                             
-                            {/* TOMBOL EKSEKUSI: Hanya muncul jika target TIDAK terlindungi Guard */}
                             {!isBeli && isAttackAction && !isTargetProtected && (
                               <button 
                                 onClick={() => {
@@ -242,7 +280,6 @@ const ModeratorDashboard = ({
                             </span>
                           </p>
 
-                          {/* INTERACTIVE PANEL UNTUK CLUE WARLOCK */}
                           {isBeli && (
                             <div className="mt-3 p-2 bg-slate-900 rounded-lg space-y-2 border border-amber-500/20">
                               <p className="text-[7px] font-black text-amber-500 uppercase tracking-widest">

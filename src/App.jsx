@@ -32,6 +32,9 @@ function App() {
   const [isTimerActive, setIsTimerActive] = useState(false);
   const [globalDay, setGlobalDay] = useState(1);
 
+  // STATE KEMENANGAN (GAME OVER)
+  const [gameWinner, setGameWinner] = useState(null);
+
   const [notification, setNotification] = useState({
     show: false, title: "", message: "", type: "info", onConfirm: null
   });
@@ -86,6 +89,13 @@ function App() {
           }, 3000);
         }
         return;
+      }
+
+      // Deteksi Pemenang (Game Over)
+      if (data.status === 'ended') {
+        setGameWinner(data.winner);
+      } else {
+        setGameWinner(null);
       }
 
       if (data.players) {
@@ -173,13 +183,11 @@ function App() {
     const updates = {};
     let nextDay = globalDay;
 
-    // Logika Ganti Hari: Jika pindah dari Malam ke Pagi
     if (globalPhase.toLowerCase().includes("malam") && newPhase.toLowerCase().includes("pagi")) {
       nextDay += 1;
       updates[`rooms/${roomCode}/timer/day`] = nextDay;
     }
 
-    // Logika Hitung Voting (Siang ke Malam)
     if (globalPhase.toLowerCase().includes("siang") && newPhase.toLowerCase().includes("malam")) {
         const roomSnapshot = await get(ref(db, `rooms/${roomCode}`));
         const data = roomSnapshot.val();
@@ -229,9 +237,8 @@ function App() {
       }
 
       const roomData = snapshot.val();
-      // PROTEKSI: Cek jika room sudah dalam status playing
       if (roomData.status === "playing") {
-        showNotif("Akses Ditolak", "Permainan sudah dimulai. Pintu masuk telah dikunci oleh Moderator.", "error");
+        showNotif("Akses Ditolak", "Permainan sudah dimulai.", "error");
         return;
       }
 
@@ -257,20 +264,16 @@ function App() {
       return;
     }
 
-    // Bagikan peran (Logic khusus Hakim Wajib ada)
     const playersWithRoles = distributeRoles(players);
-
-    // Update ke Firebase secara batch/multi-update
     const updates = {};
     playersWithRoles.forEach(p => {
       updates[`rooms/${roomCode}/players/${p.id}/role`] = p.role;
       updates[`rooms/${roomCode}/players/${p.id}/status`] = "alive";
       updates[`rooms/${roomCode}/players/${p.id}/inventory`] = null;
+      updates[`rooms/${roomCode}/players/${p.id}/underTruth`] = false;
     });
     
-    // Kunci Room agar tidak ada player baru bisa join
     updates[`rooms/${roomCode}/status`] = "playing";
-
     await update(ref(db), updates);
   };
 
@@ -339,7 +342,7 @@ function App() {
         ) : (
           <ViewRole 
             playerData={myData} roomCode={roomCode} 
-            players={players}
+            players={players} winner={gameWinner}
             onNext={() => setCurrentPage('game-board')} 
             onLeave={() => showNotif("Keluar?", "Statusmu jadi MATI.", "confirm", () => {
                 update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), { status: "dead" });

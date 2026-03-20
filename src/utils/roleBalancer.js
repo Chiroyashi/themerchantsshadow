@@ -1,30 +1,41 @@
 export const calculateRoles = (playerCount) => {
-    const count = parseInt(playerCount);
-    
-    // Rasio Dasar: ~25-30% adalah Antagonis (Werewolf & Warlock)
-    let antagonistsCount = Math.floor(count / 3.5) || 1;
-    let protagonistsCount = count - antagonistsCount;
+  const count = parseInt(playerCount);
   
-    // Distribusi Antagonis
-    // Jika antagonis lebih dari 1, salah satunya bisa jadi Warlock
-    const warlock = antagonistsCount > 1 ? 1 : 0;
-    const werewolf = antagonistsCount - warlock;
-  
-    // Distribusi Protagonis Spesial (Power Roles)
-    // Role spesial muncul bertahap sesuai jumlah pemain
-    const specialRoles = {
-      seer: count >= 5 ? 1 : 0,
-      guard: count >= 7 ? 1 : 0,
-      hakim: count >= 10 ? 1 : 0,
-      hunter: count >= 12 ? 1 : 0,
-    };
-  
-    const totalSpecial = Object.values(specialRoles).reduce((a, b) => a + b, 0);
-    const pedagang = protagonistsCount - totalSpecial;
-  
+  // Proteksi minimal: Jika di bawah 5, game tidak balance (sesuai distributeRoles)
+  if (count < 5) {
     return {
-      antagonists: { werewolf, warlock },
-      protagonists: { ...specialRoles, pedagang },
-      total: { antagonistsCount, protagonistsCount }
+      antagonists: { werewolf: 0, warlock: 0 },
+      protagonists: { seer: 0, guard: 0, hakim: 0, hunter: 0, pedagang: 0 },
+      total: { antagonistsCount: 0, protagonistsCount: 0 }
     };
+  }
+
+  // 1. Hitung Antagonis (Rasio ~1/3.5)
+  // Sesuai logika distributeRoles: totalAntagonists = Math.max(1, Math.floor(numPlayers / 3.5))
+  const antagonistsCount = Math.max(1, Math.floor(count / 3.5));
+  
+  // Distribusi Antagonis: Warlock muncul jika pemain >= 7
+  const warlock = count >= 7 ? 1 : 0;
+  const werewolf = antagonistsCount - warlock;
+
+  // 2. Tentukan Power Roles (Protagonis Spesial)
+  // Sesuai prioritas di distributeRoles: Hakim selalu wajib (1)
+  const specialProtagonists = {
+    hakim: 1, // Poros utama, selalu ada jika count >= 5
+    seer: 1,  // Prioritas 2
+    guard: count >= 6 ? 1 : 0, // Muncul bertahap untuk balance
+    hunter: count >= 8 ? 1 : 0, // Muncul jika pemain cukup banyak
   };
+
+  const totalSpecial = Object.values(specialProtagonists).reduce((a, b) => a + b, 0);
+  const protagonistsCount = count - antagonistsCount;
+  
+  // 3. Sisanya adalah Pedagang (Mayoritas)
+  const pedagang = protagonistsCount - totalSpecial;
+
+  return {
+    antagonists: { werewolf, warlock },
+    protagonists: { ...specialProtagonists, pedagang },
+    total: { antagonistsCount, protagonistsCount }
+  };
+};

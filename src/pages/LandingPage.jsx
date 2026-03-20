@@ -74,8 +74,8 @@ const LandingPage = ({ onNext }) => {
           </div>
           <div className="text-center space-y-1">
             <div className="flex justify-center mb-2"><Navigation className="w-5 h-5 text-amber-500/70" /></div>
-            <p className="text-xl font-bold italic leading-none">Mata Angin</p>
-            <p className="text-[10px] uppercase tracking-widest text-slate-500">Mekanik</p>
+            <p className="text-xl font-bold italic leading-none">Balance</p>
+            <p className="text-[10px] uppercase tracking-widest text-slate-500">Permainan</p>
           </div>
         </div>
       </section>
