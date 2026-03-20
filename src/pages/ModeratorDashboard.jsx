@@ -53,59 +53,7 @@ const ModeratorDashboard = ({
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // --- 3. LOGIKA LOBBY & START GAME ---
-  const handleCopyCode = () => {
-    navigator.clipboard.writeText(roomCode);
-    setIsCopied(true);
-    triggerNotif("Room Code disalin!");
-    setTimeout(() => setIsCopied(false), 2000);
-  };
-
-  const handleStartGame = async () => {
-    if (players.length < 3) {
-      triggerNotif("Minimal 3 pemain untuk memulai!");
-      return;
-    }
-    
-    // Lock Room: Set status menjadi playing agar JoinRoom menolak pemain baru
-    const roomRef = ref(db, `rooms/${roomCode}`);
-    await update(roomRef, { status: 'playing' });
-    
-    onStartGame(); // Panggil fungsi bawaan untuk membagikan role
-  };
-
-  // --- 4. LOGIKA IN-GAME ACTIONS ---
-  const handleMoveToMorning = async () => {
-    const deadPlayersThisNight = players.filter(p => p.status === 'dead' && p.role !== 'Moderator');
-    const namesOfDead = deadPlayersThisNight.map(p => p.name);
-    const deathData = { day: day, names: namesOfDead.length > 0 ? namesOfDead : ["TIDAK ADA"], timestamp: Date.now() };
-    
-    try {
-      await set(ref(db, `rooms/${roomCode}/deadToday`), deathData);
-      setTimeout(() => {
-        onSetPhase("Pagi (Diskusi)");
-        triggerNotif("Fase Pagi Dimulai!");
-      }, 500);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const handleModeratorKill = (targetId, currentStatus) => {
-    if (!targetId || targetId === "none") return;
-    const currentNightActions = (nightHistory[`malam_${day}`] || nightHistory[`hari_${day}`]) || {};
-    const isProtected = Object.values(currentNightActions).some(
-      act => act.role.toLowerCase().includes('guard') && act.targetId === targetId && act.action === 'Jaga'
-    );
-
-    if (isProtected && currentStatus === 'alive') {
-      setShowConfirm({ show: true, targetId, status: currentStatus, msg: "TARGET DILINDUNGI GUARD! Tetap eksekusi?" });
-    } else {
-      onKill(targetId, currentStatus);
-      triggerNotif("Status diperbarui.");
-    }
-  };
-
+  // --- 3. LOGIKA WARLOCK & MERCHANT HELPERS ---
   const handleWarlockRequest = (act) => {
     if (act.targetId !== "SISTEM_RANDOM") return act.targetName;
     const aliveMerchants = players.filter(p => p.role.toLowerCase().includes('pedagang') && p.status === 'alive');
@@ -115,69 +63,37 @@ const ModeratorDashboard = ({
     return `🛍️ SISTEM: ${selected.name.toUpperCase()}`;
   };
 
+  const sendMerchantClue = (pedagangId, pedagangName) => {
+    if (!merchantClueInput) return triggerNotif("Isi clue dulu!");
+    const clueRef = ref(db, `rooms/${roomCode}/merchantClues/${pedagangId}`);
+    set(clueRef, { clue: merchantClueInput, from: "Moderator", timestamp: Date.now(), night: day })
+      .then(() => { 
+        triggerNotif(`Clue terkirim ke ${pedagangName}`);
+        setMerchantClueInput(""); 
+      });
+  };
+
+  const handleModeratorKill = (targetId, currentStatus) => {
+    if (!targetId || targetId === "none") return;
+    onKill(targetId, currentStatus);
+    triggerNotif("Status Diperbarui");
+  };
+
   const handleTimeSubmit = () => {
     const parts = timeInput.split(':');
     if (parts.length === 2) onEditTimer((parseInt(parts[0]) * 60) + parseInt(parts[1]));
     setIsEditing(false);
   };
 
-  // --- RENDER TAMPILAN LOBBY ---
-  if (isLobby) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 font-sans">
-        {notification && (
-          <div className="fixed top-4 bg-blue-600 text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase shadow-2xl animate-in slide-in-from-top-4">
-            {notification}
-          </div>
-        )}
+  const handleMoveToMorning = async () => {
+    const deadPlayersThisNight = players.filter(p => p.status === 'dead' && p.role !== 'Moderator');
+    const namesOfDead = deadPlayersThisNight.map(p => p.name);
+    const deathData = { day: day, names: namesOfDead.length > 0 ? namesOfDead : ["TIDAK ADA"], timestamp: Date.now() };
+    await set(ref(db, `rooms/${roomCode}/deadToday`), deathData);
+    setTimeout(() => onSetPhase("Pagi (Diskusi)"), 500);
+  };
 
-        <div className="max-w-md w-full space-y-8">
-          <div className="text-center space-y-2">
-            <h1 className="text-4xl font-black text-white italic tracking-tighter uppercase">Lobby Room</h1>
-            <p className="text-slate-500 text-[10px] uppercase tracking-[0.3em]">Menunggu Unit Tempur Terkumpul</p>
-          </div>
-
-          <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] text-center space-y-6 shadow-2xl">
-            <div 
-              onClick={handleCopyCode}
-              className="bg-slate-950 border border-slate-800 p-6 rounded-2xl cursor-pointer hover:border-blue-500 transition-all group relative overflow-hidden"
-            >
-              <p className="text-[9px] text-slate-500 uppercase font-black tracking-widest mb-2">Operational Code</p>
-              <div className="flex items-center justify-center gap-4">
-                <span className="text-4xl font-black tracking-[0.4em] text-white group-hover:text-blue-500 transition-colors">
-                  {roomCode}
-                </span>
-                {isCopied ? <Check size={24} className="text-green-500" /> : <Copy size={20} className="text-slate-700 group-hover:text-blue-500" />}
-              </div>
-              {isCopied && <span className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[7px] font-black text-green-500 uppercase">Copied to Clipboard!</span>}
-            </div>
-
-            <div className="py-2">
-              <p className="text-[10px] font-bold text-slate-500 uppercase mb-4 tracking-widest">Pemain Bergabung: {players.length - 1}</p>
-              <div className="flex flex-wrap justify-center gap-2">
-                {players.filter(p => p.role !== 'Moderator').map(p => (
-                  <div key={p.id} className="px-3 py-1 bg-slate-800 border border-slate-700 rounded-full text-[10px] font-bold text-slate-300 animate-in zoom-in">
-                    {p.name}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <button 
-              onClick={handleStartGame}
-              className="w-full py-5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black uppercase tracking-[0.2em] shadow-lg shadow-blue-900/40 transition-all active:scale-95 flex items-center justify-center gap-3"
-            >
-              <Play size={20} fill="currentColor" /> Start Operation
-            </button>
-          </div>
-
-          <button onClick={onExit} className="w-full text-slate-700 hover:text-red-500 text-[9px] font-black uppercase tracking-widest transition-colors">Batalkan Room</button>
-        </div>
-      </div>
-    );
-  }
-
-  // --- RENDER DASHBOARD UTAMA (IN-GAME) ---
+  // --- RENDER DASHBOARD ---
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-sans selection:bg-blue-500/30">
       {notification && (
@@ -233,7 +149,7 @@ const ModeratorDashboard = ({
               {isActive ? <Pause size={20} /> : <Play size={20} fill="currentColor" />}
               <span className="uppercase text-xs">{isActive ? 'Pause' : 'Play'}</span>
             </button>
-            <button onClick={onResetTimer} className="p-4 bg-slate-800 rounded-2xl text-slate-400"><RefreshCw size={20} /></button>
+            <button onClick={onResetTimer} className="p-4 bg-slate-800 rounded-2xl text-slate-400 active:rotate-180 transition-transform duration-500"><RefreshCw size={20} /></button>
           </div>
         </div>
       </header>
@@ -256,7 +172,7 @@ const ModeratorDashboard = ({
                       <h3 className={`font-bold truncate ${isDead ? 'text-slate-600' : 'text-white'}`}>{p.name}</h3>
                       <p className="text-[10px] font-black uppercase text-blue-400">{p.role}</p>
                     </div>
-                    <button onClick={() => handleModeratorKill(p.id, p.status)} className={`p-2.5 rounded-xl transition-all ${isDead ? 'bg-red-900/30 text-red-500' : 'bg-slate-800 text-slate-500'}`}>
+                    <button onClick={() => handleModeratorKill(p.id, p.status)} className={`p-2.5 rounded-xl transition-all ${isDead ? 'bg-red-900/30 text-red-500' : 'bg-slate-800 text-slate-500 hover:bg-red-700 hover:text-white'}`}>
                       {isDead ? <Skull size={18} /> : <Heart size={18} />}
                     </button>
                   </div>
@@ -266,41 +182,106 @@ const ModeratorDashboard = ({
           </div>
         </div>
 
-        <div className="lg:col-span-1 space-y-6 h-fit">
+        <div className="lg:col-span-1 space-y-6">
           <div className="bg-slate-900 border border-purple-500/20 p-5 rounded-[2rem] shadow-2xl">
             <h2 className="text-[10px] font-black uppercase text-purple-400 mb-4 flex items-center gap-2 tracking-widest"><Moon size={14} /> Master Night Logs</h2>
-            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-              {Object.keys(nightHistory).reverse().map((malamKey) => (
-                <div key={malamKey} className="space-y-2">
-                  <span className="text-[8px] font-black bg-purple-950 text-purple-400 px-2 py-0.5 rounded uppercase">{malamKey.replace('_', ' ')}</span>
-                  {Object.entries(nightHistory[malamKey]).map(([playerId, act]) => (
-                    <div key={playerId} className="p-3 bg-slate-950 rounded-xl border border-slate-800 border-l-2 border-l-blue-500">
-                       <p className="text-[7px] font-black text-blue-500 uppercase tracking-widest">{act.role}</p>
-                       <p className="text-[10px] font-bold text-white mt-1">{act.senderName} → {act.targetName}</p>
-                       <div className="mt-2 text-[7px] font-black text-slate-500 uppercase">Action: {act.action}</div>
-                    </div>
-                  ))}
-                </div>
-              ))}
+            <div className="space-y-4 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar">
+              {Object.keys(nightHistory).length === 0 ? (
+                <p className="text-[8px] text-slate-600 italic text-center py-10">Belum ada aktivitas.</p>
+              ) : (
+                Object.keys(nightHistory).reverse().map((malamKey) => (
+                  <div key={malamKey} className="space-y-2 mb-4">
+                    <span className="text-[9px] font-black bg-purple-950 text-purple-400 px-2 py-0.5 rounded uppercase">{malamKey.replace('_', ' ')}</span>
+                    {Object.entries(nightHistory[malamKey]).map(([playerId, act]) => {
+                      const isBeli = act.action.includes("TRANSAKSI");
+                      const isAttackAction = act.role.toLowerCase().includes('werewolf') || act.action.includes("Gunakan Poison");
+                      
+                      // LOGIKA PROTEKSI: Cek apakah target sedang dijaga oleh Guard
+                      const todaysActions = nightHistory[malamKey] || {};
+                      const isTargetProtected = Object.values(todaysActions).some(
+                        protectionAct => 
+                          protectionAct.role.toLowerCase().includes('guard') && 
+                          protectionAct.targetId === act.targetId && 
+                          protectionAct.action === 'Jaga'
+                      );
+
+                      return (
+                        <div key={playerId} className={`p-3 rounded-xl border border-l-4 animate-in slide-in-from-right-2 mb-2 ${isBeli ? 'bg-amber-900/10 border-amber-600' : 'bg-slate-950 border-slate-800 border-l-blue-500'}`}>
+                          <div className="flex justify-between items-start">
+                            <div className="flex items-center gap-2">
+                              <p className="text-[7px] font-black uppercase text-blue-500">{act.role}</p>
+                              
+                              {/* INDIKATOR PROTEKSI VISUAL */}
+                              {isAttackAction && isTargetProtected && (
+                                <div className="flex items-center gap-1 bg-blue-500/20 px-1.5 py-0.5 rounded border border-blue-500/30">
+                                  <Shield size={8} className="text-blue-400" />
+                                  <span className="text-[6px] font-black text-blue-400 uppercase">Protected</span>
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* TOMBOL EKSEKUSI: Hanya muncul jika target TIDAK terlindungi Guard */}
+                            {!isBeli && isAttackAction && !isTargetProtected && (
+                              <button 
+                                onClick={() => {
+                                  const targetPlayer = players.find(p => p.id === act.targetId);
+                                  if (targetPlayer) handleModeratorKill(act.targetId, targetPlayer.status);
+                                }}
+                                className="p-1.5 bg-red-600/20 text-red-500 rounded-lg border border-red-500/30 hover:bg-red-600 hover:text-white transition-all active:scale-90"
+                              >
+                                <Skull size={10} />
+                              </button>
+                            )}
+                            
+                            {isBeli && <span className="text-[7px] bg-amber-600 text-white px-1 rounded animate-pulse">PENDING CLUE</span>}
+                          </div>
+                          
+                          <p className="text-[10px] font-bold text-white mt-1 leading-tight">
+                            {act.senderName} → <span className={isBeli ? "text-amber-400" : (isTargetProtected ? "text-blue-400" : isAttackAction ? "text-red-500" : "text-white")}>
+                              {isBeli ? "Pedagang Gelap" : act.targetName}
+                            </span>
+                          </p>
+
+                          {/* INTERACTIVE PANEL UNTUK CLUE WARLOCK */}
+                          {isBeli && (
+                            <div className="mt-3 p-2 bg-slate-900 rounded-lg space-y-2 border border-amber-500/20">
+                              <p className="text-[7px] font-black text-amber-500 uppercase tracking-widest">
+                                Pedagang: {handleWarlockRequest(act)}
+                              </p>
+                              <div className="flex gap-1">
+                                <input 
+                                  type="text" 
+                                  placeholder="Isi clue..." 
+                                  className="flex-1 bg-black border border-slate-700 p-2 rounded text-[9px] text-white outline-none focus:border-amber-500"
+                                  value={merchantClueInput}
+                                  onChange={(e) => setMerchantClueInput(e.target.value)}
+                                />
+                                <button 
+                                  onClick={() => {
+                                    const result = handleWarlockRequest(act);
+                                    const merchantName = result.split(": ")[1];
+                                    const merchantObj = players.find(p => p.name.toUpperCase() === merchantName);
+                                    if(merchantObj) sendMerchantClue(merchantObj.id, merchantObj.name);
+                                  }}
+                                  className="bg-amber-600 p-2 rounded hover:bg-amber-500 transition-colors"
+                                >
+                                  <Send size={12} className="text-white" />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                          <div className="mt-2 text-[7px] font-black text-slate-500 uppercase tracking-tighter">Action: {act.action}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))
+              )}
             </div>
           </div>
           <ChatRoom roomCode={roomCode} myId="host" myName="MODERATOR" players={players} isHost={true} />
         </div>
       </div>
-
-      {showConfirm.show && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm">
-          <div className="bg-slate-900 border-2 border-red-600 rounded-[2rem] p-8 max-w-xs w-full text-center shadow-2xl">
-            <ShieldAlert size={48} className="text-red-600 mx-auto mb-4" />
-            <h3 className="text-white font-black uppercase text-lg leading-tight mb-2">Konfirmasi Eksekusi</h3>
-            <p className="text-slate-400 text-[10px] leading-relaxed mb-8 uppercase font-bold tracking-widest">{showConfirm.msg}</p>
-            <div className="flex gap-3">
-              <button onClick={() => setShowConfirm({ show: false })} className="flex-1 py-4 bg-slate-800 text-slate-400 rounded-2xl font-black text-[9px] uppercase">Batal</button>
-              <button onClick={() => { onKill(showConfirm.targetId, showConfirm.status); setShowConfirm({ show: false }); triggerNotif("Target dieksekusi."); }} className="flex-1 py-4 bg-red-600 text-white rounded-2xl font-black text-[9px] uppercase">Ya, Bunuh</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

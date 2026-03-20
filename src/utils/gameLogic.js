@@ -1,40 +1,61 @@
-// src/utils/gameLogic.js
-import { calculateRoles } from './roleBalancer';
+/**
+ * src/utils/gameLogic.js
+ * Logika pembagian peran "The Merchant's Shadow" - Versi Balanced
+ * Fokus: Hakim, Werewolf, dan Pedagang sebagai pilar utama.
+ */
 
-export const distributeRoles = (playerList) => {
-  // 1. Filter Moderator (Moderator tidak ikut diacak rolenya)
-  const playersToAssign = playerList.filter(p => p.role !== 'Moderator');
-  const count = playersToAssign.length;
+export const distributeRoles = (players) => {
+  // 1. Filter Moderator (Moderator tidak ikut mendapatkan peran permainan)
+  let participants = players.filter(p => p.role !== 'Moderator');
+  const numPlayers = participants.length;
 
-  // 2. Dapatkan komposisi role yang balance berdasarkan jumlah pemain saat ini
-  const config = calculateRoles(count);
-  
-  // 3. Masukkan role yang terpilih ke dalam pool
-  let availableRoles = [];
-  
-  // Antagonis
-  for (let i = 0; i < config.antagonists.werewolf; i++) availableRoles.push("Werewolf");
-  for (let i = 0; i < config.antagonists.warlock; i++) availableRoles.push("Warlock");
-  
-  // Protagonis Spesial
-  if (config.protagonists.seer) availableRoles.push("Seer");
-  if (config.protagonists.guard) availableRoles.push("Guard");
-  if (config.protagonists.hakim) availableRoles.push("Hakim");
-  if (config.protagonists.hunter) availableRoles.push("Hunter");
-  
-  // Sisanya isi dengan Pedagang
-  const remaining = count - availableRoles.length;
-  for (let i = 0; i < remaining; i++) availableRoles.push("Pedagang");
+  // Proteksi minimal pemain agar mekanisme "The Merchant's Shadow" berjalan
+  if (numPlayers < 5) return players;
 
-  // 4. Fisher-Yates Shuffle (Logic yang kamu berikan)
-  for (let i = availableRoles.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [availableRoles[i], availableRoles[j]] = [availableRoles[j], availableRoles[i]];
+  // 2. Tentukan Tiga Peran Wajib (The Core Trinity)
+  // Hakim sebagai poros, Werewolf sebagai ancaman, Pedagang sebagai mayoritas/kamuflase
+  let rolePool = ['Hakim', 'Werewolf', 'Pedagang'];
+
+  // 3. Tentukan Jumlah Antagonis (Rasio ~1/3.5 dari total pemain)
+  const totalAntagonists = Math.max(1, Math.floor(numPlayers / 3.5));
+  
+  // Tambahkan Warlock jika pemain cukup banyak (>= 7) agar transaksi berjalan
+  if (numPlayers >= 7) {
+    rolePool.push('Warlock');
   }
 
-  // 5. Pasangkan ke pemain
-  return playersToAssign.map((player, index) => ({
+  // Isi sisa slot Antagonis dengan Werewolf tambahan sampai mencapai rasio
+  while (rolePool.filter(r => r === 'Werewolf' || r === 'Warlock').length < totalAntagonists) {
+    rolePool.push('Werewolf');
+  }
+
+  // 4. Tambahkan Peran Spesial Protagonis (Berdasarkan Prioritas)
+  const specialProtagonists = ['Seer', 'Guard', 'Hunter'];
+  specialProtagonists.forEach(role => {
+    if (rolePool.length < numPlayers) {
+      rolePool.push(role);
+    }
+  });
+
+  // 5. Penuhi Sisa Slot dengan Pedagang (Pedagang adalah mayoritas dalam game ini)
+  while (rolePool.length < numPlayers) {
+    rolePool.push('Pedagang');
+  }
+
+  // 6. Acak Daftar Peran (Fisher-Yates Shuffle)
+  const shuffledRoles = [...rolePool];
+  for (let i = shuffledRoles.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffledRoles[i], shuffledRoles[j]] = [shuffledRoles[j], shuffledRoles[i]];
+  }
+
+  // 7. Mapping Peran ke Pemain & Inisialisasi State Awal
+  return participants.map((player, index) => ({
     ...player,
-    role: availableRoles[index]
+    role: shuffledRoles[index],
+    status: 'alive',
+    inventory: null,
+    lastActedDay: null,
+    underTruth: false // Reset state untuk Kuasa Hakim
   }));
 };

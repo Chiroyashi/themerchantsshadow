@@ -2,15 +2,18 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ref, push, onValue } from "firebase/database";
 import { db } from "../lib/firebase";
-import { Send, MessageSquare, ChevronDown, ChevronUp, Globe, User } from 'lucide-react';
+import { Send, MessageSquare, ChevronDown, ChevronUp, Globe, User, ShieldAlert } from 'lucide-react';
 
 const ChatRoom = ({ roomCode, myId, myName, players, isHost }) => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [targetId, setTargetId] = useState("all");
   const [isOpen, setIsOpen] = useState(false);
-  const [showTargetMenu, setShowTargetMenu] = useState(false); // State untuk Drop-up
+  const [showTargetMenu, setShowTargetMenu] = useState(false);
   const scrollRef = useRef(null);
+
+  // Ambil data diri sendiri dari list players yang selalu sync dari Firebase
+  const myDataFromList = players?.find(p => p.id === myId);
 
   useEffect(() => {
     if (!roomCode) return;
@@ -37,14 +40,44 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost }) => {
   const sendMessage = (e) => {
     e.preventDefault();
     if (!input.trim()) return;
+
     const chatRef = ref(db, `rooms/${roomCode}/chats`);
-    push(chatRef, {
-      senderId: myId,
-      senderName: myName,
-      text: input,
-      target: targetId,
-      timestamp: Date.now()
-    });
+    const isPrivateChat = targetId !== "all";
+
+    // --- LOGIKA TRUTH EKSKLUSIF ---
+    // Gunakan data dari list players yang selalu sync untuk cek status underTruth
+    if (isPrivateChat && myDataFromList?.underTruth) {
+      const whisperedTo = players.find(p => p.id === targetId)?.name || "seseorang";
+
+      // 1. Kirim notifikasi PENYADAPAN ke publik
+      push(chatRef, {
+        senderId: "SYSTEM_TRUTH",
+        senderName: "SISTEM (TRUTH)",
+        text: `⚠️ ${myName.toUpperCase()} BERKATA JUJUR`,
+        target: "all", 
+        timestamp: Date.now(),
+        type: 'warning'
+      });
+
+      // 2. Tampilkan isi chat asli DI PUBLIK (Tanpa Label [ISI BISIKAN])
+      push(chatRef, {
+        senderId: myId,
+        senderName: `${myName} (TEREKAM)`,
+        text: input, 
+        target: "all", 
+        timestamp: Date.now() + 1 
+      });
+    } else {
+      // --- LOGIKA NORMAL ---
+      push(chatRef, {
+        senderId: myId,
+        senderName: myName,
+        text: input,
+        target: targetId,
+        timestamp: Date.now()
+      });
+    }
+
     setInput("");
   };
 
@@ -56,7 +89,6 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost }) => {
 
   const chatUI = (
     <div className="game-chat-system font-sans">
-      {/* BACKDROP */}
       <div 
         className={`fixed inset-0 bg-slate-950/80 backdrop-blur-md transition-all duration-500 z-[9998] 
           ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
@@ -66,7 +98,6 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost }) => {
         }}
       />
 
-      {/* CHAT CONTAINER */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[94%] max-w-lg z-[9999]">
         
         {/* LOG PESAN */}
@@ -87,13 +118,17 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost }) => {
             {messages.map((m) => {
               const isMe = m.senderId === myId;
               const isPrivate = m.target !== "all";
+              const isSystemTruth = m.senderId === "SYSTEM_TRUTH";
+
               return (
                 <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-2`}>
                   <div className="flex items-center gap-2 mb-1 px-1 text-[8px] font-black uppercase tracking-tighter text-slate-500">
                     {isPrivate && <span className="text-purple-500">[RAHASIA]</span>}
+                    {isSystemTruth && <ShieldAlert size={10} className="text-amber-500" />}
                     {isMe ? 'Anda' : m.senderName}
                   </div>
                   <div className={`p-4 rounded-[1.8rem] text-sm font-bold leading-relaxed shadow-lg ${
+                    isSystemTruth ? 'bg-amber-950/30 text-amber-500 border border-amber-500/30' :
                     isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-slate-800 text-slate-200 rounded-tl-none border border-white/5'
                   }`}>
                     {m.text}
@@ -105,10 +140,9 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost }) => {
           </div>
         </div>
 
-        {/* INPUT BAR DENGAN DROP-UP TARGET */}
+        {/* INPUT BAR */}
         <div className={`relative flex items-center gap-2 p-2 bg-slate-900 border transition-all duration-300 rounded-full shadow-2xl ${isOpen ? 'border-blue-500 ring-4 ring-blue-500/20' : 'border-white/10'}`}>
           
-          {/* DROP-UP MENU */}
           <div className="relative">
              <div className={`absolute bottom-full left-0 mb-4 w-48 bg-slate-800 border border-white/10 rounded-3xl shadow-2xl transition-all duration-300 origin-bottom-left overflow-hidden
                 ${showTargetMenu ? 'scale-100 opacity-100 translate-y-0' : 'scale-75 opacity-0 translate-y-4 pointer-events-none'}`}>
@@ -120,7 +154,7 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost }) => {
                   >
                     <Globe size={14} /> Publik
                   </button>
-                  {players.filter(p => p.id !== myId).map(p => (
+                  {players.filter(p => p.id !== myId && p.role !== 'Moderator').map(p => (
                     <button 
                       key={p.id}
                       onClick={() => { setTargetId(p.id); setShowTargetMenu(false); }}
@@ -132,7 +166,6 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost }) => {
                 </div>
              </div>
 
-             {/* TOMBOL TOGGLE TARGET */}
              <button 
                onClick={() => setShowTargetMenu(!showTargetMenu)}
                className={`flex items-center gap-2 pl-4 pr-3 py-2 rounded-full transition-all border ${targetId === 'all' ? 'border-blue-500/30 bg-blue-500/10 text-blue-400' : 'border-purple-500/30 bg-purple-500/10 text-purple-400'}`}

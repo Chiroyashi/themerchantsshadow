@@ -173,11 +173,13 @@ function App() {
     const updates = {};
     let nextDay = globalDay;
 
+    // Logika Ganti Hari: Jika pindah dari Malam ke Pagi
     if (globalPhase.toLowerCase().includes("malam") && newPhase.toLowerCase().includes("pagi")) {
       nextDay += 1;
       updates[`rooms/${roomCode}/timer/day`] = nextDay;
     }
 
+    // Logika Hitung Voting (Siang ke Malam)
     if (globalPhase.toLowerCase().includes("siang") && newPhase.toLowerCase().includes("malam")) {
         const roomSnapshot = await get(ref(db, `rooms/${roomCode}`));
         const data = roomSnapshot.val();
@@ -215,7 +217,6 @@ function App() {
     setRoomCode(newCode); setMyPlayerId(hostId); setIsHost(true); setCurrentPage('room-lobby');
   };
 
-  // LOGIKA JOIN ROOM DENGAN PROTEKSI LOCK STATUS
   const handleJoinRoom = async (code, inputName) => {
     const finalName = inputName || "Player";
     const roomRef = ref(db, `rooms/${code}`);
@@ -228,12 +229,12 @@ function App() {
       }
 
       const roomData = snapshot.val();
+      // PROTEKSI: Cek jika room sudah dalam status playing
       if (roomData.status === "playing") {
         showNotif("Akses Ditolak", "Permainan sudah dimulai. Pintu masuk telah dikunci oleh Moderator.", "error");
         return;
       }
 
-      // Jika masih waiting, proses masuk
       const playersRef = ref(db, `rooms/${code}/players`);
       const newPlayerRef = push(playersRef);
       
@@ -250,10 +251,27 @@ function App() {
     }
   };
 
-  const handleStartGame = () => {
+  const handleStartGame = async () => {
+    if (players.length < 3) {
+      showNotif("Gagal", "Minimal 3 pemain untuk memulai!", "error");
+      return;
+    }
+
+    // Bagikan peran (Logic khusus Hakim Wajib ada)
     const playersWithRoles = distributeRoles(players);
-    playersWithRoles.forEach(p => { update(ref(db, `rooms/${roomCode}/players/${p.id}`), { role: p.role }); });
-    set(ref(db, `rooms/${roomCode}/status`), "playing");
+
+    // Update ke Firebase secara batch/multi-update
+    const updates = {};
+    playersWithRoles.forEach(p => {
+      updates[`rooms/${roomCode}/players/${p.id}/role`] = p.role;
+      updates[`rooms/${roomCode}/players/${p.id}/status`] = "alive";
+      updates[`rooms/${roomCode}/players/${p.id}/inventory`] = null;
+    });
+    
+    // Kunci Room agar tidak ada player baru bisa join
+    updates[`rooms/${roomCode}/status`] = "playing";
+
+    await update(ref(db), updates);
   };
 
   const handleKillPlayer = (id, status) => {
