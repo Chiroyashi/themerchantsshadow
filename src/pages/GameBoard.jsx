@@ -1,134 +1,206 @@
 import React, { useState, useEffect } from 'react';
-import { ref, onValue, set } from "firebase/database";
+import { ref, onValue, set, update } from "firebase/database";
 import { db } from "../lib/firebase";
 import { 
   Skull, Heart, ArrowLeft, CheckCircle2, 
-  FastForward, User 
+  FastForward, User, Send, Eye, Shield, Zap, Info
 } from 'lucide-react';
 import SharedTimer from '../components/SharedTimer';
 
-const GameBoard = ({ players, roomCode, phase, seconds, isActive, onBack }) => {
-  const [selectedPlayer, setSelectedPlayer] = useState(null);
-  const [hasVoted, setHasVoted] = useState(false);
-  const myPlayerId = localStorage.getItem('my_player_id');
+const GameBoard = ({ players, roomCode, phase, seconds, isActive, onBack, myPlayerId }) => {
+  const [selectedTarget, setSelectedTarget] = useState(null);
+  const [hasActed, setHasActed] = useState(false);
+  
+  // Data Diri
+  const me = players.find(p => p.id === myPlayerId);
+  const isDead = me?.status === 'dead';
+  const isMalam = phase?.toLowerCase().includes("malam");
+  const isVotingTime = phase?.toLowerCase().includes("siang");
+  const gamePlayers = players.filter(p => p.role !== 'Moderator');
 
+  // Sync Status Aksi (Voting atau Skill Malam)
   useEffect(() => {
     if (!roomCode || !myPlayerId) return;
 
-    if (!phase?.toLowerCase().includes("siang")) {
-      setHasVoted(false);
-      setSelectedPlayer(null);
+    // Reset pilihan visual jika fase berubah
+    setSelectedTarget(null);
+    setHasActed(false);
+
+    // Listener khusus Voting Siang
+    if (isVotingTime) {
+      const voteRef = ref(db, `rooms/${roomCode}/votes/${myPlayerId}`);
+      return onValue(voteRef, (snap) => {
+        if (snap.exists()) {
+          setHasActed(true);
+          setSelectedTarget(snap.val());
+        }
+      });
     }
 
-    const myVoteRef = ref(db, `rooms/${roomCode}/votes/${myPlayerId}`);
-    const unsubscribeVote = onValue(myVoteRef, (snapshot) => {
-      if (snapshot.exists()) {
-        setHasVoted(true);
-        setSelectedPlayer(snapshot.val());
+    // Listener khusus Aksi Malam
+    if (isMalam) {
+      const actionRef = ref(db, `rooms/${roomCode}/players/${myPlayerId}/currentAction`);
+      return onValue(actionRef, (snap) => {
+        if (snap.exists()) {
+          setHasActed(true);
+          setSelectedTarget(snap.val().targetId);
+        }
+      });
+    }
+  }, [roomCode, myPlayerId, phase, isVotingTime, isMalam]);
+
+  // Handler Kirim Aksi
+  const handleAction = async (targetId) => {
+    if (hasActed || isDead) return;
+
+    try {
+      if (isVotingTime) {
+        // Logika Vote Siang
+        await set(ref(db, `rooms/${roomCode}/votes/${myPlayerId}`), targetId);
+      } else if (isMalam) {
+        // Logika Skill Malam (RPG & Ekonomi)
+        const updates = {};
+        updates[`rooms/${roomCode}/players/${myPlayerId}/currentAction`] = {
+          role: me.role,
+          targetId: targetId,
+          targetName: players.find(p => p.id === targetId)?.name || "Unknown",
+          timestamp: Date.now()
+        };
+        // Tambahkan Log Transaksi jika ini Warlock/Pedagang
+        updates[`rooms/${roomCode}/nightHistory/Malam_Current/${myPlayerId}`] = {
+          role: me.role,
+          senderName: me.name,
+          targetId: targetId,
+          targetName: players.find(p => p.id === targetId)?.name || "Unknown",
+          action: isMalam ? "Skill Malam" : "Vote"
+        };
+        await update(ref(db), updates);
       }
-    });
-
-    return () => unsubscribeVote();
-  }, [roomCode, myPlayerId, phase]);
-
-  const isVotingTime = phase?.toLowerCase().includes("siang");
-  const isDead = players.find(p => p.id === myPlayerId)?.status === 'dead';
-  const gamePlayers = players.filter(p => p.role !== 'Moderator');
-
-  const handleVote = (targetId) => {
-    if (hasVoted || isDead || !isVotingTime) return;
-    const voteRef = ref(db, `rooms/${roomCode}/votes/${myPlayerId}`);
-    set(voteRef, targetId).then(() => {
-      setHasVoted(true);
-      setSelectedPlayer(targetId);
-    });
+      setHasActed(true);
+    } catch (err) {
+      console.error("Gagal mengirim aksi:", err);
+    }
   };
 
+  if (!me) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-red-500 font-black uppercase tracking-widest">Data Error...</div>;
+
   return (
-    <div className="min-h-screen bg-slate-950 p-6 font-sans flex flex-col items-center selection:bg-orange-500/30">
-      <header className="max-w-4xl w-full flex flex-col items-center gap-6 mb-8">
-        <button onClick={onBack} className="self-start flex items-center gap-2 text-slate-600 hover:text-white transition-all text-[10px] uppercase font-black tracking-widest group">
-          <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" /> Kembali
-        </button>
-        <div className="text-center space-y-2">
-          <h1 className={`text-4xl font-black uppercase italic tracking-tighter leading-none transition-colors duration-500 ${isVotingTime ? 'text-orange-500 animate-pulse' : 'text-red-600'}`}>
-            {isVotingTime ? "Sesi Voting" : "Daftar Pemain"}
-          </h1>
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-red-500/30 pb-32">
+      {/* Header Mobile Optimized */}
+      <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-md border-b border-white/5 p-4 flex flex-col items-center gap-4">
+        <div className="w-full flex justify-between items-center">
+          <button onClick={onBack} className="p-2 bg-slate-900 rounded-xl border border-white/5"><ArrowLeft size={18} /></button>
+          <div className="text-center">
+             <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${isMalam ? 'text-purple-500' : 'text-orange-500'}`}>{phase}</p>
+             <h1 className="text-lg font-black italic uppercase tracking-tighter">Waranasura</h1>
+          </div>
+          <div className="w-10" /> {/* Spacer */}
         </div>
         
-        <div className="scale-110">
-            <SharedTimer seconds={seconds} phase={phase} isActive={isActive} />
+        <div className="w-full max-w-xs bg-black/40 rounded-2xl p-3 border border-white/5 flex items-center justify-between">
+           <SharedTimer seconds={seconds} phase={phase} isActive={isActive} />
+           <div className="text-right">
+              <p className="text-[8px] text-slate-500 font-black uppercase">Status Anda</p>
+              <p className={`text-xs font-black uppercase ${isDead ? 'text-red-600' : 'text-emerald-500'}`}>
+                {isDead ? 'Eliminasi' : '🛡️ Aktif'}
+              </p>
+           </div>
         </div>
       </header>
 
-      <div className="max-w-4xl w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-32">
+      {/* Grid Pemain */}
+      <main className="p-4 grid grid-cols-2 gap-3 max-w-2xl mx-auto">
         {gamePlayers.map((player) => {
           const pDead = player.status === 'dead';
-          const isTarget = selectedPlayer === player.id;
           const isMe = player.id === myPlayerId;
+          const isSelected = selectedTarget === player.id;
 
           return (
-            <div 
-              key={player.id} 
-              onClick={() => !pDead && isVotingTime && handleVote(player.id)} 
-              className={`group relative p-5 rounded-[2rem] border-2 transition-all duration-300 overflow-hidden select-none
-                ${pDead ? 'bg-slate-900/20 border-red-900/10 grayscale opacity-40 shadow-inner' : 'bg-slate-900 border-slate-800 shadow-xl'}
-                ${isVotingTime && !hasVoted && !pDead ? 'hover:border-orange-500 cursor-pointer active:scale-95' : ''}
-                ${isTarget ? 'border-orange-500 ring-4 ring-orange-500/10' : ''}
+            <button
+              key={player.id}
+              disabled={pDead || isDead || hasActed || isMe || (!isMalam && !isVotingTime)}
+              onClick={() => setSelectedTarget(player.id)}
+              className={`relative p-4 rounded-3xl border-2 transition-all text-left overflow-hidden active:scale-95
+                ${pDead ? 'bg-slate-900/40 border-transparent grayscale opacity-40' : 'bg-slate-900 border-slate-800 shadow-xl'}
+                ${isSelected ? 'border-red-500 bg-red-600/10 ring-4 ring-red-500/20' : ''}
               `}
             >
-              {isVotingTime && !pDead && !hasVoted && (
-                <div className="absolute inset-0 bg-orange-600/20 opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center backdrop-blur-[2px] z-30">
-                  <CheckCircle2 size={32} className="text-white animate-in zoom-in duration-300" />
-                  <span className="text-[10px] font-black text-white uppercase tracking-widest mt-2">Berikan Suara</span>
+              {/* Avatar & Status Badge */}
+              <div className="flex justify-between items-start mb-3">
+                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center ${pDead ? 'bg-slate-800' : isMalam ? 'bg-purple-900/40' : 'bg-blue-900/40'}`}>
+                  {pDead ? (
+                    <Skull size={20} className="text-slate-600" />
+                  ) : (
+                    <User size={20} className={isMalam ? 'text-purple-400' : 'text-blue-400'} />
+                  )}
                 </div>
-              )}
-
-              <div className="flex justify-between items-center relative z-10">
-                <div className="flex items-center gap-4">
-                  <div className={`p-3 rounded-2xl shrink-0 transition-colors
-                    ${pDead ? 'bg-red-950/30 text-red-700' : isVotingTime ? 'bg-orange-950/30 text-orange-500' : 'bg-slate-800 text-blue-500'}`}>
-                    {pDead ? <Skull size={20} /> : <User size={20} />}
-                  </div>
-                  <div className="overflow-hidden">
-                    <p className={`text-sm font-black truncate leading-tight transition-colors
-                      ${pDead ? 'line-through text-slate-600' : 'text-slate-100'}`}>
-                      {player.name} {isMe && "(Anda)"}
-                    </p>
-                    <p className={`text-[8px] uppercase tracking-[0.2em] font-black mt-0.5 ${pDead ? 'text-red-900' : 'text-slate-600'}`}>
-                      {pDead ? 'Gugur' : 'Aktif'}
-                    </p>
-                  </div>
-                </div>
-                {isTarget && (
-                  <div className="bg-orange-500 p-1.5 rounded-full animate-in fade-in zoom-in">
-                    <CheckCircle2 size={16} className="text-slate-950" />
-                  </div>
-                )}
+                {isMe && <span className="text-[7px] font-black bg-blue-600 px-2 py-1 rounded-full uppercase tracking-wide">Anda</span>}
               </div>
-            </div>
+              
+              {/* Username Label */}
+              <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mb-1">Username</p>
+              
+              {/* Username Display */}
+              <p className={`font-black text-base truncate leading-tight ${pDead ? 'text-slate-600' : 'text-white'}`}>
+                {player.name}
+              </p>
+              
+              {/* Status Footer */}
+              <div className="mt-3 pt-2 border-t border-white/5">
+                <p className={`text-[9px] font-semibold uppercase tracking-wide ${pDead ? 'text-red-700' : isSelected ? 'text-red-400' : 'text-slate-500'}`}>
+                  {pDead ? '☠️ Gugur' : isSelected ? '✓ Ditargetkan' : '🎯 Pilih Target'}
+                </p>
+              </div>
+            </button>
           );
         })}
-      </div>
+      </main>
 
-      {isVotingTime && (
-        <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-slate-950 via-slate-950 to-transparent z-50">
-          <div className="max-w-sm mx-auto space-y-3">
-            {!hasVoted ? (
-               <button onClick={() => handleVote('skip')} className={`w-full py-4 bg-slate-900 border-2 border-slate-800 hover:border-slate-600 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 transition-all ${isDead ? 'opacity-30 cursor-not-allowed' : 'hover:bg-slate-800'}`} disabled={isDead}>
-                <FastForward size={16} /> Skip Voting
-               </button>
+      {/* Action Bar Bottom - Mobile Friendly Sticky */}
+      {!isDead && (isMalam || isVotingTime) && (
+        <div className="fixed bottom-0 left-0 w-full p-4 bg-slate-900/90 backdrop-blur-xl border-t border-white/10 z-50">
+          <div className="max-w-md mx-auto">
+            {hasActed ? (
+              <div className="bg-emerald-600/10 border border-emerald-500/30 p-4 rounded-2xl flex items-center justify-center gap-3 animate-in slide-in-from-bottom-2">
+                <CheckCircle2 size={18} className="text-emerald-500" />
+                <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Aksi Terkunci</p>
+              </div>
             ) : (
-              <div className="bg-orange-600/10 border-2 border-orange-500/30 p-4 rounded-2xl text-center animate-in slide-in-from-bottom-4 shadow-xl">
-                <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-1 italic">Pilihan Terkunci</p>
-                <p className="text-[11px] text-slate-300 font-medium">
-                  {selectedPlayer === 'skip' ? "Anda memilih untuk: MELEWATI" : <>Memilih: <span className="text-white font-bold">{players.find(p => p.id === selectedPlayer)?.name}</span></>}
-                </p>
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <p className="text-[9px] font-black text-slate-500 uppercase mb-1">{isVotingTime ? "Sesi Voting" : `Kemampuan ${me.role}`}</p>
+                  <p className="text-xs font-bold truncate">
+                    {selectedTarget ? `Target: ${players.find(p => p.id === selectedTarget)?.name}` : "Pilih Target..."}
+                  </p>
+                </div>
+                {isVotingTime && !selectedTarget && (
+                   <button onClick={() => handleAction('skip')} className="p-4 bg-slate-800 rounded-2xl text-slate-400"><FastForward size={20} /></button>
+                )}
+                <button 
+                  onClick={() => handleAction(selectedTarget)}
+                  disabled={!selectedTarget}
+                  className="bg-red-600 disabled:bg-slate-800 p-4 rounded-2xl shadow-xl shadow-red-900/20 active:scale-90 transition-transform"
+                >
+                  <Send size={20} />
+                </button>
               </div>
             )}
           </div>
         </div>
       )}
+
+      {/* Info Card Role */}
+      <div className="p-4 max-w-2xl mx-auto">
+        <div className="bg-gradient-to-br from-slate-900 to-black p-6 rounded-[2.5rem] border border-white/5 space-y-4">
+           <div className="flex items-center gap-3">
+              <div className="p-2 bg-red-600/20 rounded-lg text-red-500"><Info size={16} /></div>
+              <h3 className="text-xs font-black uppercase tracking-widest">Catatan Peran</h3>
+           </div>
+           <p className="text-[11px] text-slate-400 leading-relaxed italic">
+             Anda adalah <span className="text-white font-bold">{me.role}</span>. {isMalam ? "Gunakan malam ini untuk strategi trading atau eliminasi." : "Diskusikan hasil temuan malam tadi dan berikan suara Anda."}
+           </p>
+        </div>
+      </div>
     </div>
   );
 };
