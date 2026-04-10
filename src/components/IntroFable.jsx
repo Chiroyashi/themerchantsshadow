@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { ref, onValue } from "firebase/database";
+import { ref, onValue, update } from "firebase/database";
 import { db } from "../lib/firebase";
 import { Scroll, Gavel, Users, Sparkles, Sun, Quote } from 'lucide-react';
 
-const IntroFable = ({ players, roomCode, onFinish }) => {
+const IntroFable = ({ players, roomCode, onFinish, playerData }) => {
   const [step, setStep] = useState(1);
   const [progress, setProgress] = useState(0);
 
@@ -19,7 +19,12 @@ const IntroFable = ({ players, roomCode, onFinish }) => {
     
     const unsubscribe = onValue(introRef, (snapshot) => {
       const startTime = snapshot.val();
-      if (!startTime) return;
+      
+      // Jika intro sudah selesai (tidak ada startTime), langsung finish
+      if (!startTime) {
+        onFinish();
+        return;
+      }
 
       const totalDuration = 20; // Total durasi intro dalam detik
 
@@ -38,6 +43,9 @@ const IntroFable = ({ players, roomCode, onFinish }) => {
         else if (elapsed < 21) setStep(4);  // 16-21 detik: Morning Reveal
         else {
           clearInterval(interval);
+          update(ref(db, `rooms/${roomCode}/introFinished`), { 
+            [playerData?.id || 'unknown']: true 
+          });
           onFinish(); // Selesai otomatis
         }
       }, 50); // Cek setiap 50ms agar progress bar sangat smooth
@@ -46,7 +54,7 @@ const IntroFable = ({ players, roomCode, onFinish }) => {
     });
 
     return () => unsubscribe();
-  }, [roomCode, onFinish]);
+  }, [roomCode, onFinish, playerData?.id]);
 
   return (
     <div className="fixed inset-0 z-[500] bg-slate-950 flex items-center justify-center p-6 text-center overflow-hidden font-sans">

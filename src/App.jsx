@@ -256,33 +256,48 @@ function App() {
       case 'room-lobby': return <Lobby {...timerProps} isHost={isHost} onStart={handleStartGame} onKick={handleKickPlayer} onBack={() => setCurrentPage('room-setup')} />;
       case 'intro-fable': return <IntroFable players={players} roomCode={roomCode} onFinish={() => isHost && update(ref(db, `rooms/${roomCode}`), { status: "playing" })} />;
       case 'view-role':
-        return isHost ? (
-          <ModeratorDashboard {...timerProps} 
-            onKill={handleKillPlayer} 
-            onToggleTimer={handleToggleTimer} 
-            onSetPhase={handleSetPhase} 
-            onResetTimer={() => update(ref(db, `rooms/${roomCode}/timer`), { isActive: false, seconds: 120 })}
-            onEditTimer={(s) => update(ref(db, `rooms/${roomCode}/timer`), { seconds: s })}
-            onEndGame={(winner) => showNotif("Akhiri Permainan?", "Semua data room akan dihapus.", "confirm", () => handleEndGame(winner))}
-            onExit={() => showNotif("Bubarkan?", "Data akan dihapus.", "confirm", async () => {
-              await deleteRoom(roomCode);
-              localStorage.clear(); setRoomCode(''); setMyPlayerId(null); setCurrentPage('landing');
-            })}
-          />
-        ) : (
-          <ViewRole playerData={myData} winner={gameWinner} onNext={() => setCurrentPage('game-board')} 
-            onLeave={() => showNotif("Keluar?", gameWinner ? "Room akan dihapus dari database." : "Statusmu jadi MATI.", "confirm", async () => {
-              if (gameWinner && isHost) {
-                await deleteRoom(roomCode);
-              } else if (!gameWinner) {
-                update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), { status: "dead" });
-              }
-              localStorage.clear(); setRoomCode(''); setMyPlayerId(null); setCurrentPage('landing');
-            })}
-            {...timerProps}
-          />
+        return (
+          <div className="fixed inset-0 overflow-x-hidden overflow-y-hidden">
+            <div className="flex h-full w-[200vw] overflow-x-auto snap-x snap-mandatory scroll-smooth no-scrollbar scroll-container" 
+                 style={{ scrollSnapType: 'x mandatory' }}>
+              <div className="w-screen h-full snap-center overflow-y-auto">
+                {isHost ? (
+                  <ModeratorDashboard {...timerProps} 
+                    onKill={handleKillPlayer} 
+                    onToggleTimer={handleToggleTimer} 
+                    onSetPhase={handleSetPhase} 
+                    onResetTimer={() => update(ref(db, `rooms/${roomCode}/timer`), { isActive: false, seconds: 120 })}
+                    onEditTimer={(s) => update(ref(db, `rooms/${roomCode}/timer`), { seconds: s })}
+                    onEndGame={(winner) => showNotif("Akhiri Permainan?", "Semua data room akan dihapus.", "confirm", () => handleEndGame(winner))}
+                    onExit={() => showNotif("Bubarkan?", "Data akan dihapus.", "confirm", async () => {
+                      await deleteRoom(roomCode);
+                      localStorage.clear(); setRoomCode(''); setMyPlayerId(null); setCurrentPage('landing');
+                    })}
+                  />
+                ) : (
+                  <ViewRole playerData={myData} winner={gameWinner} isHost={isHost} onNext={() => {
+                    document.querySelector('.scroll-container')?.scrollTo({ left: window.innerWidth, behavior: 'smooth' });
+                  }} 
+                    onLeave={() => showNotif("Keluar?", gameWinner ? "Room akan dihapus dari database." : "Statusmu jadi MATI.", "confirm", async () => {
+                      if (gameWinner && isHost) {
+                        await deleteRoom(roomCode);
+                      } else if (!gameWinner) {
+                        update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), { status: "dead" });
+                      }
+                      localStorage.clear(); setRoomCode(''); setMyPlayerId(null); setCurrentPage('landing');
+                    })}
+                    {...timerProps}
+                  />
+                )}
+              </div>
+              <div className="w-screen h-full snap-center overflow-y-auto">
+                <GameBoard onBack={() => {
+                  document.querySelector('.scroll-container')?.scrollTo({ left: 0, behavior: 'smooth' });
+                }} {...timerProps} />
+              </div>
+            </div>
+          </div>
         );
-      case 'game-board': return <GameBoard onBack={() => setCurrentPage('view-role')} {...timerProps} />;
       default: return <LandingPage onNext={() => setCurrentPage('introduction')} />;
     }
   };

@@ -124,16 +124,13 @@ const ModeratorDashboard = ({
         <section className="bg-slate-900/40 border border-white/5 rounded-[2.5rem] p-6 shadow-2xl overflow-hidden">
           <div className="flex flex-col items-center space-y-4">
             
-            {/* Timer Header & Edit Trigger */}
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 text-slate-500 text-[10px] font-black uppercase tracking-[0.3em]">
-                <Clock size={12} /> Time Remaining
-              </div>
+            {/* Edit Timer Button */}
+            <div className="flex items-center gap-2">
               <button 
                 onClick={() => setIsEditingTime(!isEditingTime)}
-                className="p-1 hover:text-blue-400 transition-colors text-slate-600"
+                className="flex items-center gap-2 text-slate-500 text-[10px] font-black uppercase tracking-[0.3em] hover:text-blue-400 transition-colors"
               >
-                <Edit3 size={14} />
+                <Clock size={12} /> Edit Timer
               </button>
             </div>
 
