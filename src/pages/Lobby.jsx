@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Users, Play, Copy, Check, AlertTriangle, ShieldCheck, XCircle, UserMinus } from 'lucide-react';
+import { Users, Play, Copy, Check, AlertTriangle, ShieldCheck, XCircle, UserMinus, ChevronLeft } from 'lucide-react';
 
-const Lobby = ({ roomCode, players, isHost, onStart, onKick }) => {
+const Lobby = ({ roomCode, players, isHost, onStart, onKick, onBack }) => {
   const [isCopied, setIsCopied] = useState(false);
 
   // --- LOGIKA PEMBATASAN MINIMAL PEMAIN ---
@@ -25,6 +25,16 @@ const Lobby = ({ roomCode, players, isHost, onStart, onKick }) => {
     <div className="min-h-screen bg-slate-950 text-white p-6 md:p-8 flex flex-col items-center font-sans selection:bg-red-600/30">
       <div className="max-w-md w-full space-y-8 text-center mt-6">
         
+        {/* BACK BUTTON */}
+        <div className="flex justify-start">
+          <button 
+            onClick={onBack} 
+            className="flex items-center gap-1 text-slate-500 hover:text-white transition-colors text-[10px] uppercase font-black tracking-widest"
+          >
+            <ChevronLeft size={14} /> Kembali
+          </button>
+        </div>
+
         {/* ROOM CODE SECTION */}
         <div 
           onClick={handleCopyCode}
@@ -78,11 +88,11 @@ const Lobby = ({ roomCode, players, isHost, onStart, onKick }) => {
             <div className="flex items-center gap-2 text-slate-400">
               <ShieldCheck size={18} className="text-red-600" />
               <span className="font-black text-[10px] uppercase tracking-[0.3em]">
-                Registry
+                Antrian
               </span>
             </div>
             <span className={`text-[10px] font-black px-4 py-1 rounded-full border ${isReady ? 'bg-emerald-600/10 border-emerald-500/20 text-emerald-500' : 'bg-amber-600/10 border-amber-500/20 text-amber-500'}`}>
-              {currentPlayerCount} / {minPlayers}
+              Min. {minPlayers}
             </span>
           </div>
           

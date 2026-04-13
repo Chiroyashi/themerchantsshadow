@@ -78,6 +78,7 @@ function App() {
     const roomRef = ref(db, `rooms/${roomCode}`);
     const unsubscribe = onValue(roomRef, (snapshot) => {
       const data = snapshot.val();
+      console.log('Firebase onValue triggered', data?.timer?.phase);
 
       if (!data || data.status === "destroyed") {
         if (!hasShownDestroyed) {
@@ -111,7 +112,9 @@ function App() {
       }
 
       if (data.timer) {
-        setGlobalPhase(data.timer.phase || "Pagi (Diskusi)");
+        if (data.timer.phase !== globalPhase) {
+          setGlobalPhase(data.timer.phase || "Pagi (Diskusi)");
+        }
         setGlobalDay(data.timer.day || 1);
         setIsTimerActive(data.timer.isActive || false);
         const fbSecs = parseInt(data.timer.seconds);
@@ -122,63 +125,79 @@ function App() {
       
       // Navigasi Otomatis Berdasarkan Status Room
       if (data.status === "intro" && currentPage === "room-lobby") setCurrentPage('intro-fable');
-      if (data.status === "playing" && (currentPage === "room-lobby" || currentPage === "intro-fable")) setCurrentPage('view-role');
+      if (data.status === "playing" && (currentPage === "room-lobby" || currentPage === "intro-fable")) {
+        if (isHost) {
+          setCurrentPage('view-mod');
+        } else {
+          setCurrentPage('view-role');
+        }
+      }
     });
     return () => unsubscribe();
   }, [roomCode, currentPage, hasShownDestroyed, globalSeconds, myPlayerId, isHost]);
 
-  // LOGIKA HITUNG MUNDUR & BROADCAST
+  // LOGIKA HITUNG MUNDUR & AUTO ADVANCE
   useEffect(() => {
     let interval = null;
     if (isTimerActive && globalSeconds > 0) {
-      interval = setInterval(() => {
+      interval = setInterval(async () => {
         const nextSecs = globalSeconds - 1;
         setGlobalSeconds(nextSecs);
+        
         if (isHost && nextSecs % 5 === 0) {
-          update(ref(db, `rooms/${roomCode}/timer`), { seconds: nextSecs });
+          await update(ref(db, `rooms/${roomCode}/timer`), { seconds: nextSecs });
+        }
+        
+        // Auto advance ketika waktu habis
+        if (nextSecs <= 0 && isHost) {
+          let nextPhase = "";
+          if (globalPhase.includes("Pagi")) {
+            nextPhase = "Siang (Voting)";
+          } else if (globalPhase.includes("Siang")) {
+            nextPhase = "Malam (Eksekusi)";
+          } else if (globalPhase.includes("Malam")) {
+            nextPhase = "Pagi (Diskusi)";
+            const newDay = globalDay + 1;
+            await update(ref(db, `rooms/${roomCode}/timer`), { day: newDay });
+          }
+          if (nextPhase) {
+            await update(ref(db, `rooms/${roomCode}/timer`), { 
+              phase: nextPhase, 
+              isActive: true,
+              seconds: 180 
+            });
+            console.log('Auto advanced to:', nextPhase);
+          }
         }
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [isTimerActive, globalSeconds, isHost, roomCode]);
+  }, [isTimerActive, globalSeconds, isHost, roomCode, globalPhase, globalDay]);
 
   // --- 5. HANDLERS ---
   const handleSetPhase = async (newPhase) => {
-    if (!isHost) return;
-    const updates = {};
-    let nextDay = globalDay;
-
-    if (globalPhase.toLowerCase().includes("malam") && newPhase.toLowerCase().includes("pagi")) {
-      nextDay += 1;
-      updates[`rooms/${roomCode}/timer/day`] = nextDay;
+    if (!isHost || !roomCode) return;
+    
+    console.log('Setting phase to:', newPhase);
+    
+    if (newPhase.toLowerCase().includes("pagi")) {
+      const newDay = globalDay + 1;
+      const timerRef = ref(db, `rooms/${roomCode}/timer`);
+      await update(timerRef, { phase: newPhase, day: newDay, isActive: false, seconds: 120 });
+    } 
+    else if (newPhase.toLowerCase().includes("malam")) {
+      for (const p of players) {
+        await update(ref(db, `rooms/${roomCode}/players/${p.id}`), { currentAction: null });
+      }
+      const timerRef = ref(db, `rooms/${roomCode}/timer`);
+      await update(timerRef, { phase: newPhase, isActive: true, seconds: 180 });
+    } 
+    else {
+      const timerRef = ref(db, `rooms/${roomCode}/timer`);
+      await update(timerRef, { phase: newPhase, isActive: false, seconds: 120 });
     }
-
-    if (newPhase.toLowerCase().includes("malam")) {
-      players.forEach(p => {
-        updates[`rooms/${roomCode}/players/${p.id}/currentAction`] = null;
-      });
-    }
-
-    if (globalPhase.toLowerCase().includes("siang") && newPhase.toLowerCase().includes("malam")) {
-      const roomSnapshot = await get(ref(db, `rooms/${roomCode}`));
-      const data = roomSnapshot.val();
-      const votes = data.votes || {};
-      const currentPlayers = Object.entries(data.players || {}).map(([id, val]) => ({ id, ...val }));
-      const activePlayers = currentPlayers.filter(p => p.status !== 'dead' && p.role !== 'Moderator');
-      const threshold = Math.floor(activePlayers.length / 2) + 1;
-      const counts = {};
-      Object.values(votes).forEach(tId => { if (tId !== 'skip') counts[tId] = (counts[tId] || 0) + 1; });
-      const victimId = Object.keys(counts).find(id => counts[id] >= threshold);
-      const victimName = victimId ? (currentPlayers.find(p => p.id === victimId)?.name || "Pemain") : "Tidak ada";
-      updates[`rooms/${roomCode}/lastExecution`] = { victimName, timestamp: Date.now() };
-      if (victimId) updates[`rooms/${roomCode}/players/${victimId}/status`] = "dead";
-    }
-
-    updates[`rooms/${roomCode}/timer/phase`] = newPhase;
-    updates[`rooms/${roomCode}/timer/isActive`] = false; 
-    updates[`rooms/${roomCode}/timer/seconds`] = 120; 
-    updates[`rooms/${roomCode}/votes`] = null; 
-    await update(ref(db), updates);
+    
+    console.log('Phase updated to:', newPhase, 'day:', newPhase.toLowerCase().includes("pagi") ? globalDay + 1 : globalDay);
   };
 
   const handleJoinRoom = async (code, inputName) => {
@@ -197,21 +216,21 @@ function App() {
     } catch (error) { showNotif("Error", "Gagal masuk.", "error"); } finally { setIsJoining(false); }
   };
 
-  const handleKickPlayer = async (targetId) => {
-    if (isHost) await set(ref(db, `rooms/${roomCode}/players/${targetId}`), null);
+const handleKickPlayer = async (targetId) => {
+    if (isHost) await set(ref(db, "rooms/" + roomCode + "/players/" + targetId), null);
   };
 
   const handleEndGame = async (winner) => {
     if (!isHost) return;
-    await update(ref(db, `rooms/${roomCode}`), { status: "ended", winner, endedAt: Date.now() });
+    await update(ref(db, "rooms/" + roomCode), { status: "ended", winner, endedAt: Date.now() });
   };
 
   const handleKillPlayer = (id, status) => {
-    if (isHost) update(ref(db, `rooms/${roomCode}/players/${id}`), { status: status === 'dead' ? 'alive' : 'dead' });
+    if (isHost) update(ref(db, "rooms/" + roomCode + "/players/" + id), { status: status === 'dead' ? 'alive' : 'dead' });
   };
 
   const handleToggleTimer = (isActive, currentSeconds) => {
-    if (isHost) update(ref(db, `rooms/${roomCode}/timer`), { isActive: !isActive, seconds: currentSeconds <= 0 ? 120 : currentSeconds });
+    if (isHost) update(ref(db, "rooms/" + roomCode + "/timer"), { isActive: !isActive, seconds: currentSeconds <= 0 ? 120 : currentSeconds });
   };
 
   const handleStartGame = async () => {
@@ -219,12 +238,12 @@ function App() {
     const playersWithRoles = distributeRoles(players);
     const updates = {};
     playersWithRoles.forEach(p => {
-      updates[`rooms/${roomCode}/players/${p.id}/role`] = p.role;
-      updates[`rooms/${roomCode}/players/${p.id}/status`] = "alive";
+      updates["players/" + p.id + "/role"] = p.role;
+      updates["players/" + p.id + "/status"] = "alive";
     });
-    updates[`rooms/${roomCode}/introStartedAt`] = Date.now();
-    updates[`rooms/${roomCode}/status`] = "intro"; 
-    await update(ref(db), updates);
+    updates["introStartedAt"] = Date.now();
+    updates["status"] = "intro"; 
+    await update(ref(db, "rooms/" + roomCode), updates);
   };
 
   const handleCreateRoom = async (name) => {
@@ -232,12 +251,14 @@ function App() {
     const finalName = name || "Moderator";
     const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     const hostId = "host_" + Date.now();
-    set(ref(db, 'rooms/' + newCode), {
-      status: "waiting", host: finalName,
+    const roomData = {
+      status: "waiting",
+      host: finalName,
       createdAt: Date.now(),
       timer: { isActive: false, seconds: 120, phase: "Pagi (Diskusi)", day: 1 },
       players: { [hostId]: { name: finalName + " (Moderator)", role: "Moderator", status: "alive" } }
-    });
+    };
+    await set(ref(db, "rooms/" + newCode), roomData);
     setRoomCode(newCode); setMyPlayerId(hostId); setIsHost(true); setPlayerName(finalName); setCurrentPage('room-lobby');
   };
 
@@ -255,28 +276,32 @@ function App() {
       case 'room-setup': return <Room onCreate={handleCreateRoom} onJoin={handleJoinRoom} isJoining={isJoining} onBack={() => setCurrentPage('introduction')} />;
       case 'room-lobby': return <Lobby {...timerProps} isHost={isHost} onStart={handleStartGame} onKick={handleKickPlayer} onBack={() => setCurrentPage('room-setup')} />;
       case 'intro-fable': return <IntroFable players={players} roomCode={roomCode} onFinish={() => isHost && update(ref(db, `rooms/${roomCode}`), { status: "playing" })} />;
+      case 'view-mod':
+        return (
+          <ModeratorDashboard {...timerProps} 
+            onKill={handleKillPlayer} 
+            onToggleTimer={handleToggleTimer} 
+            onSetPhase={handleSetPhase} 
+            onResetTimer={() => update(ref(db, `rooms/${roomCode}/timer`), { isActive: false, seconds: 120 })}
+            onEditTimer={(s) => update(ref(db, `rooms/${roomCode}/timer`), { seconds: s })}
+            onEndGame={(winner) => showNotif("Akhiri Permainan?", "Semua data room akan dihapus.", "confirm", () => handleEndGame(winner))}
+            onExit={() => showNotif("Bubarkan?", "Data akan dihapus.", "confirm", async () => {
+              await deleteRoom(roomCode);
+              localStorage.clear(); setRoomCode(''); setMyPlayerId(null); setCurrentPage('landing');
+            })}
+          />
+        );
       case 'view-role':
         return (
-          <div className="fixed inset-0 overflow-x-hidden overflow-y-hidden">
-            <div className="flex h-full w-[200vw] overflow-x-auto snap-x snap-mandatory scroll-smooth no-scrollbar scroll-container" 
-                 style={{ scrollSnapType: 'x mandatory' }}>
-              <div className="w-screen h-full snap-center overflow-y-auto">
-                {isHost ? (
-                  <ModeratorDashboard {...timerProps} 
-                    onKill={handleKillPlayer} 
-                    onToggleTimer={handleToggleTimer} 
-                    onSetPhase={handleSetPhase} 
-                    onResetTimer={() => update(ref(db, `rooms/${roomCode}/timer`), { isActive: false, seconds: 120 })}
-                    onEditTimer={(s) => update(ref(db, `rooms/${roomCode}/timer`), { seconds: s })}
-                    onEndGame={(winner) => showNotif("Akhiri Permainan?", "Semua data room akan dihapus.", "confirm", () => handleEndGame(winner))}
-                    onExit={() => showNotif("Bubarkan?", "Data akan dihapus.", "confirm", async () => {
-                      await deleteRoom(roomCode);
-                      localStorage.clear(); setRoomCode(''); setMyPlayerId(null); setCurrentPage('landing');
-                    })}
-                  />
-                ) : (
+          <div className="fixed inset-0">
+            <div 
+              className="scroll-container flex h-full w-[200vw] overflow-x-auto overflow-y-hidden"
+              style={{ scrollBehavior: 'smooth' }}
+            >
+              <div className="w-screen h-full flex-shrink-0">
                   <ViewRole playerData={myData} winner={gameWinner} isHost={isHost} onNext={() => {
-                    document.querySelector('.scroll-container')?.scrollTo({ left: window.innerWidth, behavior: 'smooth' });
+                    const container = document.querySelector('.scroll-container');
+                    if (container) container.scrollLeft = container.clientWidth;
                   }} 
                     onLeave={() => showNotif("Keluar?", gameWinner ? "Room akan dihapus dari database." : "Statusmu jadi MATI.", "confirm", async () => {
                       if (gameWinner && isHost) {
@@ -288,11 +313,11 @@ function App() {
                     })}
                     {...timerProps}
                   />
-                )}
               </div>
-              <div className="w-screen h-full snap-center overflow-y-auto">
+              <div className="w-screen h-full flex-shrink-0">
                 <GameBoard onBack={() => {
-                  document.querySelector('.scroll-container')?.scrollTo({ left: 0, behavior: 'smooth' });
+                  const container = document.querySelector('.scroll-container');
+                  if (container) container.scrollLeft = 0;
                 }} {...timerProps} />
               </div>
             </div>

@@ -1,7 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { ref, onValue, update } from "firebase/database";
 import { db } from "../lib/firebase";
-import { Scroll, Gavel, Users, Sparkles, Sun, Quote } from 'lucide-react';
+import { Scroll, Gavel, Users, Sparkles, Sun, Wallet, Eye, Shield, Crosshair, Wand2, Ghost } from 'lucide-react';
+
+const roleIcons = {
+  Pedagang: { icon: Wallet, color: "text-emerald-400" },
+  Werewolf: { icon: Ghost, color: "text-red-500" },
+  Seer: { icon: Eye, color: "text-purple-400" },
+  Guard: { icon: Shield, color: "text-blue-400" },
+  Hakim: { icon: Gavel, color: "text-amber-500" },
+  Hunter: { icon: Crosshair, color: "text-orange-500" },
+  Warlock: { icon: Wand2, color: "text-purple-600" }
+};
 
 const IntroFable = ({ players, roomCode, onFinish, playerData }) => {
   const [step, setStep] = useState(1);
@@ -57,7 +67,7 @@ const IntroFable = ({ players, roomCode, onFinish, playerData }) => {
   }, [roomCode, onFinish, playerData?.id]);
 
   return (
-    <div className="fixed inset-0 z-[500] bg-slate-950 flex items-center justify-center p-6 text-center overflow-hidden font-sans">
+    <div className="fixed inset-0 z-[500] bg-slate-950 flex items-center justify-center p-4 md:p-6 text-center overflow-hidden font-sans">
       {/* Ambience Layer */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[70%] h-[70%] bg-blue-900/20 rounded-full blur-[120px] animate-pulse" />
@@ -68,14 +78,14 @@ const IntroFable = ({ players, roomCode, onFinish, playerData }) => {
         
         {/* STEP 1: PROLOGUE */}
         {step === 1 && (
-          <div className="space-y-6 animate-in fade-in zoom-in duration-1000">
-            <Scroll className="w-16 h-16 text-amber-500 mx-auto mb-4 drop-shadow-[0_0_15px_rgba(245,158,11,0.5)]" />
-            <h2 className="text-3xl font-black text-white italic tracking-tighter uppercase">Waranasura</h2>
-            <div className="space-y-4">
-              <p className="text-slate-300 leading-relaxed italic text-sm">
+          <div className="space-y-4 md:space-y-6 animate-in fade-in zoom-in duration-1000">
+            <Scroll className="w-12 h-12 md:w-16 md:h-16 text-amber-500 mx-auto mb-4 drop-shadow-[0_0_15px_rgba(245,158,11,0.5)]" />
+            <h2 className="text-2xl md:text-3xl font-black text-white italic tracking-tighter uppercase">Waranasura</h2>
+            <div className="space-y-3 md:space-y-4">
+              <p className="text-slate-300 leading-relaxed italic text-xs md:text-sm">
                 "Disebuah kota bernama <span className="text-amber-500 font-bold">Waranasura</span>, ada <span className="text-blue-400 font-bold">{counts['Pedagang'] || 0} Pedagang</span> yang mempertaruhkan segalanya demi kepingan koin..."
               </p>
-              <p className="text-slate-400 leading-relaxed italic text-xs opacity-80">
+              <p className="text-slate-400 leading-relaxed italic text-[10px] md:text-xs opacity-80">
                 Namun di balik hiruk pikuk pasar, bayangan gelap mulai bergerak mencari mangsa.
               </p>
             </div>
@@ -84,20 +94,21 @@ const IntroFable = ({ players, roomCode, onFinish, playerData }) => {
 
         {/* STEP 2: REVEAL HAKIM */}
         {step === 2 && (
-          <div className="space-y-8 animate-in slide-in-from-bottom-8 duration-700">
-            <div className="relative inline-block scale-125 mb-4">
-              <Gavel className="w-20 h-20 text-amber-500" />
-              <Sparkles className="absolute -top-2 -right-2 text-white animate-pulse" />
+          <div className="space-y-6 md:space-y-8 animate-in slide-in-from-bottom-8 duration-700">
+            <div className="relative inline-block scale-110 md:scale-125 mb-4">
+              <Gavel className="w-16 h-16 md:w-20 md:h-20 text-amber-500" />
+              <Sparkles className="absolute -top-1 md:-top-2 -right-1 md:-right-2 text-white animate-pulse" />
             </div>
-            <h1 className="text-2xl font-black text-white italic tracking-tighter leading-none uppercase">
+            <h1 className="text-xl md:text-2xl font-black text-white italic tracking-tighter leading-none uppercase">
               "Keadilan Adalah <br/> Milik Mereka yang Berani!"
             </h1>
             
             <div className="bg-amber-500 p-1 rounded-[2rem] rotate-2 shadow-[0_20px_50px_rgba(245,158,11,0.3)]">
-              <div className="bg-slate-900 rounded-[1.8rem] p-6 rotate-[-2deg]">
-                <p className="text-[10px] font-black uppercase tracking-[.2em] text-amber-500 mb-1">Identitas Terbuka</p>
-                <h3 className="text-2xl font-black text-white uppercase italic tracking-tight">{hakim?.name || "ANONYMOUS"}</h3>
-                <p className="text-slate-500 text-[10px] mt-2 font-bold uppercase tracking-widest">The Grand Justice of Waranasura</p>
+              <div className="bg-slate-900 rounded-[1.8rem] p-4 md:p-6 rotate-[-2deg]">
+                <p className="text-[8px] md:text-[10px] font-black uppercase tracking-[.2em] text-amber-500 mb-1">Identitas Terbuka</p>
+                <span className="inline-block text-3xl md:text-4xl font-black text-amber-400 uppercase italic tracking-tight bg-amber-500/10 px-3 md:px-4 py-1 md:py-2 rounded-xl">Hakim</span>
+                <h3 className="text-xl md:text-2xl font-black text-white uppercase italic tracking-tight mt-2 md:mt-3">{hakim?.name || "ANONYMOUS"}</h3>
+                <p className="text-slate-500 text-[8px] md:text-[10px] mt-1 md:mt-2 font-bold uppercase tracking-widest">The Grand Justice of Waranasura</p>
               </div>
             </div>
           </div>
@@ -105,19 +116,24 @@ const IntroFable = ({ players, roomCode, onFinish, playerData }) => {
 
         {/* STEP 3: ROLE LIST CARD */}
         {step === 3 && (
-          <div className="space-y-6 animate-in fade-in zoom-in duration-700">
+          <div className="space-y-4 md:space-y-6 animate-in fade-in zoom-in duration-700">
             <div className="flex flex-col items-center gap-1 mb-2">
-              <Users size={24} className="text-blue-500" />
-              <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">Tatanan Penduduk</h2>
+              <Users size={20} md:size={24} className="text-blue-500" />
+              <h2 className="text-[8px] md:text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">Tatanan Penduduk</h2>
             </div>
             
-            <div className="grid grid-cols-2 gap-3">
-              {Object.entries(counts).map(([role, count]) => (
-                <div key={role} className="bg-slate-900/60 border border-white/10 p-4 rounded-3xl flex flex-col items-center backdrop-blur-sm shadow-xl">
-                  <span className="text-3xl font-black text-white leading-none">{count}</span>
-                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-2">{role}</span>
-                </div>
-              ))}
+            <div className="grid grid-cols-2 gap-3 md:gap-4">
+              {Object.entries(counts).map(([role, count]) => {
+                const roleData = roleIcons[role] || { icon: Users, color: "text-slate-400" };
+                const Icon = roleData.icon;
+                return (
+                  <div key={role} className="p-3 md:p-4 rounded-2xl flex flex-col items-center group hover:scale-105 transition-transform">
+                    <Icon size={32} md:size={36} className={`mb-1 transition-colors ${roleData.color}`} />
+                    <span className="text-2xl md:text-3xl font-black text-white leading-none">{count}</span>
+                    <span className={`text-[8px] md:text-[10px] font-black uppercase tracking-widest mt-1 ${roleData.color}`}>{role}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

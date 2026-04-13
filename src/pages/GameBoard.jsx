@@ -11,11 +11,11 @@ const GameBoard = ({ players, roomCode, phase, seconds, isActive, onBack, myPlay
   const [selectedTarget, setSelectedTarget] = useState(null);
   const [hasActed, setHasActed] = useState(false);
   
-  // Data Diri
   const me = players.find(p => p.id === myPlayerId);
   const isDead = me?.status === 'dead';
   const isMalam = phase?.toLowerCase().includes("malam");
   const isVotingTime = phase?.toLowerCase().includes("siang");
+  const isDiskusi = phase?.toLowerCase().includes("pagi") || phase?.toLowerCase().includes("diskusi");
   const gamePlayers = players.filter(p => p.role !== 'Moderator');
 
   // Sync Status Aksi (Voting atau Skill Malam)
@@ -74,7 +74,7 @@ const GameBoard = ({ players, roomCode, phase, seconds, isActive, onBack, myPlay
           targetName: players.find(p => p.id === targetId)?.name || "Unknown",
           action: isMalam ? "Skill Malam" : "Vote"
         };
-        await update(ref(db), updates);
+        await update(ref(db, `rooms/${roomCode}`), updates);
       }
       setHasActed(true);
     } catch (err) {
@@ -118,7 +118,7 @@ const GameBoard = ({ players, roomCode, phase, seconds, isActive, onBack, myPlay
           return (
             <button
               key={player.id}
-              disabled={pDead || isDead || hasActed || isMe || (!isMalam && !isVotingTime)}
+              disabled={pDead || isDead || hasActed || isMe || (!isMalam && !isVotingTime && !isDiskusi)}
               onClick={() => setSelectedTarget(player.id)}
               className={`relative p-4 rounded-3xl border-2 transition-all text-left overflow-hidden active:scale-95
                 ${pDead ? 'bg-slate-900/40 border-transparent grayscale opacity-40' : 'bg-slate-900 border-slate-800 shadow-xl'}
@@ -127,11 +127,11 @@ const GameBoard = ({ players, roomCode, phase, seconds, isActive, onBack, myPlay
             >
               {/* Avatar & Status Badge */}
               <div className="flex justify-between items-start mb-3">
-                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center ${pDead ? 'bg-slate-800' : isMalam ? 'bg-purple-900/40' : 'bg-blue-900/40'}`}>
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${pDead ? 'bg-slate-800' : isMalam ? 'bg-purple-900/40' : 'bg-blue-900/40'}`}>
                   {pDead ? (
-                    <Skull size={20} className="text-slate-600" />
+                    <Skull size={28} className="text-slate-600" />
                   ) : (
-                    <User size={20} className={isMalam ? 'text-purple-400' : 'text-blue-400'} />
+                    <User size={28} className={isMalam ? 'text-purple-400' : 'text-blue-400'} />
                   )}
                 </div>
                 {isMe && <span className="text-[7px] font-black bg-blue-600 px-2 py-1 rounded-full uppercase tracking-wide">Anda</span>}
@@ -141,7 +141,7 @@ const GameBoard = ({ players, roomCode, phase, seconds, isActive, onBack, myPlay
               <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mb-1">Username</p>
               
               {/* Username Display */}
-              <p className={`font-black text-base truncate leading-tight ${pDead ? 'text-slate-600' : 'text-white'}`}>
+              <p className={`font-black text-base truncate leading-tight ${pDead ? 'text-slate-600' : 'text-blue-400'}`}>
                 {player.name}
               </p>
               
@@ -155,39 +155,6 @@ const GameBoard = ({ players, roomCode, phase, seconds, isActive, onBack, myPlay
           );
         })}
       </main>
-
-      {/* Action Bar Bottom - Mobile Friendly Sticky */}
-      {!isDead && (isMalam || isVotingTime) && (
-        <div className="fixed bottom-0 left-0 w-full p-4 bg-slate-900/90 backdrop-blur-xl border-t border-white/10 z-50">
-          <div className="max-w-md mx-auto">
-            {hasActed ? (
-              <div className="bg-emerald-600/10 border border-emerald-500/30 p-4 rounded-2xl flex items-center justify-center gap-3 animate-in slide-in-from-bottom-2">
-                <CheckCircle2 size={18} className="text-emerald-500" />
-                <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Aksi Terkunci</p>
-              </div>
-            ) : (
-              <div className="flex items-center gap-3">
-                <div className="flex-1">
-                  <p className="text-[9px] font-black text-slate-500 uppercase mb-1">{isVotingTime ? "Sesi Voting" : `Kemampuan ${me.role}`}</p>
-                  <p className="text-xs font-bold truncate">
-                    {selectedTarget ? `Target: ${players.find(p => p.id === selectedTarget)?.name}` : "Pilih Target..."}
-                  </p>
-                </div>
-                {isVotingTime && !selectedTarget && (
-                   <button onClick={() => handleAction('skip')} className="p-4 bg-slate-800 rounded-2xl text-slate-400"><FastForward size={20} /></button>
-                )}
-                <button 
-                  onClick={() => handleAction(selectedTarget)}
-                  disabled={!selectedTarget}
-                  className="bg-red-600 disabled:bg-slate-800 p-4 rounded-2xl shadow-xl shadow-red-900/20 active:scale-90 transition-transform"
-                >
-                  <Send size={20} />
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Info Card Role */}
       <div className="p-4 max-w-2xl mx-auto">
