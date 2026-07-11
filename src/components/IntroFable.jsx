@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ref, onValue, update } from "firebase/database";
 import { db } from "../lib/firebase";
-import { Scroll, Gavel, Users, Sparkles, Sun, Wallet, Eye, Shield, Crosshair, Wand2, Ghost } from 'lucide-react';
+import { Scroll, Gavel, Users, Sparkles, Sun, Wallet, Eye, Shield, Crosshair, Wand2, Ghost, SkipForward } from 'lucide-react';
 
 const roleIcons = {
   Pedagang: { icon: Wallet, color: "text-emerald-400" },
@@ -16,6 +16,7 @@ const roleIcons = {
 const IntroFable = ({ players, roomCode, onFinish, playerData }) => {
   const [step, setStep] = useState(1);
   const [progress, setProgress] = useState(0);
+  const finishedRef = useRef(false);
 
   // Ambil data untuk narasi dinamis
   const hakim = players.find(p => p.role === 'Hakim');
@@ -24,47 +25,51 @@ const IntroFable = ({ players, roomCode, onFinish, playerData }) => {
     return acc;
   }, {});
 
+  // Local timer — jalan tanpa Firebase sync
   useEffect(() => {
-    const introRef = ref(db, `rooms/${roomCode}/introStartedAt`);
-    
-    const unsubscribe = onValue(introRef, (snapshot) => {
-      const startTime = snapshot.val();
-      
-      // Jika intro sudah selesai (tidak ada startTime), langsung finish
-      if (!startTime) {
+    const startTime = Date.now();
+    const totalDuration = 20;
+
+    const interval = setInterval(() => {
+      const elapsed = (Date.now() - startTime) / 1000;
+      const currentProgress = Math.min((elapsed / totalDuration) * 100, 100);
+      setProgress(currentProgress);
+
+      if (elapsed < 6) setStep(1);
+      else if (elapsed < 11) setStep(2);
+      else if (elapsed < 16) setStep(3);
+      else if (elapsed < 21) setStep(4);
+      else if (!finishedRef.current) {
+        finishedRef.current = true;
+        clearInterval(interval);
+        // Catat ke Firebase bahwa player ini sudah lihat intro
+        update(ref(db, `rooms/${roomCode}/introFinished`), {
+          [playerData?.id || 'unknown']: true
+        }).catch(() => {});
         onFinish();
-        return;
       }
+    }, 100);
 
-      const totalDuration = 20; // Total durasi intro dalam detik
+    // Fallback: jika 30 detik tidak selesai, paksa selesai
+    const fallback = setTimeout(() => {
+      if (!finishedRef.current) {
+        finishedRef.current = true;
+        clearInterval(interval);
+        onFinish();
+      }
+    }, 30000);
 
-      const interval = setInterval(() => {
-        const now = Date.now();
-        const elapsed = (now - startTime) / 1000;
-        
-        // Update Progress Bar (0 - 100)
-        const currentProgress = Math.min((elapsed / totalDuration) * 100, 100);
-        setProgress(currentProgress);
-
-        // Sinkronisasi Step berdasarkan waktu yang lewat
-        if (elapsed < 6) setStep(1);        // 0-6 detik: Prologue
-        else if (elapsed < 11) setStep(2);  // 6-11 detik: Reveal Hakim
-        else if (elapsed < 16) setStep(3);  // 11-16 detik: Komposisi Role
-        else if (elapsed < 21) setStep(4);  // 16-21 detik: Morning Reveal
-        else {
-          clearInterval(interval);
-          update(ref(db, `rooms/${roomCode}/introFinished`), { 
-            [playerData?.id || 'unknown']: true 
-          });
-          onFinish(); // Selesai otomatis
-        }
-      }, 50); // Cek setiap 50ms agar progress bar sangat smooth
-
-      return () => clearInterval(interval);
-    });
-
-    return () => unsubscribe();
+    return () => {
+      clearInterval(interval);
+      clearTimeout(fallback);
+    };
   }, [roomCode, onFinish, playerData?.id]);
+
+  const handleSkip = () => {
+    if (finishedRef.current) return;
+    finishedRef.current = true;
+    onFinish();
+  };
 
   return (
     <div className="fixed inset-0 z-[500] bg-slate-950 flex items-center justify-center p-4 md:p-6 text-center overflow-hidden font-sans">
@@ -158,6 +163,16 @@ const IntroFable = ({ players, roomCode, onFinish, playerData }) => {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Skip Button */}
+      <div className="absolute bottom-8 left-0 w-full flex justify-center z-20">
+        <button
+          onClick={handleSkip}
+          className="px-4 py-2 bg-slate-800/80 hover:bg-slate-700 rounded-full text-[9px] font-black uppercase tracking-widest text-slate-400 transition-all active:scale-95"
+        >
+          Skip Intro
+        </button>
       </div>
 
       {/* Cinematic Progress Bar (Bottom) */}

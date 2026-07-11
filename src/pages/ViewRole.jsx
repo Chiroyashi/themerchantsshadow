@@ -212,13 +212,15 @@ const ViewRole = ({ onNext }) => {
   };
 
   const handleNightAction = (type) => {
-    if (hasActedThisNight && type !== 'skip') return;
+    // ACTION: block jika sudah acted, kecuali skip (skip juga diblok)
+    if (hasActedThisNight) return;
 
     // Handle Warlock 2-stage action
     if (role.includes('warlock') && isNight) {
       if (!warlockChoice) {
         setWarlockChoice(type);
         if (type === 'skip') {
+          setHasActedThisNight(true);
           sendWarlockAction('skip', null, null);
         }
         return;
@@ -227,6 +229,9 @@ const ViewRole = ({ onNext }) => {
         return;
       }
     }
+
+    // Jika tidak ada target dan bukan skip, tolak
+    if (!actionTarget && type !== 'skip') return;
 
     const targetPlayer = players.find(p => p.id === actionTarget);
     const folder = isNight ? `malam_${day}` : `hari_${day}`;
@@ -238,6 +243,9 @@ const ViewRole = ({ onNext }) => {
     const isSelfProtection = role.includes("guard") && actionTarget === playerData?.id;
     const isHakim = role.includes("hakim");
     const isPistol = type === 'pistol';
+
+    // OPTIMISTIC: set state segera, tanpa nunggu Firebase
+    setHasActedThisNight(true);
 
     const updates = {};
 
@@ -252,7 +260,7 @@ const ViewRole = ({ onNext }) => {
       timestamp: Date.now()
     };
 
-    // Hakim Pistol (siang) — langsung kill via currentAction
+    // Hakim Pistol (siang)
     if (isHakim && isPistol && actionTarget) {
       updates[`rooms/${roomCode}/players/${playerData.id}/currentAction`] = {
         role: "Hakim",
@@ -286,8 +294,9 @@ const ViewRole = ({ onNext }) => {
       }
     }
 
-    update(ref(db), updates).then(() => {
-      setHasActedThisNight(true);
+    update(ref(db), updates).catch(() => {
+      // Jika gagal, reset agar user bisa coba lagi
+      setHasActedThisNight(false);
     });
   };
 
@@ -419,6 +428,22 @@ const ViewRole = ({ onNext }) => {
             const hasAction = isHakimSiang || isHakimMalam || isWarlockMalam || isSeerMalam || isGuardMalam || isHunterMalam || isWerewolfMalam || isDayForHakimPistol;
 
             if (!hasAction || isDead) return null;
+
+            // Jika sudah action, tampilkan status saja (no buttons)
+            if (hasActedThisNight) {
+              return (
+              <div className="p-3 md:p-4 bg-emerald-900/20 border border-emerald-500/30 rounded-2xl space-y-2">
+                <div className="flex items-center gap-2 justify-center">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">✓ Aksi Terkirim</span>
+                </div>
+                <p className="text-[8px] text-emerald-300/70 italic text-center">
+                  {role.includes("hakim")
+                    ? (isNight ? "Truth akan aktif malam ini" : "Pistol akan ditembakkan")
+                    : "Keputusan sudah dicatat. Silakan tunggu fase selanjutnya."}
+                </p>
+              </div>
+              );
+            }
 
             return (
             <div className="p-3 md:p-4 bg-slate-900 border border-blue-500/30 rounded-2xl space-y-3">

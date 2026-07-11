@@ -91,6 +91,9 @@ const GameBoard = ({ onBack }) => {
 const handleAction = async (targetId) => {
     if (hasActed || isDead) return;
 
+    // Optimistic: langsung block aksi berikutnya
+    setHasActed(true);
+
     try {
       if (isVotingTime) {
         await set(ref(db, `rooms/${roomCode}/votes/${myPlayerId}`), targetId);
@@ -128,6 +131,7 @@ const handleAction = async (targetId) => {
       }
     } catch (err) {
       console.error("Gagal mengirim aksi:", err);
+      setHasActed(false); // Reset biar bisa coba lagi
     }
   };
 
@@ -320,7 +324,19 @@ const handleAction = async (targetId) => {
       {/* Info Card Role + Action Info */}
       <div className="p-4 max-w-2xl mx-auto">
         <div className="bg-gradient-to-br from-slate-900 to-black p-6 rounded-[2.5rem] border border-white/5 space-y-4">
-           {actionConfig.isConfirmed && (
+
+          {/* Sudah Action — tampilkan selalu ketika hasActed */}
+          {hasActed && (
+            <div className="flex items-center gap-3 bg-emerald-900/30 border border-emerald-500/30 p-3 rounded-xl">
+              <div className="p-2 bg-emerald-600/20 rounded-lg text-emerald-500"><CheckCircle2 size={16} /></div>
+              <div>
+                <h3 className="text-xs font-black uppercase tracking-widest text-emerald-400">✓ Action Terkirim</h3>
+                <p className="text-[10px] text-emerald-300/70">Keputusan sudah dicatat</p>
+              </div>
+            </div>
+          )}
+
+           {!hasActed && actionConfig.isConfirmed && (
              <div className="flex items-center gap-3 bg-emerald-900/30 border border-emerald-500/30 p-3 rounded-xl">
                <div className="p-2 bg-emerald-600/20 rounded-lg text-emerald-500"><CheckCircle2 size={16} /></div>
                <div>
