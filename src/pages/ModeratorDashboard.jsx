@@ -1,18 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { ref, onValue, set, update, get } from "firebase/database";
 import { db } from "../lib/firebase";
-import { 
+import {
   Skull, Heart, Play, Pause, RefreshCw, LogOut, User,
   Sunrise, Sunset, Moon, Users, MessageSquare, X, Clock, BarChart3, Edit3, Check, Trophy, Send, ScrollText, AlertTriangle
 } from 'lucide-react';
 import SharedTimer from '../components/SharedTimer';
 import ChatRoom from '../components/ChatRoom';
+import { useGameContext } from '../contexts/GameContext';
+import { useTimerContext } from '../contexts/TimerContext';
+import { useNotification } from '../contexts/NotificationContext';
 
-const ModeratorDashboard = ({ 
-  players, roomCode, onKill, onExit,
-  onToggleTimer, onResetTimer, onSetPhase, onEditTimer,
-  onEndGame, seconds, phase, isActive, day 
-}) => {
+const ModeratorDashboard = () => {
+  const {
+    players, roomCode, isHost, handleKillPlayer,
+    handleDestroyRoom, handleEndGame
+  } = useGameContext();
+  const {
+    seconds, phase, isActive, day,
+    toggleTimer, resetTimer, editTimer, handleSetPhase
+  } = useTimerContext();
+  const { showNotif } = useNotification();
   const [votes, setVotes] = useState({});
   const [nightHistory, setNightHistory] = useState({}); 
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -88,24 +96,38 @@ const ModeratorDashboard = ({
   const handleTimeSubmit = () => {
     const totalSeconds = parseInt(timeInput) * 60;
     if (!isNaN(totalSeconds) && totalSeconds > 0) {
-      onEditTimer(totalSeconds);
+      editTimer(totalSeconds);
       setIsEditingTime(false);
       setTimeInput("");
     }
   };
 
   const handleMoveToMorning = async () => {
-    const deadPlayersThisNight = players.filter(p => p.status === 'dead' && p.role !== 'Moderator');
+    // 1. Proses hasil malam (write status:dead ke Firebase)
+    if (typeof handleSetPhase === 'function') {
+      await handleSetPhase("Pagi (Diskusi)");
+    }
+    // 2. Baca langsung dari Firebase untuk data paling update
+    const snapshot = await get(ref(db, `rooms/${roomCode}/players`));
+    const deadNames = [];
+    if (snapshot.exists()) {
+      const updatedPlayers = snapshot.val();
+      Object.entries(updatedPlayers).forEach(([id, p]) => {
+        if (p.status === 'dead' && p.role !== 'Moderator') {
+          deadNames.push(p.name);
+        }
+      });
+    }
+    // 3. Set deadToday untuk death announcement
     await set(ref(db, `rooms/${roomCode}/deadToday`), {
       day,
-      names: deadPlayersThisNight.length > 0 ? deadPlayersThisNight.map(p => p.name) : ["TIDAK ADA"],
+      names: deadNames.length > 0 ? deadNames : ["TIDAK ADA"],
       timestamp: Date.now()
     });
-    onSetPhase("Pagi (Diskusi)");
   };
 
-  const handleEndGame = (winner) => {
-    onEndGame(winner);
+  const handleEndGameClick = (winner) => {
+    handleEndGame(winner);
     setShowEndGame(false);
   };
 
@@ -154,10 +176,10 @@ const ModeratorDashboard = ({
             <Trophy className="w-12 h-12 md:w-16 md:h-16 mx-auto text-amber-500" />
             <h2 className="text-lg md:text-xl font-black text-white uppercase italic">Pilih Pemenang</h2>
             <div className="grid grid-cols-2 gap-3 md:gap-4">
-              <button onClick={() => handleEndGame('WARGA')} className="p-4 md:p-6 bg-blue-600 hover:bg-blue-500 rounded-2xl font-black uppercase text-xs md:text-sm transition-all active:scale-95">
+              <button onClick={() => handleEndGameClick('WARGA')} className="p-4 md:p-6 bg-blue-600 hover:bg-blue-500 rounded-2xl font-black uppercase text-xs md:text-sm transition-all active:scale-95">
                 Warga<br/><span className="text-xs opacity-70">Waras</span>
               </button>
-              <button onClick={() => handleEndGame('SERIGALA')} className="p-4 md:p-6 bg-red-600 hover:bg-red-500 rounded-2xl font-black uppercase text-xs md:text-sm transition-all active:scale-95">
+              <button onClick={() => handleEndGameClick('SERIGALA')} className="p-4 md:p-6 bg-red-600 hover:bg-red-500 rounded-2xl font-black uppercase text-xs md:text-sm transition-all active:scale-95">
                 Serigala<br/><span className="text-xs opacity-70">Kejam</span>
               </button>
             </div>
@@ -180,7 +202,11 @@ const ModeratorDashboard = ({
             <button onClick={() => setShowEndGame(true)} className="p-2.5 bg-amber-600 text-white border border-amber-500 rounded-xl hover:bg-amber-500 transition-colors">
               <Trophy size={18} />
             </button>
-            <button onClick={onExit} className="p-2.5 bg-red-900/10 text-red-500 border border-red-900/30 rounded-xl">
+            <button onClick={() => {
+              if (window.confirm("Bubarkan room? Semua data akan dihapus.")) {
+                handleDestroyRoom();
+              }
+            }} className="p-2.5 bg-red-900/10 text-red-500 border border-red-900/30 rounded-xl">
               <LogOut size={18} />
             </button>
           </div>
@@ -190,20 +216,20 @@ const ModeratorDashboard = ({
       <main className="p-4 max-w-5xl mx-auto space-y-6 pb-20">
         
         {/* 2. PHASE BUTTONS */}
-        <div className="grid grid-cols-3 gap-2">
-          <button onClick={handleMoveToMorning} className={`flex flex-col items-center p-3 rounded-2xl border transition-all ${phase.includes("Pagi") ? 'bg-amber-600 border-amber-500 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-600'}`}>
-            <Sunrise size={20} /><span className="text-[7px] font-black uppercase mt-1">Forensik</span>
+        <div className="grid grid-cols-3 gap-1 sm:gap-2">
+          <button onClick={handleMoveToMorning} className={`flex flex-col items-center p-2 sm:p-3 rounded-2xl border transition-all ${phase.includes("Pagi") ? 'bg-amber-600 border-amber-500 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-600'}`}>
+            <Sunrise size={18} /><span className="text-[6px] sm:text-[7px] font-black uppercase mt-0.5 sm:mt-1">Forensik</span>
           </button>
-          <button onClick={() => onSetPhase("Siang (Voting)")} className={`flex flex-col items-center p-3 rounded-2xl border transition-all ${phase.includes("Siang") ? 'bg-orange-600 border-orange-500 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-600'}`}>
-            <Sunset size={20} /><span className="text-[7px] font-black uppercase mt-1">Voting</span>
+          <button onClick={() => handleSetPhase("Siang (Voting)")} className={`flex flex-col items-center p-2 sm:p-3 rounded-2xl border transition-all ${phase.includes("Siang") ? 'bg-orange-600 border-orange-500 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-600'}`}>
+            <Sunset size={18} /><span className="text-[6px] sm:text-[7px] font-black uppercase mt-0.5 sm:mt-1">Voting</span>
           </button>
-          <button onClick={() => onSetPhase("Malam (Eksekusi)")} className={`flex flex-col items-center p-3 rounded-2xl border transition-all ${phase.includes("Malam") ? 'bg-purple-600 border-purple-500 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-600'}`}>
-            <Moon size={20} /><span className="text-[7px] font-black uppercase mt-1">Malam</span>
+          <button onClick={() => handleSetPhase("Malam (Eksekusi)")} className={`flex flex-col items-center p-2 sm:p-3 rounded-2xl border transition-all ${phase.includes("Malam") ? 'bg-purple-600 border-purple-500 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-600'}`}>
+            <Moon size={18} /><span className="text-[6px] sm:text-[7px] font-black uppercase mt-0.5 sm:mt-1">Malam</span>
           </button>
         </div>
 
         {/* 3. IMPROVED TIMER CARD */}
-        <section className="bg-slate-900/40 border border-white/5 rounded-[2.5rem] p-6 shadow-2xl overflow-hidden">
+        <section className="bg-slate-900/40 border border-white/5 rounded-[2.5rem] p-4 sm:p-6 shadow-2xl overflow-hidden">
           <div className="flex flex-col gap-4">
             
             {/* Timer Display - Full width */}
@@ -244,13 +270,13 @@ const ModeratorDashboard = ({
             {/* Play/Pause & Reset & Edit Row */}
             <div className="flex gap-2">
               <button 
-                onClick={() => onToggleTimer(isActive, seconds)} 
+                onClick={toggleTimer}
                 className={`flex-1 py-4 rounded-2xl flex items-center justify-center gap-3 font-black uppercase text-xs transition-all active:scale-95 ${isActive ? 'bg-amber-600 text-white' : 'bg-green-600 text-white shadow-lg shadow-green-900/20'}`}
               >
                 {isActive ? <><Pause size={18} fill="currentColor" /> Pause</> : <><Play size={18} fill="currentColor" /> Start</>}
               </button>
               <button 
-                onClick={onResetTimer} 
+                onClick={resetTimer}
                 className="p-4 bg-slate-950 border border-slate-800 rounded-2xl text-slate-400 hover:text-white transition-colors"
               >
                 <RefreshCw size={20} />
@@ -276,12 +302,12 @@ const ModeratorDashboard = ({
             </div>
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
             {players.filter(p => p.role !== 'Moderator').map((p) => {
               const voteCount = votesData.filter(v => v === p.id).length;
               const isDead = p.status === 'dead';
               return (
-                <div key={p.id} className={`p-5 rounded-[2rem] border transition-all ${isDead ? 'bg-black/40 border-slate-900 opacity-50' : 'bg-slate-900 border-white/5 shadow-xl'}`}>
+                <div key={p.id} className={`p-4 sm:p-5 rounded-[2rem] border transition-all ${isDead ? 'bg-black/40 border-slate-900 opacity-50' : 'bg-slate-900 border-white/5 shadow-xl'}`}>
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex items-center gap-3">
                       <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isDead ? 'bg-slate-800' : 'bg-red-900/20'}`}>
@@ -293,7 +319,7 @@ const ModeratorDashboard = ({
                       </div>
                     </div>
                     <button 
-                      onClick={() => onKill(p.id, p.status)} 
+                      onClick={() => handleKillPlayer(p.id, p.status)}
                       className={`p-2.5 rounded-xl transition-all ${isDead ? 'bg-red-900/20 text-red-500' : 'bg-slate-950 text-slate-600 hover:text-red-500'}`}
                     >
                       {isDead ? <Skull size={18} /> : <Heart size={18} />}

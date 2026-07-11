@@ -39,7 +39,7 @@ const Credits = ({ onBack }) => {
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-600/10 border border-red-600/20 text-red-500 text-[7px] font-black uppercase tracking-[0.3em]">
             <Lock size={10} /> Private Intellectual Property
           </div>
-          <h1 className="text-4xl sm:text-5xl md:text-7xl font-black italic tracking-tighter uppercase leading-none">
+          <h1 className="text-3xl sm:text-5xl md:text-7xl font-black italic tracking-tighter uppercase leading-none">
             The <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-400">Architect.</span>
           </h1>
           <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.3em]">Solo Independent Project • 2026</p>

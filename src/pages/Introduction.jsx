@@ -21,7 +21,7 @@ const Introduction = ({ onNext, onBack }) => {
         {/* Header Section */}
         <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div className="space-y-2">
-            <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter">The Roles</h1>
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-black italic uppercase tracking-tighter">The Roles</h1>
             <p className="text-slate-500 text-xs font-bold uppercase tracking-[0.3em]">Panduan Penduduk Waranasura</p>
           </div>
           <div className="flex gap-3">
@@ -43,7 +43,7 @@ const Introduction = ({ onNext, onBack }) => {
           <RoleCard role={ROLE_MODERATOR} color="border-amber-500" />
         </section>
 
-        <div className="grid md:grid-cols-2 gap-12">
+        <div className="grid md:grid-cols-2 gap-6 sm:gap-12">
           
           {/* Tim Serigala */}
           <section className="space-y-6 animate-in fade-in slide-in-from-left-4 duration-700">
@@ -69,7 +69,7 @@ const Introduction = ({ onNext, onBack }) => {
               <Users className="text-blue-500 w-6 h-6" />
               <h3 className="text-2xl font-bold tracking-tighter uppercase text-blue-400">Tim Warga</h3>
             </div>
-            <div className="grid sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2 gap-4 text-left">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-2 gap-3 text-left">
               {TEAM_WARGA.map((role) => (
                 <RoleCard key={role.name} role={role} color={role.type === "Special" ? "border-blue-500" : "border-slate-500"} />
               ))}

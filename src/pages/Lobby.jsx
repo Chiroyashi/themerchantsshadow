@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Users, Play, Copy, Check, AlertTriangle, ShieldCheck, XCircle, UserMinus, ChevronLeft } from 'lucide-react';
+import { useGameContext } from '../contexts/GameContext';
 
-const Lobby = ({ roomCode, players, isHost, onStart, onKick, onBack }) => {
+const Lobby = ({ onBack }) => {
+  const { roomCode, players, isHost, handleStartGame, handleKickPlayer } = useGameContext();
   const [isCopied, setIsCopied] = useState(false);
 
   // --- LOGIKA PEMBATASAN MINIMAL PEMAIN ---
@@ -44,7 +46,7 @@ const Lobby = ({ roomCode, players, isHost, onStart, onKick, onBack }) => {
             Access Key
           </p>
           <div className="flex items-center justify-center gap-4">
-            <h1 className="text-6xl md:text-7xl font-black text-red-600 tracking-tighter drop-shadow-[0_0_20px_rgba(220,38,38,0.2)] transition-colors group-hover:text-red-500">
+            <h1 className="text-5xl sm:text-6xl md:text-7xl font-black text-red-600 tracking-tighter drop-shadow-[0_0_20px_rgba(220,38,38,0.2)] transition-colors group-hover:text-red-500">
               {roomCode}
             </h1>
             <div className="p-2.5 bg-slate-900 border border-white/5 rounded-2xl group-hover:border-red-600/50 transition-colors shadow-xl">
@@ -96,13 +98,13 @@ const Lobby = ({ roomCode, players, isHost, onStart, onKick, onBack }) => {
             </span>
           </div>
           
-          <ul className="space-y-3 max-h-80 overflow-y-auto pr-2 custom-scrollbar relative z-10">
+          <ul className="space-y-2 max-h-80 overflow-y-auto pr-2 custom-scrollbar relative z-10">
             {players.map((p) => {
               const isModerator = p.role === 'Moderator';
               return (
-                <li 
-                  key={p.id} 
-                  className="flex justify-between items-center bg-slate-950/60 p-4 rounded-2xl border border-white/5 hover:border-red-600/30 hover:bg-slate-950 transition-all group"
+                <li
+                  key={p.id}
+                  className="flex justify-between items-center bg-slate-950/60 p-3 sm:p-4 rounded-2xl border border-white/5 hover:border-red-600/30 hover:bg-slate-950 transition-all group"
                 >
                   <div className="flex items-center gap-3">
                     {/* Avatar */}
@@ -127,12 +129,12 @@ const Lobby = ({ roomCode, players, isHost, onStart, onKick, onBack }) => {
                       </span>
                     )}
                     {isHost && !isModerator ? (
-                      <button 
-                        onClick={() => onKick(p.id)}
-                        className="p-2 hover:bg-red-600 text-slate-600 hover:text-white rounded-xl transition-all active:scale-90 group/kick"
+                      <button
+                        onClick={() => handleKickPlayer(p.id)}
+                        className="p-3 hover:bg-red-600 text-slate-600 hover:text-white rounded-xl transition-all active:scale-90 group/kick"
                         title="Kick"
                       >
-                        <UserMinus size={16} className="group-hover/kick:animate-pulse" />
+                        <UserMinus size={18} className="group-hover/kick:animate-pulse" />
                       </button>
                     ) : null}
                   </div>
@@ -145,10 +147,10 @@ const Lobby = ({ roomCode, players, isHost, onStart, onKick, onBack }) => {
         {/* ACTION AREA */}
         <div className="pt-4">
           {isHost ? (
-            <button 
-              onClick={onStart}
+            <button
+              onClick={handleStartGame}
               disabled={!isReady}
-              className={`w-full py-6 font-black uppercase tracking-[0.4em] text-xs flex items-center justify-center gap-3 transition-all active:scale-95 rounded-[2rem] shadow-2xl
+              className={`w-full py-5 sm:py-6 font-black uppercase tracking-[0.4em] text-xs flex items-center justify-center gap-3 transition-all active:scale-95 rounded-[2rem] shadow-2xl
                 ${isReady 
                   ? 'bg-red-700 hover:bg-red-600 text-white shadow-red-900/40 border-b-4 border-red-900 active:border-b-0' 
                   : 'bg-slate-900 text-slate-700 cursor-not-allowed border border-white/5 opacity-50'}`}

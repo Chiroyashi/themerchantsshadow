@@ -25,10 +25,10 @@ const LandingPage = ({ onNext, onCredits }) => {
 
           {/* Judul Utama */}
           <div className="space-y-2 animate-in slide-in-from-bottom-4 duration-700">
-            <h2 className="text-slate-500 font-black tracking-[0.4em] uppercase text-xs italic">
+            <h2 className="text-slate-500 font-black tracking-[0.3em] sm:tracking-[0.4em] uppercase text-[10px] sm:text-xs italic">
               Social Deduction Game
             </h2>
-            <h1 className="text-6xl md:text-8xl font-black tracking-tighter leading-none">
+            <h1 className="text-4xl sm:text-6xl md:text-8xl font-black tracking-tighter leading-none">
               THE MERCHANT'S <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-400 drop-shadow-[0_0_30px_rgba(220,38,38,0.3)]">
                 SHADOW
@@ -36,25 +36,25 @@ const LandingPage = ({ onNext, onCredits }) => {
             </h1>
           </div>
 
-          <p className="text-slate-400 text-lg md:text-xl max-w-xl mx-auto font-light leading-relaxed italic border-x border-white/5 px-8 animate-in fade-in duration-1000">
+          <p className="text-slate-400 text-sm sm:text-lg md:text-xl max-w-xl mx-auto font-light leading-relaxed italic border-x border-white/5 px-4 sm:px-8 animate-in fade-in duration-1000">
             Sembunyi di balik transaksi, lacak jejak melalui arah angin, dan temukan siapa pengkhianat di kota kuno ini.
           </p>
 
           {/* Tombol Utama */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6 animate-in slide-in-from-bottom-8 duration-1000">
-            <button 
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-6 animate-in slide-in-from-bottom-8 duration-1000">
+            <button
               onClick={onNext}
-              className="group relative w-full sm:w-auto px-10 py-5 bg-red-700 hover:bg-red-600 transition-all duration-300 rounded-sm overflow-hidden shadow-xl shadow-red-900/20 active:scale-95"
+              className="group relative w-full sm:w-auto px-8 sm:px-10 py-4 sm:py-5 bg-red-700 hover:bg-red-600 transition-all duration-300 rounded-sm overflow-hidden shadow-xl shadow-red-900/20 active:scale-95"
             >
               <div className="relative z-10 flex items-center justify-center gap-2 font-black tracking-[0.2em] uppercase text-xs">
                 Masuk Kota <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </div>
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
             </button>
-            
-            <button 
+
+            <button
               onClick={onCredits}
-              className="w-full sm:w-auto px-10 py-5 border border-slate-800 hover:border-red-600/50 hover:bg-red-600/5 transition-all rounded-sm font-black tracking-[0.2em] uppercase text-xs text-slate-400 flex items-center justify-center gap-2 active:scale-95"
+              className="w-full sm:w-auto px-8 sm:px-10 py-4 sm:py-5 border border-slate-800 hover:border-red-600/50 hover:bg-red-600/5 transition-all rounded-sm font-black tracking-[0.2em] uppercase text-xs text-slate-400 flex items-center justify-center gap-2 active:scale-95"
             >
               <Award className="w-4 h-4" /> Lihat Kredit
             </button>

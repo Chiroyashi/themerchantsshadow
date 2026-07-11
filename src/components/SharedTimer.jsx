@@ -61,7 +61,7 @@ const SharedTimer = ({ seconds, phase, isActive }) => {
               : "text-slate-700"
             }`} 
           />
-          <span className={`font-mono text-2xl md:text-4xl font-black tracking-tighter leading-none tabular-nums ${
+          <span className={`font-mono text-xl sm:text-2xl md:text-4xl font-black tracking-tighter leading-none tabular-nums ${
             isActive 
               ? isUrgent 
                 ? "text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.5)]"

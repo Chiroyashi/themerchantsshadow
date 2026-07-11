@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react'; 
+import React, { useState, useEffect } from 'react';
 import { ref, set, onValue, update } from "firebase/database";
 import { db } from "../lib/firebase";
-import { 
-  Eye, EyeOff, Shield, Skull, HelpCircle, BookOpen, X, Ghost, 
-  LayoutGrid, MessageSquare, Send, Zap, Search, Crosshair, 
+import {
+  Eye, EyeOff, Shield, Skull, HelpCircle, BookOpen, X, Ghost,
+  LayoutGrid, MessageSquare, Send, Zap, Search, Crosshair,
   ShoppingCart, ChevronUp, User, UserCheck, Info, Clock, Gavel, ShoppingBag
 } from 'lucide-react';
 import SharedTimer from '../components/SharedTimer';
@@ -12,8 +12,20 @@ import ChatRoom from '../components/ChatRoom';
 import DeathAnnouncement from '../components/DeathAnnouncement';
 import IntroFable from '../components/IntroFable';
 import GameOverScreen from '../components/GameOverScreen';
+import PhaseTransition from '../components/PhaseTransition';
+import { useGameContext } from '../contexts/GameContext';
+import { useTimerContext } from '../contexts/TimerContext';
 
-const ViewRole = ({ playerData, roomCode, phase, seconds, isActive, onNext, onLeave, players, day, winner, isHost }) => {
+const ViewRole = ({ onNext }) => {
+  const {
+    players, roomCode, myPlayerId, myData, playerName,
+    isHost, gameWinner, handleLeaveGame
+  } = useGameContext();
+  const totalPlayers = players.filter(p => p.role !== 'Moderator').length;
+  const { seconds, phase, isActive, day } = useTimerContext();
+  const playerData = myData;
+  const winner = gameWinner;
+  const onLeave = () => handleLeaveGame(!!gameWinner);
   // --- 1. DEKLARASI SEMUA HOOKS (WAJIB DI ATAS) ---
   const [isRevealed, setIsRevealed] = useState(false);
   const [showMechanics, setShowMechanics] = useState(false);
@@ -24,6 +36,9 @@ const ViewRole = ({ playerData, roomCode, phase, seconds, isActive, onNext, onLe
   const [showDeathPopUp, setShowDeathPopUp] = useState(false);
   const [showIntro, setShowIntro] = useState(false);
   const [showCluePopup, setShowCluePopup] = useState(false);
+  const [showPhaseTransition, setShowPhaseTransition] = useState(false);
+  const [transitionFrom, setTransitionFrom] = useState('');
+  const [transitionTo, setTransitionTo] = useState('');
 
   useEffect(() => {
     const checkIntro = async () => {
@@ -54,7 +69,7 @@ const ViewRole = ({ playerData, roomCode, phase, seconds, isActive, onNext, onLe
   const [hasActedThisNight, setHasActedThisNight] = useState(false);
   const [actionStatus, setActionStatus] = useState(null);
   const [touchStartX, setTouchStartX] = useState(null);
-  
+
   // Warlock-specific state
   const [warlockChoice, setWarlockChoice] = useState(null); // 'buy' or 'skip'
   const [warlockItem, setWarlockItem] = useState(null); // 'poison' or 'vision'
@@ -62,6 +77,19 @@ const ViewRole = ({ playerData, roomCode, phase, seconds, isActive, onNext, onLe
   const isDead = playerData?.status === 'dead';
   const isNight = phase?.toLowerCase().includes("malam");
   const role = playerData?.role?.toLowerCase() || "";
+
+  // Truth limit tracking (after role is declared)
+  const truthUsedCount = playerData?.truthUsedCount || 0;
+  const truthMaxUses = role === 'hakim'
+    ? (totalPlayers < 10 ? 2 : totalPlayers < 20 ? 3 : 4)
+    : 0;
+  const truthRemaining = Math.max(0, truthMaxUses - truthUsedCount);
+
+  // Hakim pistol tracking
+  const pistolUsedCount = playerData?.pistolUsedCount || 0;
+  const pistolRemaining = Math.max(0, 2 - pistolUsedCount);
+  const truthActed = playerData?.truthActed || false;
+  const pistolActed = playerData?.pistolActed || false;
 
   // Guard constraint: tidak bisa melindungi pemain sama 2x berturut-turut
   const guardLastProtected = playerData?.lastProtectedTarget || null;
@@ -125,6 +153,18 @@ const ViewRole = ({ playerData, roomCode, phase, seconds, isActive, onNext, onLe
     }
   }, [roomCode, playerData?.id, role]);
 
+  const [prevPhase, setPrevPhase] = useState(null);
+  useEffect(() => {
+    if (!phase) return;
+    const isNightToMorning = prevPhase?.toLowerCase().includes("malam") && phase.toLowerCase().includes("pagi");
+    if (prevPhase && prevPhase !== phase && !isHost && playerData?.role !== 'Moderator' && !isNightToMorning) {
+      setTransitionFrom(prevPhase);
+      setTransitionTo(phase);
+      setShowPhaseTransition(true);
+    }
+    setPrevPhase(phase);
+  }, [phase, prevPhase, isHost, playerData?.role]);
+
   // --- 3. HELPER FUNCTIONS ---
   const handleIntroFinish = () => {
     setShowIntro(false);
@@ -173,50 +213,80 @@ const ViewRole = ({ playerData, roomCode, phase, seconds, isActive, onNext, onLe
 
   const handleNightAction = (type) => {
     if (hasActedThisNight && type !== 'skip') return;
-    
+
     // Handle Warlock 2-stage action
     if (role.includes('warlock') && isNight) {
       if (!warlockChoice) {
-        // Stage 1: Buy or Skip
         setWarlockChoice(type);
         if (type === 'skip') {
           sendWarlockAction('skip', null, null);
         }
         return;
       } else if (warlockChoice === 'buy' && !warlockItem && type !== 'skip') {
-        // Stage 2: Select item (poison/vision) then select target
         setWarlockItem(type);
         return;
       }
     }
-    
-    // For other roles or if warlock already selected item
+
     const targetPlayer = players.find(p => p.id === actionTarget);
     const folder = isNight ? `malam_${day}` : `hari_${day}`;
-    
-    const action = role.includes('warlock') && warlockItem 
-      ? `${warlockItem.toUpperCase()}` 
+
+    const actionLabel = role.includes('warlock') && warlockItem
+      ? `${warlockItem.toUpperCase()}`
       : type;
-    
+
     const isSelfProtection = role.includes("guard") && actionTarget === playerData?.id;
-    
-    set(ref(db, `rooms/${roomCode}/nightHistory/${folder}/${playerData.id}`), {
+    const isHakim = role.includes("hakim");
+    const isPistol = type === 'pistol';
+
+    const updates = {};
+
+    // Write to nightHistory for logging
+    const logAction = isHakim ? (isPistol ? 'Pistol' : 'Truth') : actionLabel;
+    updates[`rooms/${roomCode}/nightHistory/${folder}/${playerData.id}`] = {
       senderName: playerData.name,
       role: playerData.role,
-      action: action,
+      action: logAction,
       targetId: actionTarget || "none",
-      targetName: targetPlayer?.name || (role.includes('warlock') && warlockChoice === 'skip' ? "Skip" : "Belum Pilih"),
+      targetName: targetPlayer?.name || "Unknown",
       timestamp: Date.now()
-}).then(async () => {
-      if (role.includes("guard") && actionTarget) {
-        const updateData = {};
-        updateData[`rooms/${roomCode}/players/${playerData.id}/lastProtectedTarget`] = actionTarget;
-        updateData[`rooms/${roomCode}/players/${playerData.id}/lastProtectedDay`] = day;
-        if (isSelfProtection) {
-          updateData[`rooms/${roomCode}/players/${playerData.id}/selfProtectedCount`] = (playerData.selfProtectedCount || 0) + 1;
-        }
-        await update(ref(db, `rooms/${roomCode}/players/${playerData.id}`), updateData);
+    };
+
+    // Hakim Pistol (siang) — langsung kill via currentAction
+    if (isHakim && isPistol && actionTarget) {
+      updates[`rooms/${roomCode}/players/${playerData.id}/currentAction`] = {
+        role: "Hakim",
+        actionType: "pistol",
+        targetId: actionTarget,
+        targetName: targetPlayer?.name || "Unknown",
+        timestamp: Date.now()
+      };
+      updates[`rooms/${roomCode}/players/${playerData.id}/pistolActed`] = true;
+      updates[`rooms/${roomCode}/players/${playerData.id}/pistolUsedCount`] = pistolUsedCount + 1;
+    }
+
+    // Hakim Truth (malam)
+    if (isHakim && !isPistol && actionTarget && type !== 'skip') {
+      updates[`rooms/${roomCode}/players/${playerData.id}/currentAction`] = {
+        role: "Hakim",
+        actionType: "truth",
+        targetId: actionTarget,
+        targetName: targetPlayer?.name || "Unknown",
+        timestamp: Date.now()
+      };
+      updates[`rooms/${roomCode}/players/${playerData.id}/truthActed`] = true;
+    }
+
+    // Guard logic
+    if (role.includes("guard") && actionTarget) {
+      updates[`rooms/${roomCode}/players/${playerData.id}/lastProtectedTarget`] = actionTarget;
+      updates[`rooms/${roomCode}/players/${playerData.id}/lastProtectedDay`] = day;
+      if (isSelfProtection) {
+        updates[`rooms/${roomCode}/players/${playerData.id}/selfProtectedCount`] = (playerData.selfProtectedCount || 0) + 1;
       }
+    }
+
+    update(ref(db), updates).then(() => {
       setHasActedThisNight(true);
     });
   };
@@ -274,27 +344,36 @@ const ViewRole = ({ playerData, roomCode, phase, seconds, isActive, onNext, onLe
   };
 
   return (
-    <div 
-      className={`min-h-screen transition-colors duration-1000 p-4 md:p-6 flex flex-col items-center font-sans ${isDead ? 'bg-black' : 'bg-slate-950'}`}
+    <div
+      className={`h-screen overflow-y-auto transition-colors duration-1000 font-sans ${isDead ? 'bg-black' : 'bg-slate-950'}`}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
       <style>{`
         .animate-shimmer { animation: shimmer 1s ease-out; }
+        .view-role-scroll { scrollbar-width: thin; scrollbar-color: rgba(100,116,139,0.3) transparent; }
       `}</style>
       {showIntro && <IntroFable players={players} playerData={playerData} onFinish={handleIntroFinish} />}
       {showDeathPopUp && <DeathAnnouncement deadPlayers={deadToday} day={day} onClose={() => setShowDeathPopUp(false)} />}
-      
+      {showPhaseTransition && !isHost && playerData?.role !== 'Moderator' && (
+        <PhaseTransition
+          fromPhase={transitionFrom}
+          toPhase={transitionTo}
+          day={day}
+          onComplete={() => setShowPhaseTransition(false)}
+        />
+      )}
+
       <>
-        <div className="fixed top-4 md:top-8 left-1/2 -translate-x-1/2 z-40 w-full max-w-xs px-2">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-40 w-full max-w-[280px] sm:max-w-xs px-2">
           <SharedTimer seconds={seconds} phase={phase} isActive={isActive} />
         </div>
 
-        <div className="max-w-md w-full space-y-4 md:space-y-6 text-center pt-16 md:pt-20 pb-16 md:pb-20 mt-8 md:mt-10">
+        <div className="max-w-md w-full mx-auto p-4 md:p-6 space-y-3 sm:space-y-4 md:space-y-6 text-center pt-20 md:pt-20 pb-32 md:pb-32">
           <div className="space-y-1">
             <p className="text-slate-500 text-[8px] md:text-[10px] uppercase tracking-[0.3em]">{isNight ? 'Malam' : 'Hari'} ke-{day} • Waranasura</p>
-            <h2 className={`text-lg md:text-xl font-bold italic transition-colors ${isDead ? 'text-slate-600' : 'text-blue-400'}`}>{playerData?.name} {playerData?.underTruth && "🔍"}</h2>
+            <h2 className={`text-base sm:text-lg md:text-xl font-bold italic transition-colors ${isDead ? 'text-slate-600' : 'text-blue-400'}`}>{playerData?.name} {playerData?.underTruth && "🔍"}</h2>
           </div>
 
             <div 
@@ -303,7 +382,7 @@ const ViewRole = ({ playerData, roomCode, phase, seconds, isActive, onNext, onLe
             onMouseLeave={() => setIsRevealed(false)}
             onTouchStart={() => setIsRevealed(true)}
             onTouchEnd={() => setIsRevealed(false)}
-            className={`relative aspect-[3/4] w-full rounded-2xl border-2 cursor-pointer overflow-hidden transition-all duration-500 select-none ${isRevealed ? 'bg-blue-950/20 border-blue-600' : 'bg-slate-900 border-slate-800 active:border-slate-600'}`}
+            className={`relative aspect-[3/4] sm:aspect-[4/5] w-full max-w-xs sm:max-w-sm mx-auto rounded-2xl border-2 cursor-pointer overflow-hidden transition-all duration-500 select-none ${isRevealed ? 'bg-blue-950/20 border-blue-600' : 'bg-slate-900 border-slate-800 active:border-slate-600'}`}
           >
             {!isRevealed ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -314,27 +393,42 @@ const ViewRole = ({ playerData, roomCode, phase, seconds, isActive, onNext, onLe
               </div>
             ) : (
               <div className={`absolute inset-0 bg-blue-950/20 flex flex-col items-center justify-center animate-in fade-in duration-500`}>
-                <div className={`text-blue-500 p-6 md:p-8 rounded-full bg-blue-950/30 mb-4`}>
-                  <RoleIcon className={`text-blue-500 w-32 h-32 md:w-40 md:h-40`} />
+                <div className={`text-blue-500 p-4 sm:p-6 md:p-8 rounded-full bg-blue-950/30 mb-4`}>
+                  <RoleIcon className={`text-blue-500 w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40`} />
                 </div>
                 <div className="space-y-2 text-center">
-                  <h3 className={`text-4xl md:text-5xl font-black uppercase italic tracking-tighter text-blue-500`}>{playerData?.role}</h3>
+                  <h3 className={`text-3xl sm:text-4xl md:text-5xl font-black uppercase italic tracking-tighter text-blue-500`}>{playerData?.role}</h3>
                   <p className="text-slate-400 text-[8px] md:text-[10px]">Rahasiakan peranmu dari mata-mata.</p>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Action UI */}
-          {((role.includes("hakim") && !isNight) || (isNight && !role.includes("pedagang"))) && !isDead && (
+          {/* === ACTION UI — HIDE jika tidak ada action === */}
+          {(() => {
+            // Tentukan apakah role ini punya action yang available
+            const isHakimSiang = role.includes("hakim") && !isNight && pistolRemaining > 0 && !pistolActed;
+            const isHakimMalam = role.includes("hakim") && isNight && !truthActed;
+            const isWarlockMalam = role.includes("warlock") && isNight;
+            const isSeerMalam = role.includes("seer") && isNight;
+            const isGuardMalam = role.includes("guard") && isNight && !isGuardLocked;
+            const isHunterMalam = role.includes("hunter") && isNight;
+            const isWerewolfMalam = role.includes("werewolf") && isNight;
+            const isDayForHakimPistol = role.includes("hakim") && !isNight && pistolRemaining > 0 && !pistolActed;
+
+            const hasAction = isHakimSiang || isHakimMalam || isWarlockMalam || isSeerMalam || isGuardMalam || isHunterMalam || isWerewolfMalam || isDayForHakimPistol;
+
+            if (!hasAction || isDead) return null;
+
+            return (
             <div className="p-3 md:p-4 bg-slate-900 border border-blue-500/30 rounded-2xl space-y-3">
                {actionStatus && <div className="text-[8px] md:text-[9px] font-black text-blue-400 uppercase animate-pulse">{actionStatus.msg}</div>}
-               
-               {/* WARLOCK 2-STAGE ACTION */}
-               {role.includes("warlock") && isNight && (
+
+               {/* ===== WARLOCK ZIGZAG ===== */}
+               {isWarlockMalam && (
                  <div className="space-y-3 md:space-y-4">
                    {!warlockChoice ? (
-                     // Stage 1: Buy or Skip
+                     // Stage 1: Buy or Skip (Malam 1) / Use or Buy (Malam 2+)
                      <div className="space-y-2 md:space-y-3">
                        <p className="text-[8px] md:text-[9px] font-black text-purple-400 uppercase text-center">Pilih Tindakan</p>
                        <div className="grid grid-cols-2 gap-2">
@@ -353,13 +447,10 @@ const ViewRole = ({ playerData, roomCode, phase, seconds, isActive, onNext, onLe
                        <button onClick={() => { setWarlockChoice(null); setWarlockItem(null); }} className="text-[7px] md:text-[8px] text-slate-500 underline">Kembali</button>
                      </div>
                    ) : warlockChoice === 'buy' && warlockItem ? (
-                     // Stage 3: Select Target
+                     // Stage 3: Select Target (untuk pembelian)
                      <div className="space-y-2 md:space-y-3">
                        <p className="text-[8px] md:text-[9px] font-black text-purple-400 uppercase text-center">{warlockItem === 'poison' ? '☠️ Pilih Target' : '👁️ Pilih Target Cek'}</p>
-                       <button 
-                         onClick={() => setShowTargetList(!showTargetList)}
-                         className="w-full p-3 md:p-4 bg-slate-950 border border-slate-800 rounded-xl text-sm font-bold flex justify-between items-center text-white"
-                       >
+                       <button onClick={() => setShowTargetList(!showTargetList)} className="w-full p-3 md:p-4 bg-slate-950 border border-slate-800 rounded-xl text-sm font-bold flex justify-between items-center text-white">
                          <span className="truncate">{getTargetName()}</span>
                          <ChevronUp size={16} className={showTargetList ? "rotate-180 transition-transform" : ""} />
                        </button>
@@ -379,45 +470,95 @@ const ViewRole = ({ playerData, roomCode, phase, seconds, isActive, onNext, onLe
                  </div>
                )}
 
-{/* HAKIM & OTHER ROLES */}
-                {!role.includes("warlock") && (
-                  <>
-                    {/* Guard constraint info */}
-                    {role.includes("guard") && (
-                      <div className="text-[7px] md:text-[8px] text-slate-500 uppercase text-center">
-                        {isGuardLocked && <span className="text-red-500">Tidak bisa melindungiTarget sama • </span>}
-                        {!canGuardSelf && <span className="text-amber-500"> sudah lindungi diri </span>}
-                      </div>
-                    )}
-                    <button 
-                      onClick={() => { setShowTargetList(!showTargetList); reportTruthActivity("sedang memantau target..."); }}
-                     className="w-full p-3 md:p-4 bg-slate-950 border border-slate-800 rounded-xl text-sm font-bold flex justify-between items-center text-white"
-                   >
+               {/* ===== HAKIM SIANG: PISTOL ===== */}
+               {isHakimSiang && (
+                 <>
+                   <div className="flex items-center gap-2 border-b border-red-500/20 pb-2">
+                     <span className="text-[8px] font-black uppercase tracking-widest text-red-500">🔫 Pistol — Siang Hari</span>
+                   </div>
+                   <p className="text-[8px] text-slate-500">
+                     Tembak target dengan Pistol ({pistolRemaining} peluru tersisa)
+                   </p>
+                   <button onClick={() => setShowTargetList(!showTargetList)} className="w-full p-3 md:p-4 bg-slate-950 border border-slate-800 rounded-xl text-sm font-bold flex justify-between items-center text-white">
                      <span className="truncate">{getTargetName()}</span>
                      <ChevronUp size={16} className={showTargetList ? "rotate-180 transition-transform" : ""} />
                    </button>
-{showTargetList && (
-                      <div className="mt-2 grid gap-1 max-h-32 md:max-h-40 overflow-y-auto custom-scrollbar">
-                        {players.filter(p=>p.id!==playerData.id && p.status!=='dead' && p.role!=='Moderator').map(p=>{
-                          const isSameTargetAsLastNight = role.includes("guard") && guardLastProtected === p.id && isGuardLocked;
-                          const isSelfDisabled = role.includes("guard") && p.id === playerData?.id && !canGuardSelf;
-                          const isDisabled = isSameTargetAsLastNight || isSelfDisabled;
-                          return (
-                            <button key={p.id} onClick={()=>{setActionTarget(p.id); setShowTargetList(false); reportTruthActivity(`mengincar ${p.name}`);}} disabled={isDisabled} className={`p-2 md:p-3 rounded-lg text-xs text-left transition-colors ${isDisabled ? 'bg-slate-900 text-slate-600 cursor-not-allowed' : 'bg-slate-800 hover:bg-blue-600 text-white'}`}>
-                              {p.name}{isSameTargetAsLastNight && <span className="text-[7px] text-red-500 ml-1">↺</span>}{isSelfDisabled && <span className="text-[7px] text-amber-500 ml-1">★</span>}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
+                   {showTargetList && (
+                     <div className="mt-2 grid gap-1 max-h-32 md:max-h-40 overflow-y-auto custom-scrollbar">
+                       {players.filter(p=>p.id!==playerData.id && p.status!=='dead' && p.role!=='Moderator').map(p=>(
+                         <button key={p.id} onClick={()=>{setActionTarget(p.id); setShowTargetList(false);}} className="p-2 md:p-3 bg-slate-800 hover:bg-red-600 rounded-lg text-xs text-left text-white transition-colors">{p.name}</button>
+                       ))}
+                     </div>
+                   )}
                    <div className="grid grid-cols-2 gap-2 mt-3 md:mt-4">
-                     <button onClick={() => handleNightAction("Konfirmasi")} className="py-2 md:py-3 bg-blue-600 text-white rounded-xl text-[8px] md:text-[10px] font-black uppercase shadow-lg active:scale-95 transition-all">Konfirmasi</button>
+                     <button onClick={() => handleNightAction("pistol")} disabled={!actionTarget} className="py-2 md:py-3 bg-red-600 disabled:bg-slate-800 text-white rounded-xl text-[8px] md:text-[10px] font-black uppercase shadow-lg active:scale-95 transition-all">🔫 Tembak!</button>
+                     <button onClick={() => { setActionTarget(""); handleNightAction("skip"); }} className="py-2 md:py-3 bg-slate-800 text-slate-500 rounded-xl text-[8px] md:text-[10px] font-black uppercase active:scale-95 transition-all">Skip</button>
+                   </div>
+                 </>
+               )}
+
+               {/* ===== HAKIM MALAM: TRUTH ===== */}
+               {isHakimMalam && (
+                 <>
+                   <div className="flex items-center gap-2 border-b border-amber-500/20 pb-2">
+                     <span className="text-[8px] font-black uppercase tracking-widest text-amber-500">👁️ Truth — Malam</span>
+                   </div>
+                   <p className="text-[8px] text-slate-500">Pilih target untuk bocorkan chat pribadinya ke publik.</p>
+                   <button onClick={() => setShowTargetList(!showTargetList)} className="w-full p-3 md:p-4 bg-slate-950 border border-slate-800 rounded-xl text-sm font-bold flex justify-between items-center text-white">
+                     <span className="truncate">{getTargetName()}</span>
+                     <ChevronUp size={16} className={showTargetList ? "rotate-180 transition-transform" : ""} />
+                   </button>
+                   {showTargetList && (
+                     <div className="mt-2 grid gap-1 max-h-32 md:max-h-40 overflow-y-auto custom-scrollbar">
+                       {players.filter(p=>p.id!==playerData.id && p.status!=='dead' && p.role!=='Moderator').map(p=>(
+                         <button key={p.id} onClick={()=>{setActionTarget(p.id); setShowTargetList(false);}} className="p-2 md:p-3 bg-slate-800 hover:bg-amber-600 rounded-lg text-xs text-left text-white transition-colors">{p.name}</button>
+                       ))}
+                     </div>
+                   )}
+                   <div className="grid grid-cols-2 gap-2 mt-3 md:mt-4">
+                     <button onClick={() => handleNightAction("Truth")} disabled={!actionTarget} className="py-2 md:py-3 bg-amber-600 disabled:bg-slate-800 text-white rounded-xl text-[8px] md:text-[10px] font-black uppercase shadow-lg active:scale-95 transition-all">👁️ Truth</button>
+                     <button onClick={() => { setActionTarget(""); handleNightAction("skip"); }} className="py-2 md:py-3 bg-slate-800 text-slate-500 rounded-xl text-[8px] md:text-[10px] font-black uppercase active:scale-95 transition-all">Skip</button>
+                   </div>
+                 </>
+               )}
+
+               {/* ===== OTHER ROLES (Seer, Guard, Hunter, Werewolf) ===== */}
+               {!role.includes("warlock") && !role.includes("hakim") && (
+                 <>
+                   {/* Guard constraint info */}
+                   {role.includes("guard") && (
+                     <div className="text-[7px] md:text-[8px] text-slate-500 uppercase text-center">
+                       {isGuardLocked && <span className="text-red-500">Tidak bisa lindungi target sama • </span>}
+                       {!canGuardSelf && <span className="text-amber-500"> sudah lindungi diri </span>}
+                     </div>
+                   )}
+                   <button onClick={() => setShowTargetList(!showTargetList)} className="w-full p-3 md:p-4 bg-slate-950 border border-slate-800 rounded-xl text-sm font-bold flex justify-between items-center text-white">
+                     <span className="truncate">{getTargetName()}</span>
+                     <ChevronUp size={16} className={showTargetList ? "rotate-180 transition-transform" : ""} />
+                   </button>
+                   {showTargetList && (
+                     <div className="mt-2 grid gap-1 max-h-32 md:max-h-40 overflow-y-auto custom-scrollbar">
+                       {players.filter(p=>p.id!==playerData.id && p.status!=='dead' && p.role!=='Moderator').map(p=>{
+                         const isSameTargetAsLastNight = role.includes("guard") && guardLastProtected === p.id && isGuardLocked;
+                         const isSelfDisabled = role.includes("guard") && p.id === playerData?.id && !canGuardSelf;
+                         const isDisabled = isSameTargetAsLastNight || isSelfDisabled;
+                         return (
+                           <button key={p.id} onClick={()=>{setActionTarget(p.id); setShowTargetList(false);}} disabled={isDisabled} className={`p-2 md:p-3 rounded-lg text-xs text-left transition-colors ${isDisabled ? 'bg-slate-900 text-slate-600 cursor-not-allowed' : 'bg-slate-800 hover:bg-blue-600 text-white'}`}>
+                             {p.name}{isSameTargetAsLastNight && <span className="text-[7px] text-red-500 ml-1">↺</span>}{isSelfDisabled && <span className="text-[7px] text-amber-500 ml-1">★</span>}
+                           </button>
+                         );
+                       })}
+                     </div>
+                   )}
+                   <div className="grid grid-cols-2 gap-2 mt-3 md:mt-4">
+                     <button onClick={() => handleNightAction("Konfirmasi")} disabled={!actionTarget} className="py-2 md:py-3 bg-blue-600 disabled:bg-slate-800 text-white rounded-xl text-[8px] md:text-[10px] font-black uppercase shadow-lg active:scale-95 transition-all">Konfirmasi</button>
                      <button onClick={() => { setActionTarget(""); handleNightAction("skip"); }} className="py-2 md:py-3 bg-slate-800 text-slate-500 rounded-xl text-[8px] md:text-[10px] font-black uppercase active:scale-95 transition-all">Skip</button>
                    </div>
                  </>
                )}
             </div>
-          )}
+            );
+          })()}
 
             <button onClick={() => setShowMechanics(true)} className="w-full flex items-center justify-center gap-2 py-4 bg-slate-900 border border-slate-800 rounded-2xl text-amber-500 font-black text-[9px] uppercase tracking-widest hover:bg-slate-800 transition-colors"><BookOpen size={14} /> Panduan</button>
             
@@ -442,7 +583,11 @@ const ViewRole = ({ playerData, roomCode, phase, seconds, isActive, onNext, onLe
               <span>→</span>
             </button>
           </div>
-          <button onClick={onLeave} className="w-full pt-4 text-[9px] text-slate-700 hover:text-red-500 font-bold uppercase tracking-[0.3em] flex items-center justify-center gap-2 transition-colors"><X size={12} /> Keluar & Menyerah</button>
+          <button onClick={() => {
+            if (window.confirm(gameWinner ? "Room akan dihapus dari database. Lanjutkan?" : "Statusmu jadi MATI. Lanjutkan?")) {
+              onLeave();
+            }
+          }} className="w-full pt-4 text-[9px] text-slate-700 hover:text-red-500 font-bold uppercase tracking-[0.3em] flex items-center justify-center gap-2 transition-colors"><X size={12} /> Keluar & Menyerah</button>
         </div>
         <div className="w-full pt-10 border-t border-slate-900 text-left">
           <ChatRoom roomCode={roomCode} myId={playerData?.id} myName={playerData?.name} players={players || []} isHost={false} />
