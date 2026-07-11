@@ -281,17 +281,17 @@ const ViewRole = ({ onNext }) => {
       timestamp: Date.now()
     };
 
-    // Hakim Pistol (siang)
+    // Hakim Pistol (siang) — INSTANT KILL: langsung set status dead
     if (isHakim && isPistol && actionTarget) {
-      updates[`rooms/${roomCode}/players/${playerData.id}/currentAction`] = {
-        role: "Hakim",
-        actionType: "pistol",
-        targetId: actionTarget,
-        targetName: targetPlayer?.name || "Unknown",
-        timestamp: Date.now()
-      };
+      updates[`rooms/${roomCode}/players/${actionTarget}/status`] = 'dead';
       updates[`rooms/${roomCode}/players/${playerData.id}/pistolActed`] = true;
       updates[`rooms/${roomCode}/players/${playerData.id}/pistolUsedCount`] = pistolUsedCount + 1;
+      // Langsung kirim notif kematian ke target
+      updates[`rooms/${roomCode}/deadToday`] = {
+        day,
+        names: [targetPlayer?.name || "Unknown"],
+        timestamp: Date.now()
+      };
     }
 
     // Hakim Truth (malam)

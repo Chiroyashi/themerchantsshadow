@@ -210,18 +210,6 @@ export function TimerProvider({ children }) {
       }
     }
 
-    // Hakim pistol (siang) — eksekusi langsung
-    const pistolActions = nightActions.filter(a => a.role === 'Hakim' && a.actionType === 'pistol');
-    for (const shot of pistolActions) {
-      if (shot.targetId) {
-        const targetAlive = players.find(p => p.id === shot.targetId && p.status !== 'dead');
-        if (targetAlive) {
-          deadIds.add(shot.targetId);
-          logs.push(`🔫 Hakim ${shot.name} MENEMBAK ${shot.targetName} dengan Pistol!`);
-        }
-      }
-    }
-
     // Hunter
     const hunterActions = nightActions.filter(a => a.role === 'Hunter' && dayRef.current >= 2);
     for (const hunt of hunterActions) {
