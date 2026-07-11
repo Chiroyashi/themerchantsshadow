@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { update, ref } from "firebase/database";
 import { db } from "./lib/firebase";
 import { NotificationProvider } from './contexts/NotificationContext';
@@ -20,6 +20,7 @@ import IntroFable from './components/IntroFable';
 
 function AppContent() {
   const { currentPage, navigate, players, isHost, roomCode, myData, playerName } = useGameContext();
+  const [showBoard, setShowBoard] = useState(false);
 
   const renderPage = () => {
     switch (currentPage) {
@@ -47,27 +48,11 @@ function AppContent() {
       case 'view-role':
         return (
           <div className="fixed inset-0">
-            <div
-              className="scroll-container flex h-full w-[200vw] overflow-x-auto overflow-y-hidden"
-              style={{ scrollBehavior: 'smooth' }}
-            >
-              <div className="w-screen h-full flex-shrink-0">
-                <ViewRole
-                  onNext={() => {
-                    const container = document.querySelector('.scroll-container');
-                    if (container) container.scrollLeft = container.clientWidth;
-                  }}
-                />
-              </div>
-              <div className="w-screen h-full flex-shrink-0">
-                <GameBoard
-                  onBack={() => {
-                    const container = document.querySelector('.scroll-container');
-                    if (container) container.scrollLeft = 0;
-                  }}
-                />
-              </div>
-            </div>
+            {showBoard ? (
+              <GameBoard onBack={() => setShowBoard(false)} />
+            ) : (
+              <ViewRole onNext={() => setShowBoard(true)} />
+            )}
           </div>
         );
       default:
