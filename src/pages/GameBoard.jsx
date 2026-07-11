@@ -18,6 +18,7 @@ const GameBoard = ({ onBack }) => {
   const [roleState, setRoleState] = useState({});
   const [warlockMode, setWarlockMode] = useState('buy');
   const [showWarlockItems, setShowWarlockItems] = useState(false);
+  const [actionNotif, setActionNotif] = useState(null);
 
   const me = players.find(p => p.id === myPlayerId);
   const isDead = me?.status === 'dead';
@@ -91,6 +92,24 @@ const GameBoard = ({ onBack }) => {
 const handleAction = async (targetId) => {
     if (hasActed || isDead) return;
 
+    const targetName = players.find(p => p.id === targetId)?.name || "Unknown";
+
+    // Notifikasi per role
+    let notifMsg = "";
+    if (me?.role === 'Werewolf') notifMsg = `🐺 Kamu membunuh ${targetName}`;
+    else if (me?.role === 'Seer') notifMsg = `👁️ Kamu memeriksa ${targetName}`;
+    else if (me?.role === 'Guard') notifMsg = `🛡️ Kamu melindungi ${targetName}`;
+    else if (me?.role === 'Hunter') notifMsg = `🎯 Kamu menembak ${targetName}`;
+    else if (me?.role === 'Warlock') {
+      if (roleState.warlockInventory && !roleState.warlockItemUsed) {
+        notifMsg = `☠️ Kamu menggunakan ${roleState.warlockInventory.toUpperCase()} pada ${targetName}`;
+      }
+    }
+    if (notifMsg) {
+      setActionNotif(notifMsg);
+      setTimeout(() => setActionNotif(null), 3000);
+    }
+
     // Optimistic: langsung block aksi berikutnya
     setHasActed(true);
 
@@ -102,7 +121,7 @@ const handleAction = async (targetId) => {
         const actionData = {
           role: me.role,
           targetId: targetId,
-          targetName: players.find(p => p.id === targetId)?.name || "Unknown",
+          targetName: targetName,
           timestamp: Date.now()
         };
 
@@ -119,7 +138,7 @@ const handleAction = async (targetId) => {
           role: me.role,
           senderName: me.name,
           targetId: targetId,
-          targetName: players.find(p => p.id === targetId)?.name || "Unknown",
+          targetName: targetName,
           action: me.role === 'Warlock' ? `Gunakan ${roleState.warlockInventory?.toUpperCase() || 'Skill'}` : "Skill Malam"
         };
 
@@ -449,6 +468,15 @@ const handleAction = async (targetId) => {
             )}
         </div>
       </div>
+
+      {/* ACTION NOTIFICATION TOAST */}
+      {actionNotif && (
+        <div className="fixed top-32 left-1/2 -translate-x-1/2 z-[9999] animate-in slide-in-from-top-4 fade-in duration-300">
+          <div className="bg-slate-900 border border-blue-500/30 rounded-2xl px-6 py-4 shadow-2xl shadow-blue-900/20 text-center">
+            <p className="text-xs md:text-sm font-black text-white uppercase tracking-wide">{actionNotif}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

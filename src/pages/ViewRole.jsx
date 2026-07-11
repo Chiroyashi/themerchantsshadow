@@ -39,6 +39,7 @@ const ViewRole = ({ onNext }) => {
   const [showPhaseTransition, setShowPhaseTransition] = useState(false);
   const [transitionFrom, setTransitionFrom] = useState('');
   const [transitionTo, setTransitionTo] = useState('');
+  const [actionNotif, setActionNotif] = useState(null); // { message, icon }
 
   useEffect(() => {
     const checkIntro = async () => {
@@ -244,6 +245,26 @@ const ViewRole = ({ onNext }) => {
     const isHakim = role.includes("hakim");
     const isPistol = type === 'pistol';
 
+    // Tentukan notifikasi berdasarkan role
+    let notifMsg = "";
+    if (role.includes("werewolf")) {
+      notifMsg = `🐺 Kamu membunuh ${targetPlayer?.name}`;
+    } else if (role.includes("seer")) {
+      notifMsg = `👁️ Kamu memeriksa ${targetPlayer?.name}`;
+    } else if (role.includes("guard")) {
+      notifMsg = `🛡️ Kamu melindungi ${targetPlayer?.name}`;
+    } else if (role.includes("hunter")) {
+      notifMsg = `🎯 Kamu menembak ${targetPlayer?.name}`;
+    } else if (role.includes("hakim") && isPistol) {
+      notifMsg = `🔫 Kamu menembak ${targetPlayer?.name} dengan Pistol`;
+    } else if (role.includes("hakim") && !isPistol) {
+      notifMsg = `👁️ Kamu Truth target ${targetPlayer?.name}`;
+    }
+    if (notifMsg) {
+      setActionNotif(notifMsg);
+      setTimeout(() => setActionNotif(null), 3000);
+    }
+
     // OPTIMISTIC: set state segera, tanpa nunggu Firebase
     setHasActedThisNight(true);
 
@@ -303,7 +324,20 @@ const ViewRole = ({ onNext }) => {
   const sendWarlockAction = async (choice, item, targetId) => {
     const folder = `malam_${day}`;
     const targetPlayer = players.find(p => p.id === targetId);
-    
+
+    let notifMsg = "";
+    if (choice === 'skip') {
+      notifMsg = `⏭️ Kamu Skip`;
+    } else if (item === 'poison') {
+      notifMsg = `☠️ Kamu membeli POISON, incar ${targetPlayer?.name}`;
+    } else if (item === 'vision') {
+      notifMsg = `👁️ Kamu membeli VISION, incar ${targetPlayer?.name}`;
+    }
+    if (notifMsg) {
+      setActionNotif(notifMsg);
+      setTimeout(() => setActionNotif(null), 3000);
+    }
+
     await set(ref(db, `rooms/${roomCode}/nightHistory/${folder}/${playerData.id}`), {
       senderName: playerData.name,
       role: playerData.role,
@@ -313,13 +347,12 @@ const ViewRole = ({ onNext }) => {
       targetName: targetPlayer?.name || "Skip",
       timestamp: Date.now()
     });
-    
+
     setHasActedThisNight(true);
     setWarlockChoice(null);
     setWarlockItem(null);
     setActionTarget("");
     setShowTargetList(false);
-    triggerNotif(`Aksi berhasil dikirim!`, 'success');
   };
 
   // --- 4. CONDITIONAL RENDER (HANYA BOLEH SETELAH SEMUA HOOKS) ---
@@ -620,6 +653,15 @@ const ViewRole = ({ onNext }) => {
         <RoleModal role={playerData?.role} isOpen={showMechanics} onClose={() => setShowMechanics(false)} />
 
         {/* PEDAGANG CLUE POPUP */}
+        {/* ACTION NOTIFICATION TOAST */}
+        {actionNotif && (
+          <div className="fixed top-32 left-1/2 -translate-x-1/2 z-[9999] animate-in slide-in-from-top-4 fade-in duration-300">
+            <div className="bg-slate-900 border border-blue-500/30 rounded-2xl px-6 py-4 shadow-2xl shadow-blue-900/20 text-center">
+              <p className="text-xs md:text-sm font-black text-white uppercase tracking-wide">{actionNotif}</p>
+            </div>
+          </div>
+        )}
+
         {showCluePopup && myClues && role.includes("pedagang") && (
           <div className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-4">
             <div className="bg-gradient-to-br from-emerald-800 to-teal-600 rounded-[2rem] p-1 w-full max-w-sm md:max-w-lg shadow-2xl shadow-emerald-900/50 animate-in zoom-in duration-300">
