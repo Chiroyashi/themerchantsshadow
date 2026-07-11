@@ -331,7 +331,7 @@ const handleAction = async (targetId) => {
               {/* Status Footer */}
               <div className="mt-3 pt-2 border-t border-white/5">
                 <p className={`text-[9px] font-semibold uppercase tracking-wide ${pDead ? 'text-red-700' : isSelected ? 'text-red-400' : 'text-slate-500'}`}>
-                  {pDead ? '☠️ Gugur' : isSelected ? '✓ Ditargetkan' : '🎯 Pilih Target'}
+                  {pDead ? '☠️ Gugur' : isSelected ? (isVotingTime ? '✓ Dipilih' : '✓ Ditargetkan') : isVotingTime ? '🗳️ Vote' : '🎯 Pilih Target'}
                 </p>
               </div>
             </button>
