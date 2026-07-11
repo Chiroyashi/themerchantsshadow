@@ -631,16 +631,12 @@ const ViewRole = ({ onNext }) => {
                 <p className="text-[7px] text-slate-500">Hari ke-{myClues.day}</p>
               </div>
             )}
-          <div className="flex items-center justify-center gap-2 text-slate-600 text-[8px] font-bold uppercase tracking-widest">
-            <button 
-              onClick={onNext}
-              className="flex items-center gap-2 animate-pulse hover:text-blue-400 transition-colors"
-            >
-              <span>←</span>
-              <span>Geser untuk Papan Game</span>
-              <span>→</span>
-            </button>
-          </div>
+          <button
+            onClick={onNext}
+            className="w-full py-4 bg-slate-900 border border-slate-800 rounded-2xl text-blue-400 font-black text-[9px] uppercase tracking-widest hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
+          >
+            🗳️ Vote
+          </button>
           <button onClick={() => {
             if (window.confirm(gameWinner ? "Room akan dihapus dari database. Lanjutkan?" : "Statusmu jadi MATI. Lanjutkan?")) {
               onLeave();

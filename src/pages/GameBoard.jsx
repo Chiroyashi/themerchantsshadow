@@ -276,19 +276,18 @@ const handleAction = async (targetId) => {
           <button onClick={onBack} className="p-2 bg-slate-900 rounded-xl border border-white/5"><ArrowLeft size={18} /></button>
           <div className="text-center">
              <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${isMalam ? 'text-purple-500' : 'text-orange-500'}`}>{phase}</p>
-             <h1 className="text-lg font-black italic uppercase tracking-tighter">Waranasura</h1>
+             <h1 className="text-lg font-black italic uppercase tracking-tighter">Vote?</h1>
           </div>
           <div className="w-10" /> {/* Spacer */}
         </div>
         
         <div className="w-full max-w-[280px] sm:max-w-xs bg-black/40 rounded-2xl p-2 sm:p-3 border border-white/5 flex items-center justify-between">
            <SharedTimer seconds={seconds} phase={phase} isActive={isActive} />
-           <div className="text-right">
-              <p className="text-[8px] text-slate-500 font-black uppercase">Status Anda</p>
-              <p className={`text-xs font-black uppercase ${isDead ? 'text-red-600' : 'text-emerald-500'}`}>
-                {isDead ? 'Eliminasi' : '🛡️ Aktif'}
-              </p>
-           </div>
+        </div>
+        <div className="text-center">
+          <p className={`text-[9px] font-black uppercase tracking-widest ${isVotingTime ? 'text-orange-400' : 'text-slate-600'}`}>
+            {isVotingTime ? '🗳️ Silahkan Vote' : '🔒 Belum saatnya Vote'}
+          </p>
         </div>
       </header>
 
