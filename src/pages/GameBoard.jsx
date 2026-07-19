@@ -24,7 +24,7 @@ const GameBoard = ({ onBack }) => {
 
   const me = players.find(p => p.id === myPlayerId);
   const isDead = me?.status === 'dead';
-  const isMalam = isMalam(phase);
+  const malam = isMalam(phase);
   const isVotingTime = isSiang(phase);
   const gamePlayers = players.filter(p => p.role !== 'Moderator');
 
@@ -49,7 +49,7 @@ const GameBoard = ({ onBack }) => {
       });
     }
 
-    if (isMalam) {
+    if (malam) {
       const actionRef = ref(db, `rooms/${roomCode}/players/${myPlayerId}/currentAction`);
       return onValue(actionRef, (snap) => {
         if (snap.exists()) {
@@ -58,7 +58,7 @@ const GameBoard = ({ onBack }) => {
         }
       });
     }
-  }, [roomCode, myPlayerId, phase, isVotingTime, isMalam]);
+  }, [roomCode, myPlayerId, phase, isVotingTime, malam]);
 
   // Listener semua vote (untuk vote count)
   useEffect(() => {
@@ -106,7 +106,7 @@ const GameBoard = ({ onBack }) => {
       {/* Header — simpler, no back button */}
       <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-md border-b border-white/5 p-4 flex flex-col items-center gap-3">
         <div className="text-center">
-          <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${isMalam ? 'text-purple-500' : 'text-orange-500'}`}>{phase}</p>
+          <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${malam ? 'text-purple-500' : 'text-orange-500'}`}>{phase}</p>
           <h1 className="text-lg font-black italic uppercase tracking-tighter">Vote?</h1>
         </div>
         <div className="w-full max-w-[280px] sm:max-w-xs bg-black/40 rounded-2xl p-2 border border-white/5">
@@ -138,11 +138,11 @@ const GameBoard = ({ onBack }) => {
               `}
             >
               <div className="flex justify-between items-start mb-3">
-                <div className={`mx-auto w-10 h-10 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center ${pDead ? 'bg-slate-800' : isMalam ? 'bg-purple-900/40' : 'bg-blue-900/40'}`}>
+                <div className={`mx-auto w-10 h-10 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center ${pDead ? 'bg-slate-800' : malam ? 'bg-purple-900/40' : 'bg-blue-900/40'}`}>
                   {pDead ? (
                     <Skull size={22} className="text-slate-600" />
                   ) : (
-                    <User size={22} className={isMalam ? 'text-purple-400' : 'text-blue-400'} />
+                    <User size={22} className={malam ? 'text-purple-400' : 'text-blue-400'} />
                   )}
                 </div>
                 {isMe && <span className="absolute top-3 right-3 text-[7px] font-black bg-blue-600 px-2 py-1 rounded-full uppercase tracking-wide">Anda</span>}
