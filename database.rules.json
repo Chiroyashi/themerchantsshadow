@@ -1,0 +1,46 @@
+{
+  "rules": {
+    "rooms": {
+      ".read": true,
+      ".write": true,
+      "$roomCode": {
+        ".validate": "newData.hasChildren(['createdAt', 'status'])",
+        "players": {
+          "$playerId": {
+            ".validate": "newData.hasChildren(['name'])",
+            "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 30" },
+            "role": { ".validate": "newData.isString() && (!newData.exists() || newData.val().matches(/^(Pending|Moderator|Werewolf|Warlock|Seer|Guard|Hakim|Hunter|Pedagang)$/))" },
+            "status": { ".validate": "newData.isString() && (!newData.exists() || newData.val().matches(/^(alive|dead)$/))" },
+            "$other": { ".validate": true }
+          }
+        },
+        "status": { ".validate": "newData.isString() && newData.val().matches(/^(waiting|intro|playing|ended|destroyed)$/)" },
+        "host": { ".validate": "newData.isString()" },
+        "createdAt": { ".validate": "newData.isNumber()" },
+        "winner": { ".validate": "newData.isString()" },
+        "timer": {
+          "phase": { ".validate": "newData.isString()" },
+          "seconds": { ".validate": "newData.isNumber()" },
+          "isActive": { ".validate": "newData.isBoolean()" },
+          "day": { ".validate": "newData.isNumber()" }
+        },
+        "votes": { ".validate": true },
+        "voteResult": { ".validate": true },
+        "chats": { ".validate": true },
+        "nightHistory": { ".validate": true },
+        "deadToday": { ".validate": true },
+        "seerReveal": { ".validate": true },
+        "seerResult": { ".validate": true },
+        "werewolfResult": { ".validate": true },
+        "hunterResult": { ".validate": true },
+        "warlockResult": { ".validate": true },
+        "merchantTransaksi": { ".validate": true },
+        "merchantClues": { ".validate": true },
+        "truthActivity": { ".validate": true },
+        "introFinished": { ".validate": true },
+        "introStartedAt": { ".validate": true },
+        "$other": { ".validate": false }
+      }
+    }
+  }
+}

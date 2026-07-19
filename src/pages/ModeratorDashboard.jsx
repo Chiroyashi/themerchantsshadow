@@ -12,6 +12,7 @@ import { useTimerContext } from '../contexts/TimerContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { Z_LAYER } from '../constants/zIndex';
 import { lockScroll, unlockScroll } from '../utils/scrollLock';
+import { isSiang, isMalam, isPagi } from '../constants/phases';
 
 const ModeratorDashboard = () => {
   const {
@@ -208,13 +209,13 @@ const ModeratorDashboard = () => {
         
         {/* 2. PHASE BUTTONS */}
         <div className="grid grid-cols-3 gap-1 sm:gap-2">
-          <button onClick={handleMoveToMorning} className={`flex flex-col items-center p-2 sm:p-3 rounded-2xl border transition-all ${phase.includes("Pagi") ? 'bg-amber-600 border-amber-500 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-600'}`}>
+          <button onClick={handleMoveToMorning} className={`flex flex-col items-center p-2 sm:p-3 rounded-2xl border transition-all ${isPagi(phase) ? 'bg-amber-600 border-amber-500 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-600'}`}>
             <Sunrise size={18} /><span className="text-[6px] sm:text-[7px] font-black uppercase mt-0.5 sm:mt-1">Forensik</span>
           </button>
-          <button onClick={() => handleSetPhase("Siang (Voting)")} className={`flex flex-col items-center p-2 sm:p-3 rounded-2xl border transition-all ${phase.includes("Siang") ? 'bg-orange-600 border-orange-500 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-600'}`}>
+          <button onClick={() => handleSetPhase("Siang (Voting)")} className={`flex flex-col items-center p-2 sm:p-3 rounded-2xl border transition-all ${isSiang(phase) ? 'bg-orange-600 border-orange-500 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-600'}`}>
             <Sunset size={18} /><span className="text-[6px] sm:text-[7px] font-black uppercase mt-0.5 sm:mt-1">Voting</span>
           </button>
-          <button onClick={() => handleSetPhase("Malam (Eksekusi)")} className={`flex flex-col items-center p-2 sm:p-3 rounded-2xl border transition-all ${phase.includes("Malam") ? 'bg-purple-600 border-purple-500 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-600'}`}>
+          <button onClick={() => handleSetPhase("Malam (Eksekusi)")} className={`flex flex-col items-center p-2 sm:p-3 rounded-2xl border transition-all ${isMalam(phase) ? 'bg-purple-600 border-purple-500 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-600'}`}>
             <Moon size={18} /><span className="text-[6px] sm:text-[7px] font-black uppercase mt-0.5 sm:mt-1">Malam</span>
           </button>
         </div>

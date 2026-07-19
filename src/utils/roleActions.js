@@ -4,6 +4,8 @@
  * Mengatur availability dan logika action per role per malam
  */
 
+import { isPagi, isSiang } from '../constants/phases';
+
 export const getPlayerTeam = (role) => {
   const SERIGALA = ['Werewolf', 'Warlock'];
   const WARGA = ['Seer', 'Guard', 'Hakim', 'Hunter', 'Pedagang'];
@@ -98,9 +100,7 @@ export const getRoleActionConfig = (role, currentDay, totalPlayers, roleState = 
 
     case 'Hakim':
       // Hakim punya 2 skill: Truth (malam) + Pistol (siang)
-      const isDay = roleState.currentPhase?.toLowerCase().includes("pagi") ||
-                    roleState.currentPhase?.toLowerCase().includes("siang") ||
-                    roleState.currentPhase?.toLowerCase().includes("diskusi");
+      const isDay = isPagi(roleState.currentPhase) || isSiang(roleState.currentPhase);
 
       if (isDay) {
         // SIANG: Pistol — 2 peluru sepanjang game

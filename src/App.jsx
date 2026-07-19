@@ -47,19 +47,15 @@ function AppContent() {
   // Listener voteResult
   useEffect(() => {
     if (!roomCode || currentPage === 'landing') return;
-    console.log('[App] voteResult listener mounted, roomCode:', roomCode, 'page:', currentPage);
     const ref_ = ref(db, `rooms/${roomCode}/voteResult`);
     const unsub = onValue(ref_, snap => {
       const data = snap.val();
-      console.log('[App] voteResult received:', data);
       if (data && data.timestamp) {
         setVoteResult(data);
         setShowVoteResult(true);
-        console.log('[App] voteResult SET — showVoteResult = true');
       }
     });
     return () => {
-      console.log('[App] voteResult listener unmounted');
       unsub();
     };
   }, [roomCode, currentPage]);
@@ -133,7 +129,6 @@ function AppContent() {
       {renderPage()}
 
       {/* GLOBAL: Vote Result Overlay — in-game only */}
-      {console.log('[App] render voteResult overlay — show:', showVoteResult, 'hasData:', !!voteResult, 'isGamePage:', isGamePage, 'page:', currentPage)}
       {showVoteResult && voteResult && isGamePage && currentPage !== 'view-mod' && (
         <VoteAnnouncement
           names={voteResult.names}

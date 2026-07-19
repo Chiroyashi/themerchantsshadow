@@ -1,4 +1,5 @@
 import React from 'react';
+import { isPagi, isSiang, isMalam } from '../constants/phases';
 import { Timer as TimerIcon, Sun, Sunset, Moon, Clock, Play, Pause } from 'lucide-react';
 
 const SharedTimer = ({ seconds, phase, isActive }) => {
@@ -10,10 +11,9 @@ const SharedTimer = ({ seconds, phase, isActive }) => {
   };
 
   const getPhaseIcon = () => {
-    const p = phase?.toLowerCase() || "";
-    if (p.includes("pagi")) return <Sun size={14} className="text-amber-500" />;
-    if (p.includes("siang")) return <Sunset size={14} className="text-orange-500" />;
-    if (p.includes("malam")) return <Moon size={14} className="text-purple-500 animate-pulse" />;
+    if (isPagi(phase)) return <Sun size={14} className="text-amber-500" />;
+    if (isSiang(phase)) return <Sunset size={14} className="text-orange-500" />;
+    if (isMalam(phase)) return <Moon size={14} className="text-purple-500 animate-pulse" />;
     return <TimerIcon size={14} className="text-slate-500" />;
   };
 

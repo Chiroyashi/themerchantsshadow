@@ -3,6 +3,7 @@ import { ref, onValue, update, get, set } from "firebase/database";
 import { db } from "../lib/firebase";
 import { useGameContext } from './GameContext';
 import { checkWinCondition } from '../utils/winCondition';
+import { isSiang, isMalam, isPagi, PHASE } from '../constants/phases';
 
 const TimerContext = createContext(null);
 
@@ -74,7 +75,7 @@ export function TimerProvider({ children }) {
       }
 
       // Auto-advance semua vote-in — langsung ke Malam
-      if (isHost && nextSecs > 0 && phaseRef.current.includes("Siang") && !nextPhase && nextSecs % 5 === 0) {
+      if (isHost && nextSecs > 0 && isSiang(phaseRef.current) && !nextPhase && nextSecs % 5 === 0) {
         try {
           const votesSnap = await get(ref(db, `rooms/${roomCode}/votes`));
           const playersSnap = await get(ref(db, `rooms/${roomCode}/players`));
@@ -93,20 +94,20 @@ export function TimerProvider({ children }) {
       // Auto-advance ketika waktu habis
       if (!nextPhase && nextSecs <= 0 && isHost) {
         const curPhase = phaseRef.current;
-        if (curPhase.includes("Pagi")) {
-          nextPhase = "Siang (Voting)";
-        } else if (curPhase.includes("Siang")) {
-          nextPhase = "Malam (Eksekusi)";
-        } else if (curPhase.includes("Malam")) {
-          nextPhase = "Pagi (Diskusi)";
+        if (isPagi(curPhase)) {
+          nextPhase = PHASE.SIANG;
+        } else if (isSiang(curPhase)) {
+          nextPhase = PHASE.MALAM;
+        } else if (isMalam(curPhase)) {
+          nextPhase = PHASE.PAGI;
         }
       }
 
       if (nextPhase) {
         try {
-          if (nextPhase.includes("Malam")) {
+          if (isMalam(nextPhase)) {
             await processVoteResultsRef.current();
-          } else if (nextPhase.includes("Pagi")) {
+          } else if (isPagi(nextPhase)) {
             await processNightResultsRef.current();
             const newDay = dayRef.current + 1;
             await update(ref(db, `rooms/${roomCode}/timer`), { day: newDay });
@@ -114,7 +115,7 @@ export function TimerProvider({ children }) {
           }
         } catch (e) { /* skip — phase transition error */ }
 
-        const newSecs = nextPhase.includes("Siang") || nextPhase.includes("Malam") ? 180 : 120;
+        const newSecs = isSiang(nextPhase) || isMalam(nextPhase) ? 180 : 120;
         setSeconds(newSecs);
         phaseRef.current = nextPhase;
         await update(ref(db, `rooms/${roomCode}/timer`), {
@@ -425,7 +426,7 @@ export function TimerProvider({ children }) {
 
   // --- Phase Management ---
   const handleSetPhase = useCallback(async (newPhase) => {
-    console.log('[TimerContext] handleSetPhase called:', newPhase, 'isHost:', isHost, 'roomCode:', roomCode);
+    const pLower = newPhase?.toLowerCase() || '';
     const isActuallyHost = isHost || myPlayerId?.startsWith('host_');
     if (!isActuallyHost || !roomCode) return;
     if (isTransitioningRef.current) return; // Cegah double-click
@@ -435,7 +436,7 @@ export function TimerProvider({ children }) {
     const nightFn = processNightResultsRef.current;
     const voteFn = processVoteResultsRef.current;
 
-    if (newPhase.toLowerCase().includes("pagi")) {
+    if (pLower.includes("pagi")) {
       if (nightFn) await nightFn();
       const newDay = dayRef.current + 1;
       // Reset truthActed untuk Hakim setiap pagi
@@ -450,7 +451,7 @@ export function TimerProvider({ children }) {
         phase: newPhase, day: newDay, isActive: true, seconds: 120
       });
       setDay(newDay);
-    } else if (newPhase.toLowerCase().includes("malam")) {
+    } else if (pLower.includes("malam")) {
       if (voteFn) await voteFn();
       // Reset currentAction & pistolActed
       try {
@@ -476,7 +477,6 @@ export function TimerProvider({ children }) {
   // --- Timer Controls ---
   const toggleTimer = useCallback(async () => {
     if (!(isHost || myPlayerId?.startsWith('host_'))) return;
-    console.log('[TimerContext] toggleTimer called, isHost:', isHost);
     const newActive = !isActiveRef.current;
     setIsActive(newActive);
     await update(ref(db, `rooms/${roomCode}/timer`), {

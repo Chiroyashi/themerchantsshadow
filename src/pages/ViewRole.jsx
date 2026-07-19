@@ -18,6 +18,7 @@ import { checkWinCondition } from '../utils/winCondition';
 import { getRoleActionConfig } from '../utils/roleActions';
 import { Z_LAYER } from '../constants/zIndex';
 import { lockScroll, unlockScroll } from '../utils/scrollLock';
+import { isSiang, isMalam, isPagi } from '../constants/phases';
 const ViewRole = ({ onNext }) => {
   const {
     players, roomCode, myPlayerId, myData, playerName,
@@ -43,7 +44,7 @@ const ViewRole = ({ onNext }) => {
   const prevPhaseRef = useRef(phase);
 
   const isDead = playerData?.status === 'dead';
-  const isNight = phase?.toLowerCase().includes("malam");
+  const isNight = isMalam(phase);
   const role = playerData?.role?.toLowerCase() || "";
 
   const [visionResult, setVisionResult] = useState(null);
@@ -74,8 +75,8 @@ const ViewRole = ({ onNext }) => {
   // Auto-redirect ke GameBoard saat Siang
   useEffect(() => {
     if (!phase || isDead || isHost) return;
-    const isSiang = phase.toLowerCase().includes("siang");
-    const wasNotSiang = !prevPhaseRef.current?.toLowerCase().includes("siang");
+    const isSiangPhase = isSiang(phase);
+    const wasNotSiang = !isSiang(prevPhaseRef.current);
     if (isSiang && wasNotSiang) {
       onNext();
     }
@@ -87,7 +88,7 @@ const ViewRole = ({ onNext }) => {
       // Jika sudah ada di localStorage atau bukan hari 1 phase Pagi, skip
       if (localStorage.getItem(`intro_${roomCode}`)) return;
       // Hanya tampilkan intro jika day = 1 dan phase ada dan contains "Pagi"
-      if (day !== 1 || !phase || !phase.includes("Pagi") || winner) return;
+      if (day !== 1 || !phase || !isPagi(phase) || winner) return;
       
       // Cek Firebase apakah intro sudah selesai untuk player ini
       const introFinishedRef = ref(db, `rooms/${roomCode}/introFinished/${playerData?.id}`);

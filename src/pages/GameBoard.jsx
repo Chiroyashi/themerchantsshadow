@@ -9,6 +9,7 @@ import ChatRoom from '../components/ChatRoom';
 import { useGameContext } from '../contexts/GameContext';
 import { useTimerContext } from '../contexts/TimerContext';
 import { Z_LAYER } from '../constants/zIndex';
+import { isMalam, isSiang } from '../constants/phases';
 
 const GameBoard = ({ onBack }) => {
   const { players, roomCode, myPlayerId } = useGameContext();
@@ -23,8 +24,8 @@ const GameBoard = ({ onBack }) => {
 
   const me = players.find(p => p.id === myPlayerId);
   const isDead = me?.status === 'dead';
-  const isMalam = phase?.toLowerCase().includes("malam");
-  const isVotingTime = phase?.toLowerCase().includes("siang");
+  const isMalam = isMalam(phase);
+  const isVotingTime = isSiang(phase);
   const gamePlayers = players.filter(p => p.role !== 'Moderator');
 
   // Hitung vote count per player
@@ -70,8 +71,8 @@ const GameBoard = ({ onBack }) => {
   // Auto-redirect ke ViewRole saat Malam (kebalikan dari ViewRole → GameBoard saat Siang)
   useEffect(() => {
     if (!phase) return;
-    const isNight = phase.toLowerCase().includes("malam");
-    const wasNotNight = !prevPhaseRef.current?.toLowerCase().includes("malam");
+    const isNight = isMalam(phase);
+    const wasNotNight = !isMalam(prevPhaseRef.current);
     if (isNight && wasNotNight) {
       onBack();
     }
