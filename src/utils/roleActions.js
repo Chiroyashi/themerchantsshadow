@@ -58,26 +58,22 @@ export const getRoleActionConfig = (role, currentDay, totalPlayers, roleState = 
       break;
 
     case 'Guard':
-      // Guard aktif malam 1, lalu cooldown 1 malam (aktif setiap 2 malam: 1, 3, 5, ...)
+      // Guard: usage-based cooldown — pakai → cooldown 2 malam → siap lagi
       // Proteksi bertahan 2 malam
-      if (isNight1) {
-        config.canAct = !hasActed;
+      const lastGuardDay = roleState.lastProtectedDay || 0;
+      const isGuardCooldown = lastGuardDay > 0 && currentDay < lastGuardDay + 3;
+
+      if (!isGuardCooldown && !hasActed) {
+        config.canAct = true;
         config.actionType = 'protect';
-        config.reason = hasActed ? "Action sudah dilakukan." : "Malam pertama! Pilih 1 pemain untuk dilindungi.";
+        config.reason = hasActed ? "Action sudah dilakukan." : "Pilih 1 pemain untuk dilindungi.";
         config.maxUses = 1;
         config.skillName = 'Protect';
-      } else if ((currentDay - 1) % 2 === 0) {
-        // Malam ganjil (3, 5, 7) — bisa protek
-        config.canAct = !hasActed;
-        config.actionType = 'protect';
-        config.reason = hasActed ? "Action sudah dilakukan." : "Malam ini Protection aktif! Pilih 1 pemain.";
-        config.maxUses = 1;
-        config.skillName = 'Protect';
-      } else {
-        // Malam genap (2, 4, 6) — cooldown
+      } else if (isGuardCooldown) {
+        const siapMalam = lastGuardDay + 3;
         config.canAct = false;
         config.actionType = null;
-        config.reason = `Guard cooldown. Protection aktif malam ${currentDay + 1}.`;
+        config.reason = `Guard cooldown. Protection aktif kembali malam ${siapMalam}.`;
       }
       break;
 
@@ -172,60 +168,57 @@ export const getRoleActionConfig = (role, currentDay, totalPlayers, roleState = 
       const hasSkipped = roleState.warlockSkipped;
       const itemUsedThisNight = roleState.warlockItemUsed;
       const phase = roleState.currentPhase;
-      // warlockActed = sudah action malam ini (baik beli maupun pakai)
       const warlockActed = roleState.warlockActed;
 
-      if (phase === 'Malam (Eksekusi)' || phase?.includes('Malam')) {
-        if (hasSkipped) {
-          config.canAct = false;
-          config.actionType = null;
-          config.reason = "Warlock sudah Skip. Action tertutup selamanya.";
-          config.skillName = 'Warlock';
-        } else if (warlockActed) {
-          config.canAct = false;
-          config.actionType = 'warlock';
-          config.reason = "Action sudah dilakukan malam ini.";
-          config.skillName = 'Warlock';
-        } else if (isNight1) {
-          // Malam 1: WAJIB Beli item (Vision/Poison) atau Skip
-          config.canAct = true;
-          config.actionType = 'warlock-buy';
-          config.reason = "MALAM PERTAMA: BELI Vision/Poison atau SKIP.";
-          config.maxUses = 1;
-          config.skillName = 'Warlock';
-        } else if (warlockItem && !itemUsedThisNight) {
-          // Ada item yang BELUM dipakai → ACTION
-          config.canAct = true;
-          config.actionType = 'warlock-use';
-          config.reason = `GUNAKAN ${warlockItem.toUpperCase()} (1x pakai).`;
-          config.maxUses = 1;
-          config.skillName = 'Warlock';
-        } else if (itemUsedThisNight) {
-          // Sudah pakai item malam ini → BELI item baru (zigzag)
-          config.canAct = true;
-          config.actionType = 'warlock-buy';
-          config.reason = "Item sudah dipakai. BELI item baru.";
-          config.maxUses = 1;
-          config.skillName = 'Warlock';
-        } else if (warlockItem && itemUsedThisNight) {
-          // Punya item tapi sudah dipakai → beli baru
-          config.canAct = true;
-          config.actionType = 'warlock-buy';
-          config.reason = "Item sudah dipakai malam sebelumnya. BELI item baru.";
-          config.maxUses = 1;
-          config.skillName = 'Warlock';
-        } else {
-          // Tidak punya item (setelah skip atau baru) → BELI
-          config.canAct = true;
-          config.actionType = 'warlock-buy';
-          config.reason = "BELI Vision atau Poison.";
-          config.maxUses = 1;
-          config.skillName = 'Warlock';
-        }
-      } else {
+      if (!phase?.includes('Malam')) {
         config.canAct = false;
         config.reason = "Warlock action hanya di malam.";
+        break;
       }
+
+      if (hasSkipped) {
+        config.canAct = false;
+        config.reason = "Warlock sudah Skip. Action tertutup selamanya.";
+        config.skillName = 'Warlock';
+        break;
+      }
+
+      if (warlockActed) {
+        config.canAct = false;
+        config.reason = "Action sudah dilakukan malam ini.";
+        config.skillName = 'Warlock';
+        break;
+      }
+
+      if (isNight1) {
+        // Malam 1: WAJIB Beli (Vision/Poison) atau Skip
+        config.canAct = true;
+        config.actionType = 'warlock-buy';
+        config.reason = "MALAM PERTAMA: BELI Vision/Poison atau SKIP.";
+        config.maxUses = 1;
+        config.skillName = 'Warlock';
+        break;
+      }
+
+      // Malam 2+:
+      if (warlockItem && !itemUsedThisNight) {
+        // Punya item yang belum dipakai → WAJIB Use
+        config.canAct = true;
+        config.actionType = 'warlock-use';
+        config.reason = `GUNAKAN ${warlockItem.toUpperCase()} (1x pakai).`;
+        config.maxUses = 1;
+        config.skillName = 'Warlock';
+        break;
+      }
+
+      // Tidak punya item, atau item sudah dipakai → BELI
+      config.canAct = true;
+      config.actionType = 'warlock-buy';
+      config.reason = warlockItem
+        ? "Item sudah dipakai. BELI item baru."
+        : "BELI Vision atau Poison.";
+      config.maxUses = 1;
+      config.skillName = 'Warlock';
       break;
 
     case 'Moderator':
@@ -276,7 +269,8 @@ export const canRoleActTonight = (role, currentDay, playerState = {}) => {
       return !hasActed;
     case 'Guard':
       if (isNight1) return !hasActed;
-      return (currentDay - 1) % 2 === 0 && !hasActed;
+      const lastGuard = playerState.lastProtectedDay || 0;
+      return lastGuard === 0 || currentDay >= lastGuard + 3;
     case 'Werewolf':
       return isNight2OrMore && !hasActed;
     case 'Hakim':

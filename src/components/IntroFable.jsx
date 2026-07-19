@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ref, onValue, update } from "firebase/database";
 import { db } from "../lib/firebase";
+import { Z_LAYER } from '../constants/zIndex';
+import { lockScroll, unlockScroll } from '../utils/scrollLock';
 import { Scroll, Gavel, Users, Sparkles, Sun, Wallet, Eye, Shield, Crosshair, Wand2, Ghost, SkipForward } from 'lucide-react';
 
 const roleIcons = {
@@ -17,6 +19,8 @@ const IntroFable = ({ players, roomCode, onFinish, playerData }) => {
   const [step, setStep] = useState(1);
   const [progress, setProgress] = useState(0);
   const finishedRef = useRef(false);
+  const onFinishRef = useRef(onFinish);
+  useEffect(() => { onFinishRef.current = onFinish; }, [onFinish]);
 
   // Ambil data untuk narasi dinamis
   const hakim = players.find(p => p.role === 'Hakim');
@@ -25,7 +29,10 @@ const IntroFable = ({ players, roomCode, onFinish, playerData }) => {
     return acc;
   }, {});
 
+  useEffect(() => { lockScroll(); return () => unlockScroll(); }, []);
+
   // Local timer — jalan tanpa Firebase sync
+  // Catatan: sengaja kosongin dependency array — pakai ref biar gak restart
   useEffect(() => {
     const startTime = Date.now();
     const totalDuration = 20;
@@ -46,7 +53,7 @@ const IntroFable = ({ players, roomCode, onFinish, playerData }) => {
         update(ref(db, `rooms/${roomCode}/introFinished`), {
           [playerData?.id || 'unknown']: true
         }).catch(() => {});
-        onFinish();
+        onFinishRef.current();
       }
     }, 100);
 
@@ -55,7 +62,7 @@ const IntroFable = ({ players, roomCode, onFinish, playerData }) => {
       if (!finishedRef.current) {
         finishedRef.current = true;
         clearInterval(interval);
-        onFinish();
+        onFinishRef.current();
       }
     }, 30000);
 
@@ -63,16 +70,16 @@ const IntroFable = ({ players, roomCode, onFinish, playerData }) => {
       clearInterval(interval);
       clearTimeout(fallback);
     };
-  }, [roomCode, onFinish, playerData?.id]);
+  }, [roomCode, playerData?.id]); // sengaja tanpa onFinish — pakai ref
 
   const handleSkip = () => {
     if (finishedRef.current) return;
     finishedRef.current = true;
-    onFinish();
+    onFinishRef.current();
   };
 
   return (
-    <div className="fixed inset-0 z-[500] bg-slate-950 flex items-center justify-center p-4 md:p-6 text-center overflow-hidden font-sans">
+    <div className="fixed inset-0 bg-slate-950 flex items-center justify-center p-4 md:p-6 text-center overflow-hidden font-sans" style={{ zIndex: Z_LAYER.INTRO_FABLE }}>
       {/* Ambience Layer */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[70%] h-[70%] bg-blue-900/20 rounded-full blur-[120px] animate-pulse" />

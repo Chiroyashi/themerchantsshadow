@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ref, onValue, set, update, get } from "firebase/database";
+import { ref, onValue, set, update } from "firebase/database";
 import { db } from "../lib/firebase";
 import {
   Skull, Heart, Play, Pause, RefreshCw, LogOut, User,
@@ -10,6 +10,8 @@ import ChatRoom from '../components/ChatRoom';
 import { useGameContext } from '../contexts/GameContext';
 import { useTimerContext } from '../contexts/TimerContext';
 import { useNotification } from '../contexts/NotificationContext';
+import { Z_LAYER } from '../constants/zIndex';
+import { lockScroll, unlockScroll } from '../utils/scrollLock';
 
 const ModeratorDashboard = () => {
   const {
@@ -23,8 +25,7 @@ const ModeratorDashboard = () => {
   const { showNotif } = useNotification();
   const [votes, setVotes] = useState({});
   const [nightHistory, setNightHistory] = useState({}); 
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  
+
   // State untuk Edit Waktu
   const [isEditingTime, setIsEditingTime] = useState(false);
   const [timeInput, setTimeInput] = useState("");
@@ -38,6 +39,23 @@ const ModeratorDashboard = () => {
   const [showCluePopup, setShowCluePopup] = useState(false);
   const [currentTransactionKey, setCurrentTransactionKey] = useState(null);
   const [clueSent, setClueSent] = useState({});
+
+  // State untuk notif toast
+  const [notifMsg, setNotifMsg] = useState(null);
+  const triggerNotif = (msg, type = 'info') => {
+    setNotifMsg({ msg, type });
+    setTimeout(() => setNotifMsg(null), 4000);
+  };
+
+  // Scroll lock for end game modal
+  useEffect(() => {
+    if (showEndGame) { lockScroll(); return () => unlockScroll(); }
+  }, [showEndGame]);
+
+  // Scroll lock for clue popup
+  useEffect(() => {
+    if (showCluePopup) { lockScroll(); return () => unlockScroll(); }
+  }, [showCluePopup]);
 
   const activePlayers = players.filter(p => p.status !== 'dead' && p.role !== 'Moderator');
   const votesData = Object.values(votes);
@@ -103,27 +121,11 @@ const ModeratorDashboard = () => {
   };
 
   const handleMoveToMorning = async () => {
-    // 1. Proses hasil malam (write status:dead ke Firebase)
     if (typeof handleSetPhase === 'function') {
       await handleSetPhase("Pagi (Diskusi)");
     }
-    // 2. Baca langsung dari Firebase untuk data paling update
-    const snapshot = await get(ref(db, `rooms/${roomCode}/players`));
-    const deadNames = [];
-    if (snapshot.exists()) {
-      const updatedPlayers = snapshot.val();
-      Object.entries(updatedPlayers).forEach(([id, p]) => {
-        if (p.status === 'dead' && p.role !== 'Moderator') {
-          deadNames.push(p.name);
-        }
-      });
-    }
-    // 3. Set deadToday untuk death announcement
-    await set(ref(db, `rooms/${roomCode}/deadToday`), {
-      day,
-      names: deadNames.length > 0 ? deadNames : ["TIDAK ADA"],
-      timestamp: Date.now()
-    });
+    // handleSetPhase("Pagi") sudah panggil processNightResults + nulis deadToday
+    // Tidak perlu nulis deadToday lagi — itu double-write
   };
 
   const handleEndGameClick = (winner) => {
@@ -160,18 +162,12 @@ const ModeratorDashboard = () => {
     }
   };
 
-  const [notifMsg, setNotifMsg] = useState(null);
-  const triggerNotif = (msg, type = 'info') => {
-    setNotifMsg({ msg, type });
-    setTimeout(() => setNotifMsg(null), 4000);
-  };
-
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-blue-500/30">
       
       {/* END GAME MODAL */}
       {showEndGame && (
-        <div className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: Z_LAYER.ACTION_MODAL }}>
           <div className="bg-slate-900 border border-white/10 rounded-[2rem] p-8 max-w-sm w-full text-center space-y-6 animate-in zoom-in duration-300">
             <Trophy className="w-12 h-12 md:w-16 md:h-16 mx-auto text-amber-500" />
             <h2 className="text-lg md:text-xl font-black text-white uppercase italic">Pilih Pemenang</h2>
@@ -196,16 +192,11 @@ const ModeratorDashboard = () => {
             <p className="text-[8px] text-slate-500 font-mono tracking-widest uppercase">Room: {roomCode} • Day {day}</p>
           </div>
           <div className="flex gap-2">
-            <button onClick={() => setIsChatOpen(true)} className="p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-blue-400 hover:bg-slate-800 transition-colors">
-              <MessageSquare size={18} />
-            </button>
             <button onClick={() => setShowEndGame(true)} className="p-2.5 bg-amber-600 text-white border border-amber-500 rounded-xl hover:bg-amber-500 transition-colors">
               <Trophy size={18} />
             </button>
             <button onClick={() => {
-              if (window.confirm("Bubarkan room? Semua data akan dihapus.")) {
-                handleDestroyRoom();
-              }
+              showNotif("Bubarkan Room", "Semua data akan dihapus. Lanjutkan?", "confirm", handleDestroyRoom);
             }} className="p-2.5 bg-red-900/10 text-red-500 border border-red-900/30 rounded-xl">
               <LogOut size={18} />
             </button>
@@ -411,24 +402,11 @@ const ModeratorDashboard = () => {
         </section>
       </main>
 
-      {/* CHAT OVERLAY */}
-      {isChatOpen && (
-        <div className="fixed inset-0 z-[100] bg-slate-950 p-4 pt-20 animate-in slide-in-from-right duration-300">
-          <div className="max-w-4xl mx-auto h-full flex flex-col">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xs font-black uppercase tracking-[0.3em] text-blue-500">Moderator Chat</h2>
-              <button onClick={() => setIsChatOpen(false)} className="p-3 bg-slate-900 rounded-full text-slate-400"><X size={20} /></button>
-            </div>
-            <div className="flex-1 bg-slate-900 border border-white/5 rounded-[2.5rem] overflow-hidden shadow-2xl">
-               <ChatRoom roomCode={roomCode} myId="host" myName="MODERATOR" players={players} isHost={true} />
-            </div>
-          </div>
-        </div>
-      )}
+      <ChatRoom roomCode={roomCode} myId="host" myName="MODERATOR" players={players} isHost={true} />
 
       {/* NOTIF TOAST */}
       {notifMsg && (
-        <div className={`fixed bottom-20 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest z-[200] animate-in slide-in-from-bottom-5 ${
+        <div className={`fixed bottom-20 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest animate-in slide-in-from-bottom-5 ${
           notifMsg.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-blue-600 text-white'
         }`}>
           {notifMsg.msg}
@@ -437,7 +415,7 @@ const ModeratorDashboard = () => {
 
       {/* CLUE POPUP MODAL */}
       {showCluePopup && currentTransactionKey && (
-        <div className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: Z_LAYER.ACTION_MODAL }}>
           <div className="bg-gradient-to-br from-amber-700 to-yellow-600 rounded-[2rem] p-1 w-full max-w-sm md:max-w-lg shadow-2xl shadow-amber-900/50">
             <div className="bg-slate-900 rounded-[1.8rem] p-4 md:p-6 space-y-4">
               <div className="text-center space-y-2">

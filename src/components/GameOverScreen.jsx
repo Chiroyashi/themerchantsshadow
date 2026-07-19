@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Trophy, Skull, Home, Users, ScrollText, Sparkles, Sunrise, Moon, CheckCircle2, XCircle, Info } from 'lucide-react';
+import { Z_LAYER } from '../constants/zIndex';
+import { lockScroll, unlockScroll } from '../utils/scrollLock';
 
 const GameOverScreen = ({ winner, players, playerData, onLeave }) => {
+  useEffect(() => { lockScroll(); return () => unlockScroll(); }, []);
   const [step, setStep] = useState(1);
   const isWargaWinner = winner === 'WARGA';
 
@@ -13,7 +16,7 @@ const GameOverScreen = ({ winner, players, playerData, onLeave }) => {
   const nextStep = () => setStep(s => s + 1);
 
   return (
-    <div className="fixed inset-0 z-[300] bg-slate-950 flex items-center justify-center p-6 text-center font-sans overflow-hidden">
+    <div className="fixed inset-0 bg-slate-950 flex items-center justify-center p-6 text-center font-sans overflow-hidden" style={{ zIndex: Z_LAYER.GAME_OVER }}>
       {/* Dynamic Background Ambience */}
       <div className="absolute inset-0 opacity-30 pointer-events-none">
         <div className={`absolute top-[-10%] left-[-10%] w-[60%] h-[60%] rounded-full blur-[120px] ${isWargaWinner ? 'bg-blue-600' : 'bg-red-900'}`} />

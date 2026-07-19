@@ -2,18 +2,49 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ref, push, onValue } from "firebase/database";
 import { db } from "../lib/firebase";
-import { Send, MessageSquare, ChevronDown, ChevronUp, Globe, User, ShieldAlert } from 'lucide-react';
+import { Send, MessageSquare, ChevronDown, Globe, User, ShieldAlert, Ghost, Skull } from 'lucide-react';
+import { Z_LAYER } from '../constants/zIndex';
 
-const ChatRoom = ({ roomCode, myId, myName, players, isHost }) => {
+const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onToggleExternal, onUnreadChange }) => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [targetId, setTargetId] = useState("all");
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpenInternal, setIsOpenInternal] = useState(false);
+  const isOpen = isOpenExternal !== undefined ? isOpenExternal : isOpenInternal;
+  const toggleOpen = isOpenExternal !== undefined ? onToggleExternal : () => {
+    if (!isOpenInternal) {
+      setUnreadCount(0);
+      lastSeenRef.current = Date.now();
+    }
+    setIsOpenInternal(!isOpenInternal);
+  };
   const [showTargetMenu, setShowTargetMenu] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [channel, setChannel] = useState('public'); // 'public' | 'ww' | 'graveyard'
   const scrollRef = useRef(null);
+  const lastSeenRef = useRef(0);
+  const inputRef = useRef(null);
 
-  // Ambil data diri sendiri dari list players yang selalu sync dari Firebase
   const myDataFromList = players?.find(p => p.id === myId);
+  const myRole = myDataFromList?.role;
+  const myStatus = myDataFromList?.status;
+  const isWW = myRole === 'Werewolf';
+  const isDead = myStatus === 'dead';
+  const canAccessWW = isWW || isHost;
+  const canAccessGraveyard = isDead || isHost;
+
+  // Reset channel ke 'public' saat mati/hidup berubah
+  useEffect(() => {
+    if (channel === 'graveyard' && !canAccessGraveyard) setChannel('public');
+    if (channel === 'ww' && !canAccessWW) setChannel('public');
+  }, [isDead, isWW, canAccessGraveyard, canAccessWW, channel]);
+
+  // Sync unreadCount ke parent jika dikontrol eksternal
+  useEffect(() => {
+    if (isOpenExternal !== undefined && onUnreadChange) {
+      onUnreadChange(unreadCount);
+    }
+  }, [unreadCount, isOpenExternal, onUnreadChange]);
 
   useEffect(() => {
     if (!roomCode) return;
@@ -22,18 +53,29 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost }) => {
       const data = snapshot.val();
       if (data) {
         const list = Object.entries(data).map(([id, val]) => ({ id, ...val }));
-        const visibleMessages = list.filter(m => 
-          m.target === "all" || m.senderId === myId || m.target === myId || isHost
-        );
-        setMessages(visibleMessages.sort((a, b) => a.timestamp - b.timestamp));
+        // Filter: channel ww hanya untuk WW & Host, graveyard hanya untuk dead & Host, private whisper sesuai target
+        const visible = list.filter(m => {
+          if (m.channel === 'ww' && !isWW && !isHost) return false;
+          if (m.channel === 'graveyard' && !isDead && !isHost) return false;
+          if (m.target !== "all" && m.target !== myId && m.senderId !== myId && !isHost) return false;
+          return true;
+        });
+        const sorted = visible.sort((a, b) => a.timestamp - b.timestamp);
+        setMessages(sorted);
+
+        if (!isOpen) {
+          const newCount = sorted.filter(m => m.timestamp > lastSeenRef.current && m.senderId !== myId).length;
+          if (newCount > 0) setUnreadCount(prev => prev + newCount);
+        }
       }
     });
     return () => unsubscribe();
-  }, [roomCode, myId, isHost]);
+  }, [roomCode, myId, isHost, isOpen, isWW, isDead]);
 
   useEffect(() => {
     if (isOpen) {
-      scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+      setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+      setTimeout(() => inputRef.current?.focus(), 200);
     }
   }, [messages, isOpen]);
 
@@ -42,40 +84,72 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost }) => {
     if (!input.trim()) return;
 
     const chatRef = ref(db, `rooms/${roomCode}/chats`);
-    const isPrivateChat = targetId !== "all";
 
-    // --- LOGIKA TRUTH EKSKLUSIF ---
-    // Gunakan data dari list players yang selalu sync untuk cek status underTruth
-    if (isPrivateChat && myDataFromList?.underTruth) {
-      const whisperedTo = players.find(p => p.id === targetId)?.name || "seseorang";
-
-      // 1. Kirim notifikasi PENYADAPAN ke publik
-      push(chatRef, {
-        senderId: "SYSTEM_TRUTH",
-        senderName: "SISTEM (TRUTH)",
-        text: `⚠️ ${myName.toUpperCase()} BERKATA JUJUR`,
-        target: "all", 
-        timestamp: Date.now(),
-        type: 'warning'
-      });
-
-      // 2. Tampilkan isi chat asli DI PUBLIK (Tanpa Label [ISI BISIKAN])
-      push(chatRef, {
-        senderId: myId,
-        senderName: `${myName} (TEREKAM)`,
-        text: input, 
-        target: "all", 
-        timestamp: Date.now() + 1 
-      });
-    } else {
-      // --- LOGIKA NORMAL ---
+    if (channel === 'graveyard') {
+      // Graveyard — tanpa truth leak
       push(chatRef, {
         senderId: myId,
         senderName: myName,
         text: input,
-        target: targetId,
+        target: "all",
+        channel: "graveyard",
         timestamp: Date.now()
       });
+    } else if (channel === 'ww') {
+      // Kirim ke channel Markas
+      push(chatRef, {
+        senderId: myId,
+        senderName: myName,
+        text: input,
+        target: "all",
+        channel: "ww",
+        timestamp: Date.now()
+      });
+
+      // Truth leak: jika WW kena Truth, chat Markas bocor ke publik
+      if (myDataFromList?.underTruth) {
+        push(chatRef, {
+          senderId: "SYSTEM_TRUTH",
+          senderName: "SISTEM (TRUTH)",
+          text: `🐺 ${myName.toUpperCase()} BERKATA: ${input}`,
+          target: "all",
+          channel: "public",
+          timestamp: Date.now() + 1,
+          type: 'warning'
+        });
+      }
+    } else {
+      // Channel public (perilaku seperti sekarang)
+      const isPrivate = targetId !== "all";
+
+      if (isPrivate && myDataFromList?.underTruth) {
+        push(chatRef, {
+          senderId: "SYSTEM_TRUTH",
+          senderName: "SISTEM (TRUTH)",
+          text: `⚠️ ${myName.toUpperCase()} BERKATA JUJUR`,
+          target: "all",
+          channel: "public",
+          timestamp: Date.now(),
+          type: 'warning'
+        });
+        push(chatRef, {
+          senderId: myId,
+          senderName: `${myName} (TEREKAM)`,
+          text: input,
+          target: "all",
+          channel: "public",
+          timestamp: Date.now() + 1
+        });
+      } else {
+        push(chatRef, {
+          senderId: myId,
+          senderName: myName,
+          text: input,
+          target: targetId,
+          channel: "public",
+          timestamp: Date.now()
+        });
+      }
     }
 
     setInput("");
@@ -83,118 +157,259 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost }) => {
 
   const getTargetName = () => {
     if (targetId === "all") return "Publik";
-    const p = players.find(player => player.id === targetId);
+    const p = players.find(p => p.id === targetId);
     return p ? p.name.split(' ')[0] : "User";
   };
 
+  const isPrivate = targetId !== "all";
+  const isWWChannel = channel === 'ww';
+  const isGraveyard = channel === 'graveyard';
+
+  const channelBorder = isWWChannel ? 'border-red-500/30' : isGraveyard ? 'border-slate-600/50' : 'border-white/10';
+
   const chatUI = (
     <div className="game-chat-system font-sans">
-      <div 
-        className={`fixed inset-0 bg-slate-950/80 backdrop-blur-md transition-all duration-500 z-[9998] 
-          ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-        onClick={() => {
-          setIsOpen(false);
-          setShowTargetMenu(false);
-        }}
-      />
+      {/* BACKDROP */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-all duration-300"
+          style={{ zIndex: Z_LAYER.CHAT_BACKDROP }}
+          onClick={toggleOpen}
+        />
+      )}
 
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[94%] max-w-lg z-[9999]">
-        
-        {/* LOG PESAN */}
-        <div className={`absolute bottom-full left-0 right-0 mb-4 bg-slate-900 border border-white/10 rounded-[2.5rem] shadow-[0_25px_60px_rgba(0,0,0,0.8)] overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] origin-bottom
-          ${isOpen ? 'h-[60vh] opacity-100 translate-y-0 scale-100' : 'h-0 opacity-0 translate-y-10 scale-95 pointer-events-none'}`}>
-          
-          <div className="p-5 border-b border-white/5 bg-white/5 flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse shadow-[0_0_15px_rgba(59,130,246,0.8)]"></div>
-              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-400">Communication Link</span>
-            </div>
-            <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-500">
-              <ChevronDown size={22} />
-            </button>
-          </div>
+      {/* FLOATING BUTTON */}
+      {!isOpen && isOpenExternal === undefined && (
+        <button
+          onClick={toggleOpen}
+          className="fixed bottom-6 right-6 w-14 h-14 rounded-2xl bg-slate-900 border border-blue-500/30 shadow-2xl shadow-blue-900/20 flex items-center justify-center hover:bg-slate-800 hover:border-blue-400/50 active:scale-90 transition-all duration-200"
+          style={{ zIndex: Z_LAYER.CHAT_PANEL }}
+        >
+          <MessageSquare size={22} className="text-blue-400" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 min-w-[22px] h-[22px] rounded-full bg-red-600 text-white text-[9px] font-black flex items-center justify-center px-1 shadow-lg animate-in zoom-in duration-200">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
+        </button>
+      )}
 
-          <div className="h-[calc(100%-70px)] overflow-y-auto p-6 space-y-4 custom-scrollbar">
-            {messages.map((m) => {
-              const isMe = m.senderId === myId;
-              const isPrivate = m.target !== "all";
-              const isSystemTruth = m.senderId === "SYSTEM_TRUTH";
+      {/* CHAT PANEL */}
+      {isOpen && (
+        <div className="fixed bottom-0 left-0 right-0 animate-in slide-in-from-bottom-4 duration-300" style={{ zIndex: Z_LAYER.CHAT_PANEL }}>
+          <div className="max-w-lg mx-auto px-3 pb-3">
+            <div className={`bg-slate-900/95 backdrop-blur-xl border rounded-[1.8rem] shadow-[0_25px_80px_rgba(0,0,0,0.9)] overflow-hidden ${channelBorder}`}>
 
-              return (
-                <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-2`}>
-                  <div className="flex items-center gap-2 mb-1 px-1 text-[8px] font-black uppercase tracking-tighter text-slate-500">
-                    {isPrivate && <span className="text-purple-500">[RAHASIA]</span>}
-                    {isSystemTruth && <ShieldAlert size={10} className="text-amber-500" />}
-                    {isMe ? 'Anda' : m.senderName}
+              {/* HEADER */}
+              <div className="px-5 py-4 border-b border-white/5 flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-2.5 h-2.5 rounded-full animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)] ${isWWChannel ? 'bg-red-500' : isGraveyard ? 'bg-slate-500' : 'bg-emerald-500'}`} />
+                    <div>
+                      <p className="text-[9px] font-black uppercase tracking-[0.25em] text-slate-500">CHAT</p>
+                      <p className="text-xs font-bold text-white">
+                        {isWWChannel ? '🐺 Markas Werewolf' : isGraveyard ? '💀 Arwah Penasaran' : isPrivate ? `→ ${getTargetName()}` : 'Komunikasi Publik'}
+                      </p>
+                    </div>
                   </div>
-                  <div className={`p-4 rounded-[1.8rem] text-sm font-bold leading-relaxed shadow-lg ${
-                    isSystemTruth ? 'bg-amber-950/30 text-amber-500 border border-amber-500/30' :
-                    isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-slate-800 text-slate-200 rounded-tl-none border border-white/5'
-                  }`}>
-                    {m.text}
-                  </div>
-                </div>
-              );
-            })}
-            <div ref={scrollRef} />
-          </div>
-        </div>
-
-        {/* INPUT BAR */}
-        <div className={`relative flex items-center gap-2 p-2 bg-slate-900 border transition-all duration-300 rounded-full shadow-2xl ${isOpen ? 'border-blue-500 ring-4 ring-blue-500/20' : 'border-white/10'}`}>
-          
-          <div className="relative">
-             <div className={`absolute bottom-full left-0 mb-4 w-48 bg-slate-800 border border-white/10 rounded-3xl shadow-2xl transition-all duration-300 origin-bottom-left overflow-hidden
-                ${showTargetMenu ? 'scale-100 opacity-100 translate-y-0' : 'scale-75 opacity-0 translate-y-4 pointer-events-none'}`}>
-                <div className="p-3 border-b border-white/5 text-[9px] font-black uppercase text-slate-500 tracking-widest text-center">Kirim Ke:</div>
-                <div className="max-h-60 overflow-y-auto custom-scrollbar">
-                  <button 
-                    onClick={() => { setTargetId("all"); setShowTargetMenu(false); }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-xs font-bold transition-colors hover:bg-white/5 ${targetId === 'all' ? 'text-blue-400 bg-blue-400/5' : 'text-slate-300'}`}
-                  >
-                    <Globe size={14} /> Publik
+                  <button onClick={toggleOpen} className="p-1.5 hover:bg-white/5 rounded-full transition-colors text-slate-600 hover:text-slate-300">
+                    <ChevronDown size={18} />
                   </button>
-                  {players.filter(p => p.id !== myId && p.role !== 'Moderator').map(p => (
-                    <button 
-                      key={p.id}
-                      onClick={() => { setTargetId(p.id); setShowTargetMenu(false); }}
-                      className={`w-full flex items-center gap-3 px-4 py-3 text-xs font-bold transition-colors hover:bg-white/5 ${targetId === p.id ? 'text-purple-400 bg-purple-400/5' : 'text-slate-300'}`}
-                    >
-                      <User size={14} /> {p.name}
-                    </button>
-                  ))}
                 </div>
-             </div>
 
-             <button 
-               onClick={() => setShowTargetMenu(!showTargetMenu)}
-               className={`flex items-center gap-2 pl-4 pr-3 py-2 rounded-full transition-all border ${targetId === 'all' ? 'border-blue-500/30 bg-blue-500/10 text-blue-400' : 'border-purple-500/30 bg-purple-500/10 text-purple-400'}`}
-             >
-                {targetId === 'all' ? <Globe size={16} /> : <User size={16} />}
-                <span className="text-[10px] font-black uppercase truncate max-w-[60px]">{getTargetName()}</span>
-                <ChevronUp size={14} className={`transition-transform duration-300 ${showTargetMenu ? 'rotate-180' : ''}`} />
-             </button>
+                {/* TAB: Umum | Markas | Arwah */}
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setChannel('public')}
+                    className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                      channel === 'public'
+                        ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
+                        : 'bg-slate-950/40 text-slate-600 border border-transparent'
+                    }`}
+                  >
+                    💬 Umum
+                  </button>
+                  {canAccessWW && (
+                    <button
+                      onClick={() => { setChannel('ww'); setTargetId('all'); }}
+                      className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                        channel === 'ww'
+                          ? 'bg-red-600/20 text-red-400 border border-red-500/30'
+                          : 'bg-slate-950/40 text-slate-600 border border-transparent'
+                      }`}
+                    >
+                      🐺 Markas
+                    </button>
+                  )}
+                  {canAccessGraveyard && (
+                    <button
+                      onClick={() => { setChannel('graveyard'); setTargetId('all'); }}
+                      className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                        channel === 'graveyard'
+                          ? 'bg-slate-600/30 text-slate-300 border border-slate-500/30'
+                          : 'bg-slate-950/40 text-slate-600 border border-transparent'
+                      }`}
+                    >
+                      💀 Arwah
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* MESSAGES */}
+              <div className="h-[45vh] overflow-y-auto px-5 py-4 space-y-3 custom-scrollbar" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(100,116,139,0.3) transparent' }}>
+                {messages.length === 0 && (
+                  <div className="text-center py-10">
+                    <MessageSquare size={32} className="mx-auto text-slate-700 mb-3" />
+                    <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest">Belum ada pesan</p>
+                    <p className="text-[8px] text-slate-700 mt-1 italic">
+                      {isGraveyard ? 'Bisikan dari alam baka...' : isWWChannel ? 'Gorok mereka dalam keheningan...' : 'Mulai diskusi dengan pemain lain'}
+                    </p>
+                  </div>
+                )}
+                {messages.map((m) => {
+                  const isMeMsg = m.senderId === myId;
+                  const isPrivateMsg = m.target !== "all";
+                  const isSystemTruth = m.senderId === "SYSTEM_TRUTH";
+                  const isWWMsg = m.channel === 'ww';
+                  const isGraveyardMsg = m.channel === 'graveyard';
+
+                  return (
+                    <div key={m.id} className={`flex flex-col ${isMeMsg ? 'items-end' : 'items-start'} animate-in fade-in duration-200`}>
+                      <div className="flex items-center gap-1.5 mb-1 px-1">
+                        <span className="text-[7px] font-black uppercase tracking-tight text-slate-600">
+                          {isMeMsg ? 'Anda' : m.senderName}
+                        </span>
+                        {isWWMsg && !isMeMsg && <Ghost size={9} className="text-red-500" />}
+                        {isGraveyardMsg && !isMeMsg && <Skull size={9} className="text-slate-500" />}
+                        {isPrivateMsg && !isMeMsg && <span className="text-[7px] text-purple-500 font-black">(whisper)</span>}
+                        {isSystemTruth && <ShieldAlert size={9} className="text-amber-500" />}
+                      </div>
+                      <div className={`px-4 py-2.5 text-sm font-medium leading-relaxed shadow-lg max-w-[85%] ${
+                        isSystemTruth
+                          ? 'bg-amber-950/30 text-amber-400 border border-amber-500/20 rounded-2xl'
+                          : isGraveyardMsg
+                            ? isMeMsg
+                              ? 'bg-slate-700 text-slate-100 rounded-2xl rounded-br-sm'
+                              : 'bg-slate-800/60 text-slate-300 rounded-2xl rounded-bl-sm border border-slate-600/30'
+                            : isWWMsg
+                              ? isMeMsg
+                                ? 'bg-red-600 text-white rounded-2xl rounded-br-sm'
+                                : 'bg-red-950/40 text-red-200 rounded-2xl rounded-bl-sm border border-red-500/30'
+                              : isMeMsg
+                                ? 'bg-blue-600 text-white rounded-2xl rounded-br-sm'
+                                : 'bg-slate-800 text-slate-200 rounded-2xl rounded-bl-sm border border-white/5'
+                      }`}>
+                        {isWWMsg && !isSystemTruth && <span className="text-[9px] mr-1">🐺</span>}
+                        {isGraveyardMsg && <span className="text-[9px] mr-1">💀</span>}
+                        {m.text}
+                      </div>
+                    </div>
+                  );
+                })}
+                <div ref={scrollRef} />
+              </div>
+
+              {/* INPUT BAR */}
+              <div className="px-4 py-3 border-t border-white/5 bg-white/[0.02]">
+                <form onSubmit={sendMessage} className={`flex items-center gap-2 bg-slate-950/60 border rounded-2xl px-2 py-1.5 transition-all duration-200 ${
+                  isWWChannel ? 'border-red-700/50 focus-within:border-red-500/40' :
+                  isGraveyard ? 'border-slate-700/50 focus-within:border-slate-500/40' :
+                  'border-slate-700/50 focus-within:border-blue-500/40 focus-within:ring-2 focus-within:ring-blue-500/10'
+                }`}>
+
+                  {/* PUBLIC CHANNEL: target selector */}
+                  {channel === 'public' && (
+                    <div className="relative">
+                      <div className={`absolute bottom-full left-0 mb-2 w-48 bg-slate-800 border border-white/10 rounded-2xl shadow-2xl transition-all duration-200 origin-bottom-left overflow-hidden
+                        ${showTargetMenu ? 'scale-100 opacity-100' : 'scale-75 opacity-0 pointer-events-none'}`}>
+                        <div className="p-2.5 border-b border-white/5 text-[8px] font-black uppercase text-slate-500 tracking-widest text-center">Kirim Ke:</div>
+                        <div className="max-h-48 overflow-y-auto custom-scrollbar">
+                          <button
+                            onClick={() => { setTargetId("all"); setShowTargetMenu(false); }}
+                            className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold transition-colors hover:bg-white/5 ${targetId === 'all' ? 'text-blue-400 bg-blue-400/5' : 'text-slate-300'}`}
+                          >
+                            <Globe size={14} /> Publik
+                          </button>
+                          {players.filter(p => p.id !== myId && p.role !== 'Moderator').map(p => (
+                            <button
+                              key={p.id}
+                              onClick={() => { setTargetId(p.id); setShowTargetMenu(false); }}
+                              className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold transition-colors hover:bg-white/5 ${targetId === p.id ? 'text-purple-400 bg-purple-400/5' : 'text-slate-300'}`}
+                            >
+                              <User size={14} /> {p.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowTargetMenu(!showTargetMenu)}
+                        className={`flex items-center gap-1.5 pl-2.5 pr-2 py-2 rounded-full transition-all text-[9px] font-black uppercase tracking-wide ${isPrivate ? 'bg-purple-500/15 text-purple-400' : 'text-blue-400'}`}
+                      >
+                        {isPrivate ? <User size={14} /> : <Globe size={14} />}
+                        <span className="max-w-[56px] truncate">{getTargetName()}</span>
+                        <ChevronDown size={14} className={`transition-transform duration-200 ${showTargetMenu ? 'rotate-180' : ''}`} />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* CHANNEL LABELS */}
+                  {isWWChannel && isHost && (
+                    <div className="flex items-center gap-2 pl-3 pr-2 py-2 text-[9px] font-black uppercase tracking-wide text-slate-500">
+                      <ShieldAlert size={14} className="text-amber-500" /> Read Only
+                    </div>
+                  )}
+                  {isWWChannel && !isHost && (
+                    <div className="flex items-center gap-2 pl-3 pr-2 py-2 text-[9px] font-black uppercase tracking-wide text-red-500">
+                      <Ghost size={14} /> Markas
+                    </div>
+                  )}
+                  {isGraveyard && (
+                    <div className="flex items-center gap-2 pl-3 pr-2 py-2 text-[9px] font-black uppercase tracking-wide text-slate-400">
+                      <Skull size={14} /> Arwah
+                    </div>
+                  )}
+
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder={
+                      isHost && isWWChannel
+                        ? "Monitor mode..."
+                        : isWWChannel
+                          ? "Ketik pesan ke Markas..."
+                          : isGraveyard
+                            ? "Ketik pesan ke para arwah..."
+                            : isPrivate
+                              ? `Whisper ke ${getTargetName()}...`
+                              : "Ketik pesan..."
+                    }
+                    disabled={isHost && isWWChannel}
+                    className="flex-1 bg-transparent py-2.5 text-sm font-medium text-white outline-none placeholder:text-slate-600 disabled:opacity-40"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!input.trim() || (isHost && isWWChannel)}
+                    className={`p-2.5 rounded-xl transition-all duration-200 flex-shrink-0 ${
+                      input.trim() && !(isHost && isWWChannel)
+                        ? isWWChannel
+                          ? 'bg-red-600 text-white shadow-lg shadow-red-600/30 hover:bg-red-500 active:scale-90'
+                          : 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 hover:bg-blue-500 active:scale-90'
+                        : 'bg-slate-800 text-slate-600'
+                    }`}
+                  >
+                    <Send size={16} />
+                  </button>
+                </form>
+              </div>
+
+            </div>
           </div>
-          
-          <form onSubmit={sendMessage} className="flex-1 flex items-center gap-2">
-            <input 
-              type="text" 
-              value={input}
-              onFocus={() => setIsOpen(true)}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ketik pesan..."
-              className="flex-1 bg-transparent py-4 text-sm font-bold text-white outline-none placeholder:text-slate-600"
-            />
-            <button 
-              type="submit" 
-              disabled={!input.trim()}
-              className={`p-3.5 rounded-full transition-all duration-300 flex-shrink-0 ${input.trim() ? 'bg-blue-600 text-white scale-100 shadow-lg shadow-blue-600/40' : 'bg-slate-800 text-slate-600 scale-90'}`}
-            >
-              <Send size={20} />
-            </button>
-          </form>
         </div>
-      </div>
+      )}
     </div>
   );
 

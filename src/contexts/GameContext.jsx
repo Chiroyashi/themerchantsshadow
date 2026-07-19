@@ -13,10 +13,23 @@ export function GameProvider({ children }) {
   // --- Room State ---
   const [roomCode, setRoomCode] = useState(() => localStorage.getItem('room_code') || '');
   const [myPlayerId, setMyPlayerId] = useState(() => localStorage.getItem('my_player_id') || null);
-  const [isHost, setIsHost] = useState(() => localStorage.getItem('is_host') === 'true');
+  const [isHost, setIsHost] = useState(() => {
+    const local = localStorage.getItem('is_host') === 'true';
+    const id = localStorage.getItem('my_player_id');
+    return local || (id && id.startsWith("host_")) || false;
+  });
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('player_name') || '');
   const [players, setPlayers] = useState([]);
   const [isJoining, setIsJoining] = useState(false);
+
+  // Sync isHost dengan format myPlayerId
+  useEffect(() => {
+    if (myPlayerId) {
+      const isHostId = myPlayerId.startsWith("host_");
+      setIsHost(isHostId);
+      localStorage.setItem('is_host', isHostId ? 'true' : 'false');
+    }
+  }, [myPlayerId]);
 
   // --- Game State ---
   const [gameWinner, setGameWinner] = useState(null);
@@ -117,7 +130,7 @@ export function GameProvider({ children }) {
       if (data.status === "intro" && curPage === "room-lobby") {
         setCurrentPage('intro-fable');
       }
-      if (data.status === "playing" && (curPage === "room-lobby" || curPage === "intro-fable")) {
+      if (data.status === "playing" && curPage === "room-lobby") {
         setCurrentPage(curIsHost ? 'view-mod' : 'view-role');
       }
     });
@@ -206,11 +219,15 @@ export function GameProvider({ children }) {
     await update(ref(db, "rooms/" + roomCode), updates);
   }, [players, roomCode, showNotif]);
 
-  const handleKillPlayer = useCallback((id, status) => {
+  const handleKillPlayer = useCallback(async (id, status) => {
     if (isHost) {
-      update(ref(db, "rooms/" + roomCode + "/players/" + id), {
-        status: status === 'dead' ? 'alive' : 'dead'
-      });
+      try {
+        await update(ref(db, "rooms/" + roomCode + "/players/" + id), {
+          status: status === 'dead' ? 'alive' : 'dead'
+        });
+      } catch (e) {
+        console.error("Gagal toggle status player:", e);
+      }
     }
   }, [isHost, roomCode]);
 

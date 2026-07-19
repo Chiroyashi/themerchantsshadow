@@ -1,7 +1,13 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X, Shield, Skull, Zap, Info, Eye, Target, Scale } from 'lucide-react';
+import { Z_LAYER } from '../constants/zIndex';
+import { lockScroll, unlockScroll } from '../utils/scrollLock';
 
 const RoleModal = ({ role, isOpen, onClose }) => {
+  useEffect(() => {
+    if (isOpen) { lockScroll(); return () => unlockScroll(); }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const getRoleDetail = (roleName) => {
@@ -20,8 +26,8 @@ const RoleModal = ({ role, isOpen, onClose }) => {
     if (r.includes('warlock')) return {
       title: "The Warlock",
       icon: <Zap className="text-purple-500" size={40} />,
-      desc: "Penyihir kegelapan yang membantu Werewolf. Kamu punya ilmu hitam untuk mengacaukan kota.",
-      powers: ["Mengetahui siapa Werewolf.", "Mampu memberikan kutukan/tanda malam hari.", "Membantu voting untuk membuang warga."],
+      desc: "Pengedar gelap yang bermain di bayang-bayang. Membantu Werewolf tanpa tahu siapa mereka.",
+      powers: ["Membeli 1 item per malam dari Pedagang (Vision/Poison).", "Vision: mengetahui role target.", "Poison: membunuh 1 target.", "Tidak tahu identitas Werewolf — cari sendiri."],
       accent: "border-purple-600/50",
       dot: "bg-purple-600"
     };
@@ -39,8 +45,8 @@ const RoleModal = ({ role, isOpen, onClose }) => {
     if (r.includes('guard')) return {
       title: "The Guard",
       icon: <Shield className="text-cyan-500" size={40} />,
-      desc: "Pelindung setia desa. Tugasmu menjaga nyawa mereka yang berharga.",
-      powers: ["Melindungi 1 orang dari serangan tiap malam.", "Tidak bisa melindungi diri sendiri.", "Strategis untuk menjaga Seer."],
+      desc: "Pelindung desa yang setia. Tugasmu memastikan nyawa yang berharga tetap aman.",
+      powers: ["Proteksi 1 pemain per malam aktif.", "Bisa lindungi diri sendiri maksimal 1x.", "Cooldown 2 malam antar proteksi (aktif malam 1, 4, 7...).", "Proteksi bertahan 2 malam."],
       accent: "border-cyan-600/50",
       dot: "bg-cyan-600"
     };
@@ -48,8 +54,8 @@ const RoleModal = ({ role, isOpen, onClose }) => {
     if (r.includes('hunter')) return {
       title: "The Hunter",
       icon: <Target className="text-orange-500" size={40} />,
-      desc: "Pemburu handal yang tidak akan pergi sendirian ke liang lahat.",
-      powers: ["Menembak 1 pemain jika kamu mati.", "Bisa membalikkan keadaan saat terdesak.", "Hati-hati, pelurumu bisa mengenai warga."],
+      desc: "Pemburu yang aktif berburu di malam hari. Setiap tembakan adalah taruhan nyawa.",
+      powers: ["Pilih 1 target tembak di malam hari.", "Jika target warga → Hunter ikut mati.", "Jika target serigala → target mati, Hunter selamat.", "Keputusan sekali seumur permainan."],
       accent: "border-orange-600/50",
       dot: "bg-orange-600"
     };
@@ -57,8 +63,8 @@ const RoleModal = ({ role, isOpen, onClose }) => {
     if (r.includes('hakim')) return {
       title: "The Judge",
       icon: <Scale className="text-blue-400" size={40} />,
-      desc: "Pemegang keadilan tertinggi di desa. Suaramu adalah hukum.",
-      powers: ["Memiliki nilai vote ganda (2 poin).", "Memimpin jalannya voting warga.", "Sangat kuat dalam fase siang hari."],
+      desc: "Pengawas keadilan di Waranasura. Kekuasaanmu adalah hukum yang tak terbantahkan.",
+      powers: ["Truth malam: bocorkan chat pribadi target ke publik.", "Pistol siang: 2 peluru — instan kill tanpa voting.", "WAHAI RAKYATKU: wajib berkata sebelum vonis."],
       accent: "border-blue-400/50",
       dot: "bg-blue-400"
     };
@@ -86,7 +92,7 @@ const RoleModal = ({ role, isOpen, onClose }) => {
   const detail = getRoleDetail(role);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-300">
+    <div className="fixed inset-0 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-300" style={{ zIndex: Z_LAYER.ROLE_MODAL }}>
       <div className={`bg-slate-900 border ${detail.accent} w-full max-w-sm rounded-3xl p-8 relative shadow-[0_0_50px_rgba(0,0,0,0.6)] transform animate-in zoom-in-95 duration-300`}>
         
         <button 
