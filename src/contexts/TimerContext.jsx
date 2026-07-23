@@ -27,6 +27,8 @@ export function TimerProvider({ children }) {
   isActiveRef.current = isActive;
   const processNightResultsRef = useRef(null);
   const processVoteResultsRef = useRef(null);
+  const handleSetPhaseRef = useRef(null);
+  const endTimeRef = useRef(null);
 
   // --- Firebase Listener untuk Timer ---
   useEffect(() => {
@@ -60,80 +62,78 @@ export function TimerProvider({ children }) {
   // Pakai setTimeout recursive, bukan setInterval — mencegah race condition async
   const tickRef = useRef(null);
   useEffect(() => {
-    if (!isActive || seconds <= 0) return;
+    if (!isActive || seconds <= 0) {
+      endTimeRef.current = null;
+      return;
+    }
+
+    const currentEndTime = Date.now() + seconds * 1000;
+    if (endTimeRef.current === null || Math.abs(endTimeRef.current - currentEndTime) > 1500) {
+      endTimeRef.current = currentEndTime;
+    }
 
     const tick = async () => {
-      const nextSecs = secondsRef.current - 1;
-      setSeconds(nextSecs);
-      let nextPhase = "";
+      const nextSecs = Math.max(0, Math.round((endTimeRef.current - Date.now()) / 1000));
+      if (nextSecs !== secondsRef.current) {
+        setSeconds(nextSecs);
+        secondsRef.current = nextSecs;
+        let nextPhase = "";
 
-      // Host update ke Firebase setiap 5 detik
-      if (isHost && nextSecs % 5 === 0) {
-        try {
-          await update(ref(db, `rooms/${roomCode}/timer`), { seconds: nextSecs });
-        } catch (e) { /* skip — timer tetap jalan */ }
-      }
+        // Host update ke Firebase setiap 5 detik
+        if (isHost && nextSecs % 5 === 0) {
+          try {
+            await update(ref(db, `rooms/${roomCode}/timer`), { seconds: nextSecs });
+          } catch (e) { /* skip — timer tetap jalan */ }
+        }
 
-      // Auto-advance semua vote-in — langsung ke Malam
-      if (isHost && nextSecs > 0 && isSiang(phaseRef.current) && !nextPhase && nextSecs % 5 === 0) {
-        try {
-          const votesSnap = await get(ref(db, `rooms/${roomCode}/votes`));
-          const playersSnap = await get(ref(db, `rooms/${roomCode}/players`));
-          if (votesSnap.exists() && playersSnap.exists()) {
-            const voteCount = Object.keys(votesSnap.val()).length;
-            const alivePlayers = Object.values(playersSnap.val()).filter(
-              p => p.status !== 'dead' && p.role !== 'Moderator'
-            ).length;
-            if (voteCount >= alivePlayers) {
-              nextPhase = "Malam (Eksekusi)";
+        // Auto-advance semua vote-in — langsung ke Malam
+        if (isHost && nextSecs > 0 && isSiang(phaseRef.current) && !nextPhase && nextSecs % 5 === 0) {
+          try {
+            const votesSnap = await get(ref(db, `rooms/${roomCode}/votes`));
+            const playersSnap = await get(ref(db, `rooms/${roomCode}/players`));
+            if (votesSnap.exists() && playersSnap.exists()) {
+              const voteCount = Object.keys(votesSnap.val()).length;
+              const alivePlayers = Object.values(playersSnap.val()).filter(
+                p => p.status !== 'dead' && p.role !== 'Moderator'
+              ).length;
+              if (voteCount >= alivePlayers) {
+                nextPhase = "Malam (Eksekusi)";
+              }
             }
-          }
-        } catch (e) { /* skip */ }
-      }
+          } catch (e) { /* skip */ }
+        }
 
-      // Auto-advance ketika waktu habis
-      if (!nextPhase && nextSecs <= 0 && isHost) {
-        const curPhase = phaseRef.current;
-        if (isPagi(curPhase)) {
-          nextPhase = PHASE.SIANG;
-        } else if (isSiang(curPhase)) {
-          nextPhase = PHASE.MALAM;
-        } else if (isMalam(curPhase)) {
-          nextPhase = PHASE.PAGI;
+        // Auto-advance ketika waktu habis
+        if (!nextPhase && nextSecs <= 0 && isHost) {
+          const curPhase = phaseRef.current;
+          if (isPagi(curPhase)) {
+            nextPhase = PHASE.SIANG;
+          } else if (isSiang(curPhase)) {
+            nextPhase = PHASE.MALAM;
+          } else if (isMalam(curPhase)) {
+            nextPhase = PHASE.PAGI;
+          }
+        }
+
+        if (nextPhase) {
+          try {
+            if (handleSetPhaseRef.current) {
+              await handleSetPhaseRef.current(nextPhase, true);
+            }
+          } catch (e) {
+            console.error("Gagal melakukan transisi fase otomatis:", e);
+          }
+          return; // Stop tick — timer di-reset dengan nilai baru
         }
       }
 
-      if (nextPhase) {
-        try {
-          if (isMalam(nextPhase)) {
-            await processVoteResultsRef.current();
-          } else if (isPagi(nextPhase)) {
-            await processNightResultsRef.current();
-            const newDay = dayRef.current + 1;
-            await update(ref(db, `rooms/${roomCode}/timer`), { day: newDay });
-            setDay(newDay);
-          }
-        } catch (e) { /* skip — phase transition error */ }
-
-        const newSecs = isSiang(nextPhase) || isMalam(nextPhase) ? 180 : 120;
-        setSeconds(newSecs);
-        phaseRef.current = nextPhase;
-        await update(ref(db, `rooms/${roomCode}/timer`), {
-          phase: nextPhase,
-          isActive: true,
-          seconds: newSecs
-        });
-        setPhase(nextPhase);
-        return; // Stop tick — timer di-reset dengan nilai baru
-      }
-
       // Lanjut tick berikutnya
-      if (isActiveRef.current && nextSecs > 0) {
-        tickRef.current = setTimeout(tick, 1000);
+      if (isActiveRef.current && secondsRef.current > 0) {
+        tickRef.current = setTimeout(tick, 500);
       }
     };
 
-    tickRef.current = setTimeout(tick, 1000);
+    tickRef.current = setTimeout(tick, 500);
     return () => clearTimeout(tickRef.current);
   }, [isActive, seconds, isHost, roomCode]);
 
@@ -387,8 +387,8 @@ export function TimerProvider({ children }) {
     const alivePlayers = players.filter(p => p.status !== 'dead' && p.role !== 'Moderator');
     const killThreshold = Math.floor(alivePlayers.length / 2) + 1;
 
-    // Tie atau 0 suara → skip
-    if (topTargets.length !== 1 || maxVotes === 0 || maxVotes < killThreshold) {
+    // Tie, 0 suara, skip, atau kurang dari threshold → skip
+    if (topTargets.length !== 1 || maxVotes === 0 || maxVotes < killThreshold || topTargets[0][0] === 'skip') {
       await set(ref(db, `rooms/${roomCode}/voteResult`), {
         day: dayRef.current,
         names: ["TIDAK ADA"],
@@ -415,64 +415,77 @@ export function TimerProvider({ children }) {
     await set(ref(db, `rooms/${roomCode}/votes`), null);
   }, [roomCode, players]);
 
-  // Sync refs setelah callbacks didefinisikan
-  useEffect(() => {
-    processNightResultsRef.current = processNightResults;
-    processVoteResultsRef.current = processVoteResults;
-  }, [processNightResults, processVoteResults]);
-
   // Guard untuk cegah double-transition
   const isTransitioningRef = useRef(false);
 
   // --- Phase Management ---
-  const handleSetPhase = useCallback(async (newPhase) => {
+  const handleSetPhase = useCallback(async (newPhase, isActiveOverride = null) => {
     const pLower = newPhase?.toLowerCase() || '';
     const isActuallyHost = isHost || myPlayerId?.startsWith('host_');
     if (!isActuallyHost || !roomCode) return;
     if (isTransitioningRef.current) return; // Cegah double-click
     isTransitioningRef.current = true;
 
-    // Pakai ref supaya tidak ada circular dependency
-    const nightFn = processNightResultsRef.current;
-    const voteFn = processVoteResultsRef.current;
+    try {
+      // Pakai ref supaya tidak ada circular dependency
+      const nightFn = processNightResultsRef.current;
+      const voteFn = processVoteResultsRef.current;
 
-    if (pLower.includes("pagi")) {
-      if (nightFn) await nightFn();
-      const newDay = dayRef.current + 1;
-      // Reset truthActed untuk Hakim setiap pagi
-      try {
-        for (const p of players) {
-          if (p.role === 'Hakim') {
-            await update(ref(db, `rooms/${roomCode}/players/${p.id}`), { truthActed: null });
+      const targetActive = isActiveOverride !== null ? isActiveOverride : !pLower.includes("siang");
+
+      if (pLower.includes("pagi")) {
+        if (nightFn) await nightFn();
+        const newDay = dayRef.current + 1;
+        // Reset truthActed untuk Hakim setiap pagi
+        try {
+          for (const p of players) {
+            if (p.role === 'Hakim') {
+              await update(ref(db, `rooms/${roomCode}/players/${p.id}`), { truthActed: null });
+            }
           }
-        }
-      } catch (e) { /* skip */ }
-      await update(ref(db, `rooms/${roomCode}/timer`), {
-        phase: newPhase, day: newDay, isActive: true, seconds: 120
-      });
-      setDay(newDay);
-    } else if (pLower.includes("malam")) {
-      if (voteFn) await voteFn();
-      // Reset currentAction & pistolActed
-      try {
-        for (const p of players) {
-          const reset = { currentAction: null };
-          if (p.role === 'Hakim') reset.pistolActed = null;
-          await update(ref(db, `rooms/${roomCode}/players/${p.id}`), reset);
-        }
-      } catch (e) { /* skip */ }
-      await update(ref(db, `rooms/${roomCode}/timer`), {
-        phase: newPhase, isActive: true, seconds: 180
-      });
-    } else {
-      await update(ref(db, `rooms/${roomCode}/timer`), {
-        phase: newPhase, isActive: false, seconds: 120
-      });
-    }
+        } catch (e) { /* skip */ }
+        await update(ref(db, `rooms/${roomCode}/timer`), {
+          phase: newPhase, day: newDay, isActive: targetActive, seconds: 120
+        });
+        setSeconds(120);
+        setDay(newDay);
+      } else if (pLower.includes("malam")) {
+        if (voteFn) await voteFn();
+        // Reset currentAction, pistolActed, dan warlockActed
+        try {
+          for (const p of players) {
+            const reset = { currentAction: null };
+            if (p.role === 'Hakim') reset.pistolActed = null;
+            if (p.role === 'Warlock') reset.warlockActed = null;
+            await update(ref(db, `rooms/${roomCode}/players/${p.id}`), reset);
+          }
+        } catch (e) { /* skip */ }
+        await update(ref(db, `rooms/${roomCode}/timer`), {
+          phase: newPhase, isActive: targetActive, seconds: 180
+        });
+        setSeconds(180);
+      } else {
+        await update(ref(db, `rooms/${roomCode}/timer`), {
+          phase: newPhase, isActive: targetActive, seconds: 180
+        });
+        setSeconds(180);
+      }
 
-    setPhase(newPhase);
-    isTransitioningRef.current = false;
+      setPhase(newPhase);
+    } catch (err) {
+      console.error("Gagal mengganti fase:", err);
+      throw err;
+    } finally {
+      isTransitioningRef.current = false;
+    }
   }, [isHost, myPlayerId, roomCode, players]);
+
+  // Sync refs setelah callbacks didefinisikan
+  useEffect(() => {
+    processNightResultsRef.current = processNightResults;
+    processVoteResultsRef.current = processVoteResults;
+    handleSetPhaseRef.current = handleSetPhase;
+  }, [processNightResults, processVoteResults, handleSetPhase]);
 
   // --- Timer Controls ---
   const toggleTimer = useCallback(async () => {

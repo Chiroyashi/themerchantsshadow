@@ -68,12 +68,12 @@ const GameBoard = ({ onBack }) => {
     return () => unsub();
   }, [roomCode, isVotingTime]);
 
-  // Auto-redirect ke ViewRole saat Malam (kebalikan dari ViewRole → GameBoard saat Siang)
+  // Auto-redirect ke ViewRole saat bukan Siang (Voting)
   useEffect(() => {
     if (!phase) return;
-    const isNight = isMalam(phase);
-    const wasNotNight = !isMalam(prevPhaseRef.current);
-    if (isNight && wasNotNight) {
+    const isSiangPhase = isSiang(phase);
+    const wasSiang = isSiang(prevPhaseRef.current);
+    if (!isSiangPhase && wasSiang) {
       onBack();
     }
     prevPhaseRef.current = phase;

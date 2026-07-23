@@ -17,6 +17,7 @@
         "status": { ".validate": "newData.isString() && newData.val().matches(/^(waiting|intro|playing|ended|destroyed)$/)" },
         "host": { ".validate": "newData.isString()" },
         "createdAt": { ".validate": "newData.isNumber()" },
+        "endedAt": { ".validate": "newData.isNumber()" },
         "winner": { ".validate": "newData.isString()" },
         "timer": {
           "phase": { ".validate": "newData.isString()" },

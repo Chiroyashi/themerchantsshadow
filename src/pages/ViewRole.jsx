@@ -77,7 +77,7 @@ const ViewRole = ({ onNext }) => {
     if (!phase || isDead || isHost) return;
     const isSiangPhase = isSiang(phase);
     const wasNotSiang = !isSiang(prevPhaseRef.current);
-    if (isSiang && wasNotSiang) {
+    if (isSiangPhase && wasNotSiang) {
       onNext();
     }
     prevPhaseRef.current = phase;
@@ -393,6 +393,7 @@ const ViewRole = ({ onNext }) => {
     if (isHakim && !isPistol && actionTarget && type !== 'skip') {
       updates[`rooms/${roomCode}/players/${playerData.id}/currentAction`] = {
         role: "Hakim",
+        action: "truth",
         actionType: "truth",
         targetId: actionTarget,
         targetName: targetPlayer?.name || "Unknown",
@@ -403,12 +404,53 @@ const ViewRole = ({ onNext }) => {
     }
 
     // Guard logic
-    if (role.includes("guard") && actionTarget) {
+    if (role.includes("guard") && actionTarget && type !== 'skip') {
       updates[`rooms/${roomCode}/players/${playerData.id}/lastProtectedTarget`] = actionTarget;
       updates[`rooms/${roomCode}/players/${playerData.id}/lastProtectedDay`] = day;
       if (isSelfProtection) {
         updates[`rooms/${roomCode}/players/${playerData.id}/selfProtectedCount`] = (playerData.selfProtectedCount || 0) + 1;
       }
+      updates[`rooms/${roomCode}/players/${playerData.id}/currentAction`] = {
+        role: "Guard",
+        action: "protect",
+        targetId: actionTarget,
+        targetName: targetPlayer?.name || "Unknown",
+        timestamp: Date.now()
+      };
+    }
+
+    // Werewolf
+    if (role.includes("werewolf") && actionTarget && type !== 'skip') {
+      updates[`rooms/${roomCode}/players/${playerData.id}/currentAction`] = {
+        role: "Werewolf",
+        action: "kill",
+        targetId: actionTarget,
+        targetName: targetPlayer?.name || "Unknown",
+        timestamp: Date.now()
+      };
+    }
+
+    // Seer
+    if (role.includes("seer") && actionTarget && type !== 'skip') {
+      updates[`rooms/${roomCode}/players/${playerData.id}/currentAction`] = {
+        role: "Seer",
+        action: "reveal",
+        targetId: actionTarget,
+        targetName: targetPlayer?.name || "Unknown",
+        timestamp: Date.now()
+      };
+    }
+
+    // Hunter
+    if (role.includes("hunter") && actionTarget && type !== 'skip') {
+      updates[`rooms/${roomCode}/players/${playerData.id}/currentAction`] = {
+        role: "Hunter",
+        action: "hunt",
+        targetId: actionTarget,
+        targetName: targetPlayer?.name || "Unknown",
+        timestamp: Date.now()
+      };
+      updates[`rooms/${roomCode}/players/${playerData.id}/hunterActed`] = true;
     }
 
     update(ref(db), updates).then(async () => {
