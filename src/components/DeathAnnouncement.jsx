@@ -6,7 +6,16 @@ import { lockScroll, unlockScroll } from '../utils/scrollLock';
 const DeathAnnouncement = ({ deadPlayers, day, onClose }) => {
   const isPeacefulNight = deadPlayers.length === 1 && deadPlayers[0] === "TIDAK ADA";
 
-  useEffect(() => { lockScroll(); return () => unlockScroll(); }, []);
+  useEffect(() => {
+    lockScroll();
+    const timer = setTimeout(() => {
+      onClose();
+    }, 2000);
+    return () => {
+      unlockScroll();
+      clearTimeout(timer);
+    };
+  }, [onClose]);
 
   if (!deadPlayers || deadPlayers.length === 0) return null;
 

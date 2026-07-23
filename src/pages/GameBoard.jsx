@@ -8,12 +8,14 @@ import SharedTimer from '../components/SharedTimer';
 import ChatRoom from '../components/ChatRoom';
 import { useGameContext } from '../contexts/GameContext';
 import { useTimerContext } from '../contexts/TimerContext';
+import { useNotification } from '../contexts/NotificationContext';
 import { Z_LAYER } from '../constants/zIndex';
 import { isMalam, isSiang } from '../constants/phases';
 
 const GameBoard = ({ onBack }) => {
   const { players, roomCode, myPlayerId } = useGameContext();
   const { seconds, phase, isActive } = useTimerContext();
+  const { showNotif } = useNotification();
   const [selectedTarget, setSelectedTarget] = useState(null);
   const [hasActed, setHasActed] = useState(false);
   const [actionNotif, setActionNotif] = useState(null);
@@ -79,9 +81,7 @@ const GameBoard = ({ onBack }) => {
     prevPhaseRef.current = phase;
   }, [phase, onBack]);
 
-  const handleAction = async (targetId) => {
-    if (hasActed || isDead || !isVotingTime) return;
-
+  const executeVote = async (targetId) => {
     const targetName = targetId === 'skip'
       ? "tidak ada"
       : (players.find(p => p.id === targetId)?.name || "Unknown");
@@ -99,10 +99,31 @@ const GameBoard = ({ onBack }) => {
     }
   };
 
+  const handleAction = (targetId) => {
+    if (hasActed || isDead || !isVotingTime) return;
+
+    const targetName = targetId === 'skip'
+      ? "tidak ada (Skip)"
+      : (players.find(p => p.id === targetId)?.name || "Unknown");
+
+    const message = targetId === 'skip'
+      ? "Apakah Anda yakin ingin melewatkan vote (Skip) pada siang ini?"
+      : `Apakah Anda yakin ingin memberikan suara (Vote) kepada "${targetName}"? Pilihan ini tidak dapat diubah.`;
+
+    showNotif("Konfirmasi Vote", message, "confirm", () => executeVote(targetId));
+  };
+
   if (!me) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-red-500 font-black uppercase tracking-widest">Data Error...</div>;
 
   return (
-    <div className="h-screen overflow-y-auto bg-slate-950 text-slate-100 font-sans selection:bg-red-500/30">
+    <div className="h-screen overflow-y-auto bg-slate-950 text-slate-100 font-sans selection:bg-red-500/30 animate-in fade-in duration-500 relative">
+      {/* Sunset/Voting Ambience Glow Layer */}
+      {!isDead && (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+          <div className="absolute top-[-20%] left-1/2 -translate-x-1/2 w-[80%] h-[50%] rounded-full blur-[120px] bg-orange-600/10 transition-all duration-1000" />
+        </div>
+      )}
+
       {/* Header — simpler, no back button */}
       <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-md border-b border-white/5 p-4 flex flex-col items-center gap-3">
         <div className="text-center">

@@ -19,6 +19,32 @@ import { getRoleActionConfig } from '../utils/roleActions';
 import { Z_LAYER } from '../constants/zIndex';
 import { lockScroll, unlockScroll } from '../utils/scrollLock';
 import { isSiang, isMalam, isPagi } from '../constants/phases';
+
+const CrackedOverlay = () => (
+  <svg className="absolute inset-0 w-full h-full pointer-events-none z-30" viewBox="0 0 100 100" preserveAspectRatio="none">
+    {/* Core heavy fracture */}
+    <path
+      d="M15,0 L30,30 L20,55 L45,75 L35,100"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      fill="none"
+      className="text-slate-600/85"
+    />
+    {/* Secondary cracks */}
+    <path
+      d="M30,30 L60,35 L75,15 L100,20 M20,55 L0,65 M45,75 L75,80 L100,60 M75,80 L80,100 M60,35 L65,0"
+      stroke="currentColor"
+      strokeWidth="1.0"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      fill="none"
+      className="text-slate-600/50"
+    />
+  </svg>
+);
+
 const ViewRole = ({ onNext }) => {
   const {
     players, roomCode, myPlayerId, myData, playerName,
@@ -560,12 +586,26 @@ const ViewRole = ({ onNext }) => {
 
   return (
     <div
-      className={`h-screen overflow-y-auto transition-colors duration-1000 font-sans ${isDead ? 'bg-black' : 'bg-slate-950'}`}
+      className={`h-screen overflow-y-auto transition-colors duration-1000 font-sans ${isDead ? 'bg-black' : 'bg-slate-950'} animate-in fade-in duration-500 relative`}
     >
       <style>{`
         .animate-shimmer { animation: shimmer 1s ease-out; }
         .view-role-scroll { scrollbar-width: thin; scrollbar-color: rgba(100,116,139,0.3) transparent; }
       `}</style>
+
+      {/* Ambient Glow Transition Layer */}
+      {!isDead && (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+          <div
+            className={`absolute top-[-20%] left-1/2 -translate-x-1/2 w-[80%] h-[50%] rounded-full blur-[120px] transition-all duration-1000 ${
+              isNight
+                ? 'bg-purple-600/10 opacity-100'
+                : 'bg-amber-600/10 opacity-100'
+            }`}
+          />
+        </div>
+      )}
+
       {showIntro && <IntroFable players={players} playerData={playerData} onFinish={handleIntroFinish} />}
 
       <>
@@ -579,32 +619,65 @@ const ViewRole = ({ onNext }) => {
             <h2 className={`text-base sm:text-lg md:text-xl font-bold italic transition-colors ${isDead ? 'text-slate-600' : 'text-blue-400'}`}>{playerData?.name} {playerData?.underTruth && "🔍"}</h2>
           </div>
 
-            <div 
-            onMouseDown={() => setIsRevealed(true)} 
+            <div
+            onMouseDown={() => setIsRevealed(true)}
             onMouseUp={() => setIsRevealed(false)}
             onMouseLeave={() => setIsRevealed(false)}
             onTouchStart={() => setIsRevealed(true)}
             onTouchEnd={() => setIsRevealed(false)}
-            className={`relative aspect-[3/4] sm:aspect-[4/5] w-full max-w-xs sm:max-w-sm mx-auto rounded-2xl border-2 cursor-pointer overflow-hidden transition-all duration-500 select-none ${isRevealed ? 'bg-blue-950/20 border-blue-600' : 'bg-slate-900 border-slate-800 active:border-slate-600'}`}
+            className={`relative aspect-[3/4] sm:aspect-[4/5] w-full max-w-xs sm:max-w-sm mx-auto rounded-2xl border-2 cursor-pointer overflow-hidden transition-all duration-500 select-none ${
+              isDead
+                ? (isRevealed
+                    ? 'bg-slate-900/30 border-slate-700/60 border-dashed'
+                    : 'bg-slate-950/40 border-slate-800/80 border-dashed active:border-slate-700')
+                : (isRevealed
+                    ? 'bg-blue-950/20 border-blue-600'
+                    : 'bg-slate-900 border-slate-800 active:border-slate-600')
+            }`}
           >
             {!isRevealed ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <div className="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-gradient-to-br from-blue-900/50 to-slate-900 border border-blue-700/50 flex items-center justify-center mb-4 shadow-2xl">
-                  <div className="w-14 h-20 md:w-16 md:h-24 bg-gradient-to-r from-blue-950 to-slate-800 rounded-lg border border-blue-700/50" />
+                <div className={`w-20 h-20 md:w-24 md:h-24 rounded-2xl border flex items-center justify-center mb-4 shadow-2xl transition-all duration-500 ${
+                  isDead
+                    ? 'bg-gradient-to-br from-slate-800/30 to-slate-950 border-slate-800/50'
+                    : 'bg-gradient-to-br from-blue-900/50 to-slate-900 border-blue-700/50'
+                }`}>
+                  <div className={`w-14 h-20 md:w-16 md:h-24 rounded-lg border transition-all duration-500 ${
+                    isDead
+                      ? 'bg-gradient-to-r from-slate-900 to-slate-950 border-slate-800/30'
+                      : 'bg-gradient-to-r from-blue-950 to-slate-800 border-blue-700/50'
+                  }`} />
                 </div>
-                <p className="text-blue-500 font-bold tracking-widest uppercase text-[8px] md:text-[10px]">Tahan untuk lihat peran</p>
+                <p className={`font-bold tracking-widest uppercase text-[8px] md:text-[10px] transition-colors duration-500 ${
+                  isDead ? 'text-slate-500' : 'text-blue-500'
+                }`}>
+                  Tahan untuk lihat peran
+                </p>
               </div>
             ) : (
-              <div className={`absolute inset-0 bg-blue-950/20 flex flex-col items-center justify-center animate-in fade-in duration-500`}>
-                <div className={`text-blue-500 p-4 sm:p-6 md:p-8 rounded-full bg-blue-950/30 mb-4`}>
-                  <RoleIcon className={`text-blue-500 w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40`} />
+              <div className={`absolute inset-0 flex flex-col items-center justify-center animate-in fade-in duration-500 ${
+                isDead ? 'bg-slate-950/40' : 'bg-blue-950/20'
+              }`}>
+                <div className={`p-4 sm:p-6 md:p-8 rounded-full mb-4 transition-colors duration-500 ${
+                  isDead ? 'text-slate-500 bg-slate-900/40' : 'text-blue-500 bg-blue-950/30'
+                }`}>
+                  <RoleIcon className={`w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40 ${
+                    isDead ? 'text-slate-500' : 'text-blue-500'
+                  }`} />
                 </div>
                 <div className="space-y-2 text-center">
-                  <h3 className={`text-3xl sm:text-4xl md:text-5xl font-black uppercase italic tracking-tighter text-blue-500`}>{playerData?.role}</h3>
-                  <p className="text-slate-400 text-[8px] md:text-[10px]">Rahasiakan peranmu dari mata-mata.</p>
+                  <h3 className={`text-3xl sm:text-4xl md:text-5xl font-black uppercase italic tracking-tighter transition-colors duration-500 ${
+                    isDead ? 'text-slate-500' : 'text-blue-500'
+                  }`}>
+                    {playerData?.role}
+                  </h3>
+                  <p className="text-slate-400 text-[8px] md:text-[10px]">
+                    {isDead ? 'Kamu telah gugur dalam permainan ini.' : 'Rahasiakan peranmu dari mata-mata.'}
+                  </p>
                 </div>
               </div>
             )}
+            {isDead && <CrackedOverlay />}
           </div>
 
           {/* === ACTION UI — HIDE jika tidak ada action === */}

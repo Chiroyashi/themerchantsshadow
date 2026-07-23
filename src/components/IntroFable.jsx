@@ -1,13 +1,40 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ref, onValue, update } from "firebase/database";
+import { ref, update } from "firebase/database";
 import { db } from "../lib/firebase";
 import { Z_LAYER } from '../constants/zIndex';
 import { lockScroll, unlockScroll } from '../utils/scrollLock';
-import { Scroll, Gavel, Users, Sparkles, Sun, Wallet, Eye, Shield, Crosshair, Wand2, Ghost, SkipForward } from 'lucide-react';
+import { Scroll, Gavel, Users, Sparkles, Sun, Wallet, Eye, Shield, Crosshair, Wand2 } from 'lucide-react';
+
+const Wolf = ({ size = 24, className, ...props }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    {...props}
+  >
+    {/* Telinga Serigala */}
+    <path d="M4 12L2 3l7 5" />
+    <path d="M20 12l2-9-7 5" />
+    {/* Rahang/Pipi Serigala */}
+    <path d="M2 13l4 3 6 5 6-5 4-3" />
+    {/* Moncong/Hidung Serigala */}
+    <path d="M9 13l3 4 3-4" />
+    <path d="M12 17v2" />
+    {/* Mata Tajam Serigala */}
+    <path d="M6 10l2.5 1" />
+    <path d="M18 10l-2.5 1" />
+  </svg>
+);
 
 const roleIcons = {
   Pedagang: { icon: Wallet, color: "text-emerald-400" },
-  Werewolf: { icon: Ghost, color: "text-red-500" },
+  Werewolf: { icon: Wolf, color: "text-red-500" },
   Seer: { icon: Eye, color: "text-purple-400" },
   Guard: { icon: Shield, color: "text-blue-400" },
   Hakim: { icon: Gavel, color: "text-amber-500" },

@@ -431,7 +431,7 @@ export function TimerProvider({ children }) {
       const nightFn = processNightResultsRef.current;
       const voteFn = processVoteResultsRef.current;
 
-      const targetActive = isActiveOverride !== null ? isActiveOverride : !pLower.includes("siang");
+      const targetActive = isActiveOverride !== null ? isActiveOverride : true;
 
       if (pLower.includes("pagi")) {
         if (nightFn) await nightFn();
@@ -444,11 +444,15 @@ export function TimerProvider({ children }) {
             }
           }
         } catch (e) { /* skip */ }
+
+        endTimeRef.current = Date.now() + 120 * 1000;
+        setIsActive(targetActive);
+        setSeconds(120);
+        setDay(newDay);
+
         await update(ref(db, `rooms/${roomCode}/timer`), {
           phase: newPhase, day: newDay, isActive: targetActive, seconds: 120
         });
-        setSeconds(120);
-        setDay(newDay);
       } else if (pLower.includes("malam")) {
         if (voteFn) await voteFn();
         // Reset currentAction, pistolActed, dan warlockActed
@@ -460,15 +464,22 @@ export function TimerProvider({ children }) {
             await update(ref(db, `rooms/${roomCode}/players/${p.id}`), reset);
           }
         } catch (e) { /* skip */ }
+
+        endTimeRef.current = Date.now() + 180 * 1000;
+        setIsActive(targetActive);
+        setSeconds(180);
+
         await update(ref(db, `rooms/${roomCode}/timer`), {
           phase: newPhase, isActive: targetActive, seconds: 180
         });
-        setSeconds(180);
       } else {
+        endTimeRef.current = Date.now() + 180 * 1000;
+        setIsActive(targetActive);
+        setSeconds(180);
+
         await update(ref(db, `rooms/${roomCode}/timer`), {
           phase: newPhase, isActive: targetActive, seconds: 180
         });
-        setSeconds(180);
       }
 
       setPhase(newPhase);

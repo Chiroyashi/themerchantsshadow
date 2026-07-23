@@ -6,7 +6,16 @@ import { lockScroll, unlockScroll } from '../utils/scrollLock';
 const VoteAnnouncement = ({ names, day, onClose }) => {
   const isPeaceful = names?.length === 1 && names[0] === "TIDAK ADA";
 
-  useEffect(() => { lockScroll(); return () => unlockScroll(); }, []);
+  useEffect(() => {
+    lockScroll();
+    const timer = setTimeout(() => {
+      onClose();
+    }, 2000);
+    return () => {
+      unlockScroll();
+      clearTimeout(timer);
+    };
+  }, [onClose]);
 
   if (!names || names.length === 0) return null;
 
