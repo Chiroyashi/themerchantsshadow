@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { ref, onValue, update, get, set } from "firebase/database";
 import { db } from "../lib/firebase";
@@ -83,7 +84,7 @@ export function TimerProvider({ children }) {
         if (isHost && nextSecs % 5 === 0) {
           try {
             await update(ref(db, `rooms/${roomCode}/timer`), { seconds: nextSecs });
-          } catch (e) { /* skip — timer tetap jalan */ }
+          } catch { /* skip — timer tetap jalan */ }
         }
 
         // Auto-advance semua vote-in — langsung ke Malam
@@ -100,7 +101,7 @@ export function TimerProvider({ children }) {
                 nextPhase = "Malam (Eksekusi)";
               }
             }
-          } catch (e) { /* skip */ }
+          } catch { /* skip */ }
         }
 
         // Auto-advance ketika waktu habis
@@ -120,8 +121,8 @@ export function TimerProvider({ children }) {
             if (handleSetPhaseRef.current) {
               await handleSetPhaseRef.current(nextPhase, true);
             }
-          } catch (e) {
-            console.error("Gagal melakukan transisi fase otomatis:", e);
+          } catch {
+            console.error("Gagal melakukan transisi fase otomatis:");
           }
           return; // Stop tick — timer di-reset dengan nilai baru
         }
@@ -204,10 +205,10 @@ export function TimerProvider({ children }) {
       }
     });
     // Proteksi dari malam sebelumnya (bertahan 2 malam)
-    Object.entries(allActions).forEach(([playerId, playerData]) => {
+    Object.entries(allActions).forEach(([, playerData]) => {
       if (playerData.role === 'Guard' && playerData.lastProtectedTarget && playerData.lastProtectedDay) {
         const daysSinceProtect = dayRef.current - playerData.lastProtectedDay;
-        if (daysSinceProtect >= 1 && daysSinceProtect <= 2 && playerData.lastProtectedTarget !== 'none' && playerData.lastProtectedTarget) {
+        if (daysSinceProtect === 1 && playerData.lastProtectedTarget !== 'none' && playerData.lastProtectedTarget) {
           protectedIds.add(playerData.lastProtectedTarget);
         }
       }
@@ -443,7 +444,7 @@ export function TimerProvider({ children }) {
               await update(ref(db, `rooms/${roomCode}/players/${p.id}`), { truthActed: null });
             }
           }
-        } catch (e) { /* skip */ }
+        } catch { /* skip */ }
 
         endTimeRef.current = Date.now() + 120 * 1000;
         setIsActive(targetActive);
@@ -458,12 +459,12 @@ export function TimerProvider({ children }) {
         // Reset currentAction, pistolActed, dan warlockActed
         try {
           for (const p of players) {
-            const reset = { currentAction: null };
+            const reset = { currentAction: null, underTruth: false };
             if (p.role === 'Hakim') reset.pistolActed = null;
             if (p.role === 'Warlock') reset.warlockActed = null;
             await update(ref(db, `rooms/${roomCode}/players/${p.id}`), reset);
           }
-        } catch (e) { /* skip */ }
+        } catch { /* skip */ }
 
         endTimeRef.current = Date.now() + 180 * 1000;
         setIsActive(targetActive);

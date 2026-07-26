@@ -34,12 +34,17 @@ const GameBoard = ({ onBack }) => {
   const votesArray = Object.values(allVotes);
   const getVoteCount = (playerId) => votesArray.filter(v => v === playerId).length;
 
+  // Reset target & action status pada perubahan phase atau roomCode (render phase reset untuk menghindari setState dalam effect)
+  const [prevPhaseRoom, setPrevPhaseRoom] = useState({ phase, roomCode });
+  if (phase !== prevPhaseRoom.phase || roomCode !== prevPhaseRoom.roomCode) {
+    setPrevPhaseRoom({ phase, roomCode });
+    setSelectedTarget(null);
+    setHasActed(false);
+  }
+
   // Listener vote pemain sendiri
   useEffect(() => {
     if (!roomCode || !myPlayerId) return;
-
-    setSelectedTarget(null);
-    setHasActed(false);
 
     if (isVotingTime) {
       const voteRef = ref(db, `rooms/${roomCode}/votes/${myPlayerId}`);

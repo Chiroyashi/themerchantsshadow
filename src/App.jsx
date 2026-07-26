@@ -21,10 +21,67 @@ import DeathAnnouncement from './components/DeathAnnouncement';
 import VoteAnnouncement from './components/VoteAnnouncement';
 
 function AppContent() {
-  const { currentPage, navigate, players, isHost, roomCode, myData, playerName } = useGameContext();
+  const { currentPage, navigate, players, isHost, roomCode, myData } = useGameContext();
+  const { phase } = useTimerContext();
   const [showBoard, setShowBoard] = useState(false);
   const dismissedDayRef = useRef(null);
   const prevPhaseRef = useRef(null);
+
+  // Background Audio Refs
+  const morningAudioRef = useRef(null);
+  const nightAudioRef = useRef(null);
+
+  // Initialize Audios once
+  useEffect(() => {
+    morningAudioRef.current = new Audio(`${import.meta.env.BASE_URL}sounds/opening_after_introfable.mp3`);
+    morningAudioRef.current.loop = true;
+    morningAudioRef.current.volume = 0.25;
+
+    nightAudioRef.current = new Audio(`${import.meta.env.BASE_URL}sounds/Nightphase_looping_till_nextphase.mp3`);
+    nightAudioRef.current.loop = true;
+    nightAudioRef.current.volume = 0.25;
+
+    return () => {
+      if (morningAudioRef.current) {
+        morningAudioRef.current.pause();
+        morningAudioRef.current = null;
+      }
+      if (nightAudioRef.current) {
+        nightAudioRef.current.pause();
+        nightAudioRef.current = null;
+      }
+    };
+  }, []);
+
+  // Sync background music with currentPage and phase
+  useEffect(() => {
+    const isGameActive = ['view-role', 'view-mod'].includes(currentPage);
+
+    if (!isGameActive) {
+      if (morningAudioRef.current) morningAudioRef.current.pause();
+      if (nightAudioRef.current) nightAudioRef.current.pause();
+      return;
+    }
+
+    const isNightPhase = phase?.toLowerCase().includes('malam');
+
+    if (isNightPhase) {
+      if (morningAudioRef.current) morningAudioRef.current.pause();
+      if (nightAudioRef.current) {
+        if (nightAudioRef.current.paused) {
+          nightAudioRef.current.currentTime = 0;
+          nightAudioRef.current.play().catch(() => {});
+        }
+      }
+    } else {
+      if (nightAudioRef.current) nightAudioRef.current.pause();
+      if (morningAudioRef.current) {
+        if (morningAudioRef.current.paused) {
+          morningAudioRef.current.play().catch(() => {});
+        }
+      }
+    }
+  }, [currentPage, phase]);
 
   // Global overlays
   const [voteResult, setVoteResult] = useState(null);
@@ -40,8 +97,6 @@ function AppContent() {
     setVoteResult(null);
     prevPhaseRef.current = null;
     dismissedDayRef.current = null;
-    // State lokal sudah di-reset di atas.
-    // Tidak perlu hapus data Firebase — itu mengganggu pemain lain yang sedang lihat overlay.
   }, [roomCode]);
 
   // Listener voteResult

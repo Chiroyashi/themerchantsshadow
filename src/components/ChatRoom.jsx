@@ -5,6 +5,8 @@ import { db } from "../lib/firebase";
 import { Send, MessageSquare, ChevronDown, Globe, User, ShieldAlert, Ghost, Skull } from 'lucide-react';
 import { Z_LAYER } from '../constants/zIndex';
 
+const getTimestamp = () => Date.now();
+
 const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onToggleExternal, onUnreadChange }) => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -14,7 +16,7 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
   const toggleOpen = isOpenExternal !== undefined ? onToggleExternal : () => {
     if (!isOpenInternal) {
       setUnreadCount(0);
-      lastSeenRef.current = Date.now();
+      lastSeenRef.current = getTimestamp();
     }
     setIsOpenInternal(!isOpenInternal);
   };
@@ -33,11 +35,13 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
   const canAccessWW = isWW || isHost;
   const canAccessGraveyard = isDead || isHost;
 
-  // Reset channel ke 'public' saat mati/hidup berubah
-  useEffect(() => {
-    if (channel === 'graveyard' && !canAccessGraveyard) setChannel('public');
-    if (channel === 'ww' && !canAccessWW) setChannel('public');
-  }, [isDead, isWW, canAccessGraveyard, canAccessWW, channel]);
+  // Reset channel ke 'public' saat mati/hidup berubah jika tidak memiliki akses lagi (render phase state adjustment)
+  if (channel === 'graveyard' && !canAccessGraveyard) {
+    setChannel('public');
+  }
+  if (channel === 'ww' && !canAccessWW) {
+    setChannel('public');
+  }
 
   // Sync unreadCount ke parent jika dikontrol eksternal
   useEffect(() => {
