@@ -27,12 +27,19 @@ const GameOverScreen = ({ winner, players, playerData, onLeave }) => {
         {/* STEP 1: EPILOG NARASI (Gaya IntroFable) */}
         {step === 1 && (
           <div className="space-y-6 animate-in fade-in zoom-in duration-1000">
-            <ScrollText className={`w-16 h-16 mx-auto mb-4 drop-shadow-2xl ${isWargaWinner ? 'text-amber-500' : 'text-red-600'}`} />
+            <div className={`text-[10px] font-black uppercase tracking-[0.4em] px-4 py-1.5 rounded-full inline-block mx-auto ${
+              isWargaWinner
+                ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
+                : 'bg-red-600/10 text-red-500 border border-red-500/20'
+            }`}>
+              {isWargaWinner ? "Tim Penduduk Menang" : "Tim Werewolf Menang"}
+            </div>
+            <ScrollText className={`w-16 h-16 mx-auto mb-2 drop-shadow-2xl ${isWargaWinner ? 'text-amber-500' : 'text-red-600'}`} />
             <h2 className="text-2xl font-black text-white italic tracking-tighter uppercase">Epilog Waranasura</h2>
             <div className="space-y-4">
               <p className="text-slate-300 leading-relaxed italic text-sm px-4">
-                {isWargaWinner 
-                  ? "Cahaya mentari akhirnya menembus kabut tebal yang menyelimuti kota. Kabar tentang tewasnya ancaman terakhir menyebar cepat, membawa fajar baru yang damai..." 
+                {isWargaWinner
+                  ? "Cahaya mentari akhirnya menembus kabut tebal yang menyelimuti kota. Kabar tentang tewasnya ancaman terakhir menyebar cepat, membawa fajar baru yang damai..."
                   : "Malam tak kunjung usai. Jeritan penduduk terakhir tenggelam di balik tawa dingin sang Warlock dan raungan buas para Werewolf yang kini berkuasa..."}
               </p>
               <p className={`text-sm font-black uppercase tracking-[0.3em] ${isWargaWinner ? 'text-blue-400' : 'text-red-500'}`}>
@@ -46,6 +53,15 @@ const GameOverScreen = ({ winner, players, playerData, onLeave }) => {
         {/* STEP 2: PERSONAL FATE (YOU WIN/LOSE) */}
         {step === 2 && (
           <div className="space-y-8 animate-in slide-in-from-bottom-8 duration-700">
+            <div className="space-y-2">
+              <div className={`text-[10px] font-black uppercase tracking-[0.4em] px-4 py-1.5 rounded-full inline-block mx-auto mb-3 ${
+                isWargaWinner
+                  ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20 shadow-[0_0_20px_rgba(59,130,246,0.2)]'
+                  : 'bg-red-600/10 text-red-500 border border-red-500/20 shadow-[0_0_20px_rgba(239,68,68,0.2)]'
+              }`}>
+                {isWargaWinner ? "Tim Penduduk Menang" : "Tim Werewolf Menang"}
+              </div>
+            </div>
             <div className="relative inline-block">
               {isIWinner ? (
                 <div className="relative">
@@ -56,9 +72,13 @@ const GameOverScreen = ({ winner, players, playerData, onLeave }) => {
                 <Skull className="w-24 h-24 text-slate-700" />
               )}
             </div>
-            
+
             <div className="space-y-1">
-              <h1 className={`text-6xl font-black italic tracking-tighter leading-none ${isIWinner ? 'text-white' : 'text-slate-600'}`}>
+              <h1 className={`text-6xl font-black italic tracking-tighter leading-none ${
+                isIWinner
+                  ? (isWargaWinner ? 'text-blue-400 drop-shadow-[0_0_20px_rgba(59,130,246,0.3)]' : 'text-red-500 drop-shadow-[0_0_20px_rgba(239,68,68,0.3)]')
+                  : 'text-slate-600'
+              }`}>
                 {isIWinner ? "VICTORY" : "DEFEAT"}
               </h1>
               <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.4em] mt-2">Sebagai {playerData?.role}</p>
