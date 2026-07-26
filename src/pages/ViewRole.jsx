@@ -20,6 +20,8 @@ import { Z_LAYER } from '../constants/zIndex';
 import { lockScroll, unlockScroll } from '../utils/scrollLock';
 import { isSiang, isMalam, isPagi } from '../constants/phases';
 
+const getTimestamp = () => Date.now();
+
 const CrackedOverlay = () => (
   <svg className="absolute inset-0 w-full h-full pointer-events-none z-30" viewBox="0 0 100 100" preserveAspectRatio="none">
     {/* Core heavy fracture */}
@@ -47,7 +49,7 @@ const CrackedOverlay = () => (
 
 const ViewRole = ({ onNext }) => {
   const {
-    players, roomCode, myPlayerId, myData, playerName,
+    players, roomCode, myData,
     isHost, gameWinner, handleLeaveGame
   } = useGameContext();
   const totalPlayers = players.filter(p => p.role !== 'Moderator').length;
@@ -64,7 +66,6 @@ const ViewRole = ({ onNext }) => {
   const [myClues, setMyClues] = useState(null);
   const [showIntro, setShowIntro] = useState(false);
   const [showCluePopup, setShowCluePopup] = useState(false);
-  const [actionNotif, setActionNotif] = useState(null); // { message, icon }
   const [showActionPopup, setShowActionPopup] = useState(false);
   const [actionPopupData, setActionPopupData] = useState(null);
   const prevPhaseRef = useRef(phase);
@@ -73,14 +74,36 @@ const ViewRole = ({ onNext }) => {
   const isNight = isMalam(phase);
   const role = playerData?.role?.toLowerCase() || "";
 
-  const [visionResult, setVisionResult] = useState(null);
-  const [hasActedThisNight, setHasActedThisNight] = useState(false);
+  const [optimisticActed, setOptimisticActed] = useState(false);
   const [actionStatus, setActionStatus] = useState(null);
 
   // Warlock-specific state
   const [warlockChoice, setWarlockChoice] = useState(null); // 'buy' or 'skip'
   const [warlockItem, setWarlockItem] = useState(null); // 'poison' or 'vision'
 
+  // Reset local states on day/phase transition (render phase state adjustment)
+  const [prevDayPhase, setPrevDayPhase] = useState({ day, phase });
+  if (day !== prevDayPhase.day || phase !== prevDayPhase.phase) {
+    setPrevDayPhase({ day, phase });
+    setOptimisticActed(false);
+    setActionStatus(null);
+    setWarlockChoice(null);
+    setWarlockItem(null);
+  }
+
+  // Derive acted status from Firebase data + local optimistic updates
+  const actedFromDb = (() => {
+    if (!playerData) return false;
+    const roleLower = role.toLowerCase();
+    if (roleLower.includes('warlock')) {
+      return !!playerData.warlockActed;
+    } else if (roleLower.includes('hakim')) {
+      return isNight ? !!playerData.truthActed : !!playerData.pistolActed;
+    } else {
+      return !!playerData.currentAction;
+    }
+  })();
+  const hasActedThisNight = optimisticActed || actedFromDb;
 
   // ── Gunakan getRoleActionConfig dari roleActions.js ──
   const roleState = {
@@ -95,6 +118,7 @@ const ViewRole = ({ onNext }) => {
     warlockItemUsed: playerData?.warlockItemUsed,
     warlockActed: playerData?.warlockActed,
     currentPhase: phase,
+    alivePedagangCount: players.filter(p => p.role === 'Pedagang' && p.status !== 'dead').length,
   };
   const actionConfig = getRoleActionConfig(playerData?.role || '', day, totalPlayers, roleState);
 
@@ -115,62 +139,44 @@ const ViewRole = ({ onNext }) => {
       if (localStorage.getItem(`intro_${roomCode}`)) return;
       // Hanya tampilkan intro jika day = 1 dan phase ada dan contains "Pagi"
       if (day !== 1 || !phase || !isPagi(phase) || winner) return;
-      
+
       // Cek Firebase apakah intro sudah selesai untuk player ini
       const introFinishedRef = ref(db, `rooms/${roomCode}/introFinished/${playerData?.id}`);
       const snapshot = await new Promise((resolve) => {
         onValue(introFinishedRef, (s) => resolve(s), { onlyOnce: true });
       });
-      
+
       if (!snapshot.val()) {
         setShowIntro(true);
       } else {
         localStorage.setItem(`intro_${roomCode}`, 'true');
       }
     };
-    
+
     if (day && phase) {
       checkIntro();
     }
   }, [day, phase, roomCode, winner, playerData?.id]);
 
-  // Truth limit tracking (after role is declared)
-  const truthUsedCount = playerData?.truthUsedCount || 0;
-  const truthMaxUses = 2; // Fixed 2x sepanjang game
-  const truthRemaining = Math.max(0, truthMaxUses - truthUsedCount);
-
   // Hakim pistol tracking
   const pistolUsedCount = playerData?.pistolUsedCount || 0;
   const pistolRemaining = Math.max(0, 2 - pistolUsedCount);
-  const truthActed = playerData?.truthActed || false;
-  const pistolActed = playerData?.pistolActed || false;
 
   // Guard constraint: usage-based — tidak bisa melindungi pemain sama 2x berturut-turut
   const guardLastProtected = playerData?.lastProtectedTarget || null;
-  const guardLastProtectedDay = playerData?.lastProtectedDay || 0;
-  const isGuardCooldown = role.includes("guard") && guardLastProtectedDay > 0 && day < guardLastProtectedDay + 3;
-  
+
   // Guard constraint: maksimal 1x lindungi diri sendiri
   const guardSelfProtected = playerData?.selfProtectedCount || 0;
   const canGuardSelf = guardSelfProtected < 1;
 
   // --- 2. SEMUA USE EFFECTS ---
   useEffect(() => {
-    setHasActedThisNight(false);
-    setVisionResult(null);
-    setActionStatus(null);
-    // Reset Warlock states
-    setWarlockChoice(null);
-    setWarlockItem(null);
-  }, [day, phase]);
-
-  useEffect(() => {
     if (!roomCode) return;
     const activityRef = ref(db, `rooms/${roomCode}/truthActivity`);
     const unsubscribe = onValue(activityRef, (snapshot) => {
       const data = snapshot.val();
       if (data && data.timestamp > (Date.now() - 3000)) {
-        new Audio('/sounds/notif.mp3').play().catch(() => {});
+        new Audio(`${import.meta.env.BASE_URL}sounds/notif.mp3`).play().catch(() => {});
         setActionStatus({ type: 'success', msg: `AKTIVITAS TERDETEKSI: ${data.msg}` });
         setTimeout(() => setActionStatus(null), 4000);
       }
@@ -275,22 +281,6 @@ const ViewRole = ({ onNext }) => {
     if (!isHost && onNext) onNext();
   };
 
-  const triggerNotif = (msg, type = 'info') => {
-    setActionStatus({ type, msg });
-    setTimeout(() => setActionStatus(null), 4000);
-  };
-
-  const reportTruthActivity = (actionDescription) => {
-    if (playerData?.underTruth) {
-      const activityRef = ref(db, `rooms/${roomCode}/truthActivity`);
-      set(activityRef, {
-        msg: `${playerData.name} ${actionDescription}`,
-        senderId: playerData.id,
-        timestamp: Date.now()
-      });
-    }
-  };
-
   const handleWarlockUse = async () => {
     if (!actionTarget || hasActedThisNight) return;
     const targetPlayer = players.find(p => p.id === actionTarget);
@@ -304,14 +294,14 @@ const ViewRole = ({ onNext }) => {
       desc: `Kamu menggunakan ${item} pada ${targetPlayer?.name}`
     });
     setShowActionPopup(true);
-    setHasActedThisNight(true);
+    setOptimisticActed(true);
 
     const updates = {};
     updates[`rooms/${roomCode}/players/${playerData.id}/currentAction`] = {
       role: "Warlock", action: "use", warlockAction: "use",
       purchasedItem: item,
       targetId: actionTarget, targetName: targetPlayer?.name || "Unknown",
-      timestamp: Date.now()
+      timestamp: getTimestamp()
     };
     updates[`rooms/${roomCode}/players/${playerData.id}/warlockItemUsed`] = true;
     updates[`rooms/${roomCode}/players/${playerData.id}/warlockInventory`] = null;
@@ -320,14 +310,14 @@ const ViewRole = ({ onNext }) => {
       senderName: playerData.name, role: "Warlock",
       action: item.toUpperCase(),
       targetId: actionTarget, targetName: targetPlayer?.name,
-      timestamp: Date.now()
+      timestamp: getTimestamp()
     };
 
     try {
       await update(ref(db), updates);
       await checkWinCondition(roomCode);
-    } catch (e) {
-      setHasActedThisNight(false);
+    } catch {
+      setOptimisticActed(false);
     }
   };
 
@@ -340,7 +330,7 @@ const ViewRole = ({ onNext }) => {
       if (!warlockChoice) {
         setWarlockChoice(type);
         if (type === 'skip') {
-          setHasActedThisNight(true);
+          setOptimisticActed(true);
           sendWarlockAction('skip', null, null);
         }
         return;
@@ -387,7 +377,7 @@ const ViewRole = ({ onNext }) => {
     }
 
     // OPTIMISTIC: set state segera, tanpa nunggu Firebase
-    setHasActedThisNight(true);
+    setOptimisticActed(true);
 
     const updates = {};
 
@@ -399,7 +389,7 @@ const ViewRole = ({ onNext }) => {
       action: logAction,
       targetId: actionTarget || "none",
       targetName: targetPlayer?.name || "Unknown",
-      timestamp: Date.now()
+      timestamp: getTimestamp()
     };
 
     // Hakim Pistol (siang) — INSTANT KILL: langsung set status dead
@@ -411,7 +401,7 @@ const ViewRole = ({ onNext }) => {
       updates[`rooms/${roomCode}/deadToday`] = {
         day,
         names: [targetPlayer?.name || "Unknown"],
-        timestamp: Date.now()
+        timestamp: getTimestamp()
       };
     }
 
@@ -423,7 +413,7 @@ const ViewRole = ({ onNext }) => {
         actionType: "truth",
         targetId: actionTarget,
         targetName: targetPlayer?.name || "Unknown",
-        timestamp: Date.now()
+        timestamp: getTimestamp()
       };
       updates[`rooms/${roomCode}/players/${playerData.id}/truthActed`] = true;
       updates[`rooms/${roomCode}/players/${playerData.id}/truthUsedCount`] = (playerData?.truthUsedCount || 0) + 1;
@@ -441,7 +431,7 @@ const ViewRole = ({ onNext }) => {
         action: "protect",
         targetId: actionTarget,
         targetName: targetPlayer?.name || "Unknown",
-        timestamp: Date.now()
+        timestamp: getTimestamp()
       };
     }
 
@@ -452,7 +442,7 @@ const ViewRole = ({ onNext }) => {
         action: "kill",
         targetId: actionTarget,
         targetName: targetPlayer?.name || "Unknown",
-        timestamp: Date.now()
+        timestamp: getTimestamp()
       };
     }
 
@@ -463,7 +453,7 @@ const ViewRole = ({ onNext }) => {
         action: "reveal",
         targetId: actionTarget,
         targetName: targetPlayer?.name || "Unknown",
-        timestamp: Date.now()
+        timestamp: getTimestamp()
       };
     }
 
@@ -474,7 +464,7 @@ const ViewRole = ({ onNext }) => {
         action: "hunt",
         targetId: actionTarget,
         targetName: targetPlayer?.name || "Unknown",
-        timestamp: Date.now()
+        timestamp: getTimestamp()
       };
       updates[`rooms/${roomCode}/players/${playerData.id}/hunterActed`] = true;
     }
@@ -486,11 +476,12 @@ const ViewRole = ({ onNext }) => {
       }
     }).catch(() => {
       // Jika gagal, reset agar user bisa coba lagi
-      setHasActedThisNight(false);
+      setOptimisticActed(false);
     });
   };
 
   const sendWarlockAction = async (choice, item, targetId) => {
+    if (playerData?.warlockActed || hasActedThisNight) return;
     const folder = `malam_${day}`;
     const targetPlayer = players.find(p => p.id === targetId);
 
@@ -514,7 +505,7 @@ const ViewRole = ({ onNext }) => {
       item: item, // 'poison', 'vision', or null
       targetId: targetId || "none",
       targetName: targetPlayer?.name || "Skip",
-      timestamp: Date.now()
+      timestamp: getTimestamp()
     });
 
     // State warlock ke Firebase
@@ -540,14 +531,14 @@ const ViewRole = ({ onNext }) => {
         targetName: targetPlayer?.name || "Unknown",
         merchantId: randomPedagang?.id || "system",
         merchantName: randomPedagang?.name || "System",
-        timestamp: Date.now()
+        timestamp: getTimestamp()
       });
     }
     if (Object.keys(warlockUpdates).length > 0) {
       await update(ref(db), warlockUpdates);
     }
 
-    setHasActedThisNight(true);
+    setOptimisticActed(true);
     setWarlockChoice(null);
     setWarlockItem(null);
     setActionTarget("");
@@ -613,9 +604,9 @@ const ViewRole = ({ onNext }) => {
           <SharedTimer seconds={seconds} phase={phase} isActive={isActive} />
         </div>
 
-        <div className="max-w-md w-full mx-auto p-4 md:p-6 space-y-3 sm:space-y-4 md:space-y-6 text-center pt-20 md:pt-20 pb-32 md:pb-32">
+        <div className="max-w-md w-full mx-auto p-4 md:p-6 space-y-3 sm:space-y-4 md:space-y-6 text-center pt-28 sm:pt-32 pb-32 md:pb-32">
           <div className="space-y-1">
-            <p className="text-slate-500 text-[8px] md:text-[10px] uppercase tracking-[0.3em]">{isNight ? 'Malam' : 'Hari'} ke-{day} • Waranasura</p>
+            <p className="text-slate-300 text-[8px] md:text-[10px] uppercase tracking-[0.3em]">{isNight ? 'Malam' : 'Hari'} ke-{day} • Waranasura</p>
             <h2 className={`text-base sm:text-lg md:text-xl font-bold italic transition-colors ${isDead ? 'text-slate-600' : 'text-blue-400'}`}>{playerData?.name} {playerData?.underTruth && "🔍"}</h2>
           </div>
 
@@ -745,7 +736,7 @@ const ViewRole = ({ onNext }) => {
                    )}
 
                    {/* ── BUY MODE: tidak punya inventory → beli/skip ── */}
-                   {actionConfig.actionType !== 'warlock-use' && !hasActedThisNight && (
+                   {actionConfig.actionType === 'warlock-buy' && !hasActedThisNight && (
                    <div className="space-y-3 md:space-y-4">
                      {!warlockChoice ? (
                        <div className="space-y-2 md:space-y-3">
@@ -847,7 +838,7 @@ const ViewRole = ({ onNext }) => {
                    {/* Guard constraint info */}
                    {role.includes("guard") && (
                      <div className="text-[7px] md:text-[8px] text-slate-500 uppercase text-center">
-                       {isGuardCooldown && <span className="text-red-500">Tidak bisa lindungi target sama • </span>}
+                       <span className="text-slate-500">Tidak bisa lindungi target sama berturut-turut • </span>
                        {!canGuardSelf && <span className="text-amber-500"> sudah lindungi diri </span>}
                      </div>
                    )}
@@ -858,7 +849,7 @@ const ViewRole = ({ onNext }) => {
                    {showTargetList && (
                      <div className="mt-2 grid gap-1 max-h-32 md:max-h-40 overflow-y-auto custom-scrollbar">
                        {players.filter(p=>p.id!==playerData.id && p.status!=='dead' && p.role!=='Moderator').map(p=>{
-                         const isSameTargetAsLastNight = role.includes("guard") && guardLastProtected === p.id && isGuardCooldown;
+                         const isSameTargetAsLastNight = role.includes("guard") && guardLastProtected === p.id;
                          const isSelfDisabled = role.includes("guard") && p.id === playerData?.id && !canGuardSelf;
                          const isDisabled = isSameTargetAsLastNight || isSelfDisabled;
                          return (

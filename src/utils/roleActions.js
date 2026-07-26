@@ -34,7 +34,6 @@ export const getRoleActionConfig = (role, currentDay, totalPlayers, roleState = 
   };
 
   const isNight1 = currentDay === 1;
-  const isNight2OrMore = currentDay >= 2;
 
   switch (role) {
     case 'Pedagang':
@@ -59,11 +58,11 @@ export const getRoleActionConfig = (role, currentDay, totalPlayers, roleState = 
       }
       break;
 
-    case 'Guard':
+    case 'Guard': {
       // Guard: usage-based cooldown — pakai → cooldown 2 malam → siap lagi
       // Proteksi bertahan 2 malam
       const lastGuardDay = roleState.lastProtectedDay || 0;
-      const isGuardCooldown = lastGuardDay > 0 && currentDay < lastGuardDay + 3;
+      const isGuardCooldown = lastGuardDay > 0 && currentDay < lastGuardDay + 2;
 
       if (!isGuardCooldown && !hasActed) {
         config.canAct = true;
@@ -72,12 +71,13 @@ export const getRoleActionConfig = (role, currentDay, totalPlayers, roleState = 
         config.maxUses = 1;
         config.skillName = 'Protect';
       } else if (isGuardCooldown) {
-        const siapMalam = lastGuardDay + 3;
+        const siapMalam = lastGuardDay + 2;
         config.canAct = false;
         config.actionType = null;
         config.reason = `Guard cooldown. Protection aktif kembali malam ${siapMalam}.`;
       }
       break;
+    }
 
     case 'Werewolf':
       if (isNight1) {
@@ -98,7 +98,7 @@ export const getRoleActionConfig = (role, currentDay, totalPlayers, roleState = 
       }
       break;
 
-    case 'Hakim':
+    case 'Hakim': {
       // Hakim punya 2 skill: Truth (malam) + Pistol (siang)
       const isDay = isPagi(roleState.currentPhase) || isSiang(roleState.currentPhase);
 
@@ -143,6 +143,7 @@ export const getRoleActionConfig = (role, currentDay, totalPlayers, roleState = 
       }
       config.isConfirmed = false;
       break;
+    }
 
     case 'Hunter':
       if (isNight1) {
@@ -163,7 +164,7 @@ export const getRoleActionConfig = (role, currentDay, totalPlayers, roleState = 
       }
       break;
 
-    case 'Warlock':
+    case 'Warlock': {
       const warlockItem = roleState.warlockInventory;
       const hasSkipped = roleState.warlockSkipped;
       const itemUsedThisNight = roleState.warlockItemUsed;
@@ -220,6 +221,7 @@ export const getRoleActionConfig = (role, currentDay, totalPlayers, roleState = 
       config.maxUses = 1;
       config.skillName = 'Warlock';
       break;
+    }
 
     case 'Moderator':
       config.canAct = false;
@@ -231,6 +233,11 @@ export const getRoleActionConfig = (role, currentDay, totalPlayers, roleState = 
     default:
       config.canAct = false;
       config.reason = "Role tidak dikenal.";
+  }
+
+  if (role === 'Warlock' && config.actionType === 'warlock-buy' && roleState.alivePedagangCount === 0) {
+    config.canAct = false;
+    config.reason = "Semua Pedagang telah gugur. Warlock tidak bisa bertransaksi lagi.";
   }
 
   return config;
@@ -245,7 +252,7 @@ export const checkNightOneRestriction = (currentDay) => {
   return currentDay === 1;
 };
 
-export const getHakimTruthCount = (totalPlayers) => {
+export const getHakimTruthCount = () => {
   return 1; // 1x per malam (unlimited malam)
 };
 
@@ -267,10 +274,11 @@ export const canRoleActTonight = (role, currentDay, playerState = {}) => {
       return false;
     case 'Seer':
       return !hasActed;
-    case 'Guard':
+    case 'Guard': {
       if (isNight1) return !hasActed;
       const lastGuard = playerState.lastProtectedDay || 0;
-      return lastGuard === 0 || currentDay >= lastGuard + 3;
+      return lastGuard === 0 || currentDay >= lastGuard + 2;
+    }
     case 'Werewolf':
       return isNight2OrMore && !hasActed;
     case 'Hakim':

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { ref, onValue, push, set, update, get } from "firebase/database";
 import { db } from "../lib/firebase";
@@ -190,7 +191,7 @@ export function GameProvider({ children }) {
       setIsHost(false);
       setPlayerName(finalName);
       setCurrentPage('room-lobby');
-    } catch (error) {
+    } catch {
       showNotif("Error", "Gagal masuk ke room.", "error");
     } finally {
       setIsJoining(false);

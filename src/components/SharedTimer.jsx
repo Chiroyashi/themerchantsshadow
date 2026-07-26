@@ -37,12 +37,12 @@ const SharedTimer = ({ seconds, phase, isActive }) => {
         />
       )}
 
-      <div className="relative px-4 md:px-8 py-3 md:py-4 flex flex-col items-center gap-1 md:gap-2">
+      <div className="relative px-4 md:px-8 py-3.5 md:py-5 flex flex-col items-center gap-2 md:gap-3">
         {/* Phase indicator */}
         <div className="flex items-center gap-1 md:gap-2">
           {getPhaseIcon()}
           <span className={`text-[8px] md:text-[10px] font-black uppercase tracking-[0.2em] italic ${
-            isActive 
+            isActive
               ? isUrgent ? 'text-red-400' : 'text-blue-400'
               : 'text-slate-500'
           }`}>
@@ -52,18 +52,18 @@ const SharedTimer = ({ seconds, phase, isActive }) => {
 
         {/* Time display */}
         <div className="flex items-center gap-2 md:gap-3">
-          <Clock 
-            size={16} md:size={20} 
-            className={`${isActive 
-              ? isUrgent 
-                ? "text-red-500 animate-bounce" 
+          <Clock
+            size={16} md:size={20}
+            className={`${isActive
+              ? isUrgent
+                ? "text-red-500 animate-bounce"
                 : "text-blue-500 animate-pulse"
               : "text-slate-700"
-            }`} 
+            }`}
           />
           <span className={`font-mono text-xl sm:text-2xl md:text-4xl font-black tracking-tighter leading-none tabular-nums ${
-            isActive 
-              ? isUrgent 
+            isActive
+              ? isUrgent
                 ? "text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.5)]"
                 : "text-white"
               : "text-slate-300"
@@ -74,7 +74,7 @@ const SharedTimer = ({ seconds, phase, isActive }) => {
 
         {/* Status badge */}
         {!isActive && seconds > 0 && (
-          <div className="flex items-center gap-1 px-2 md:px-3 py-0.5 md:py-1 bg-amber-500/10 rounded-full">
+          <div className="flex items-center gap-1 px-2.5 md:px-3.5 py-0.5 md:py-1 bg-amber-500/10 rounded-full">
             <Pause size={8} md:size={10} className="text-amber-500" />
             <span className="text-[6px] md:text-[8px] font-black uppercase tracking-widest text-amber-500">
               PAUSED
@@ -83,9 +83,13 @@ const SharedTimer = ({ seconds, phase, isActive }) => {
         )}
 
         {isActive && (
-          <div className="flex items-center gap-1 px-2 md:px-3 py-0.5 md:py-1 bg-blue-500/10 rounded-full">
-            <Play size={8} md:size={10} className="text-blue-500" />
-            <span className={`text-[6px] md:text-[8px] font-black uppercase tracking-widest ${isUrgent ? 'text-red-500' : 'text-blue-500'}`}>
+          <div className={`flex items-center gap-1 px-2.5 md:px-3.5 py-0.5 md:py-1 rounded-full ${
+            isUrgent ? 'bg-red-500/20' : 'bg-blue-500/10'
+          }`}>
+            <Play size={8} md:size={10} className={isUrgent ? 'text-red-400' : 'text-blue-400'} />
+            <span className={`text-[6px] md:text-[8px] font-black uppercase tracking-widest ${
+              isUrgent ? 'text-red-400' : 'text-blue-400'
+            }`}>
               RUNNING
             </span>
           </div>

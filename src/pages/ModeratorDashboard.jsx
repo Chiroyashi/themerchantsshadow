@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { ref, onValue, set, update } from "firebase/database";
+import React, { useState, useEffect, useRef } from 'react';
+import { ref, onValue, set } from "firebase/database";
 import { db } from "../lib/firebase";
 import {
   Skull, Heart, Play, Pause, RefreshCw, LogOut, User,
@@ -16,7 +16,7 @@ import { isSiang, isMalam, isPagi } from '../constants/phases';
 
 const ModeratorDashboard = () => {
   const {
-    players, roomCode, isHost, handleKillPlayer,
+    players, roomCode, handleKillPlayer,
     handleDestroyRoom, handleEndGame
   } = useGameContext();
   const {
@@ -25,14 +25,14 @@ const ModeratorDashboard = () => {
   } = useTimerContext();
   const { showNotif } = useNotification();
   const [votes, setVotes] = useState({});
-  const [nightHistory, setNightHistory] = useState({}); 
+  const [nightHistory, setNightHistory] = useState({});
 
   // State untuk Edit Waktu
   const [isEditingTime, setIsEditingTime] = useState(false);
   const [timeInput, setTimeInput] = useState("");
 
   const [showEndGame, setShowEndGame] = useState(false);
-  
+
   // State untuk clue pedaganng
   const [clueInput, setClueInput] = useState("");
   const [selectedPedagang, setSelectedPedagang] = useState("");
@@ -61,12 +61,9 @@ const ModeratorDashboard = () => {
   const activePlayers = players.filter(p => p.status !== 'dead' && p.role !== 'Moderator');
   const votesData = Object.values(votes);
   const killThreshold = Math.floor(activePlayers.length / 2) + 1;
-  
-  const pedagangers = players.filter(p => p.role === 'Pedagang' && p.status !== 'dead');
-  const warlocks = players.filter(p => p.role === 'Warlock' && p.status !== 'dead');
-  const currentNightHistory = nightHistory[`malam_${day}`] || nightHistory[`hari_${day}`] || {};
+
   const currentTransactions = merchantTransaksi[`malam_${day}`] || {};
-  
+
   const pendingTransactions = Object.keys(currentTransactions).filter(
     key => !clueSent[`malam_${day}_${key}`]
   );
@@ -88,7 +85,7 @@ const ModeratorDashboard = () => {
     const unsubscribeClues = onValue(cluesRef, (snapshot) => {
       const clues = snapshot.val() || {};
       const sent = {};
-      Object.entries(clues).forEach(([merchantId, clueData]) => {
+      Object.entries(clues).forEach(([, clueData]) => {
         if (clueData.day === day) {
           sent[`malam_${day}_${clueData.transactionKey}`] = true;
         }
@@ -99,18 +96,19 @@ const ModeratorDashboard = () => {
     return () => { unsubscribeVotes(); unsubscribeHistory(); unsubscribeTransaksi(); unsubscribeClues(); };
   }, [roomCode, day]);
 
+  // Handle clue popup state
   useEffect(() => {
     if (hasUnsentClue && !showCluePopup) {
       const firstKey = pendingTransactions[0];
-      setCurrentTransactionKey(firstKey);
       const tx = currentTransactions[firstKey];
       if (tx) {
         setSelectedPedagang(tx.merchantId);
         setClueInput("");
         setShowCluePopup(true);
+        setCurrentTransactionKey(firstKey);
       }
     }
-  }, [hasUnsentClue, pendingTransactions, currentTransactions, day]);
+  }, [hasUnsentClue, showCluePopup, pendingTransactions, currentTransactions]);
 
   const handleTimeSubmit = () => {
     const totalSeconds = parseInt(timeInput) * 60;
