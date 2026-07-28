@@ -171,7 +171,7 @@ const ViewRole = ({ onNext }) => {
 
   // --- 2. SEMUA USE EFFECTS ---
   useEffect(() => {
-    if (!roomCode) return;
+    if (!roomCode || !role.includes("hakim")) return;
     const activityRef = ref(db, `rooms/${roomCode}/truthActivity`);
     const unsubscribe = onValue(activityRef, (snapshot) => {
       const data = snapshot.val();
@@ -182,7 +182,7 @@ const ViewRole = ({ onNext }) => {
       }
     });
     return () => unsubscribe();
-  }, [roomCode]);
+  }, [roomCode, role]);
 
   useEffect(() => {
     if (role.includes("pedagang") && playerData?.id) {
@@ -298,12 +298,15 @@ const ViewRole = ({ onNext }) => {
     if (!item) return;
 
     const folder = `malam_${day}`;
-    setActionPopupData({
-      icon: item === 'poison' ? '☠️' : '👁️',
-      title: `Menggunakan ${item.toUpperCase()}`,
-      desc: `Kamu menggunakan ${item} pada ${targetPlayer?.name}`
-    });
-    setShowActionPopup(true);
+
+    if (item === 'poison') {
+      setActionPopupData({
+        icon: '☠️',
+        title: `Menggunakan POISON`,
+        desc: `Kamu menggunakan poison pada ${targetPlayer?.name}`
+      });
+      setShowActionPopup(true);
+    }
     setOptimisticActed(true);
 
     const updates = {};
@@ -322,6 +325,15 @@ const ViewRole = ({ onNext }) => {
       targetId: actionTarget, targetName: targetPlayer?.name,
       timestamp: getTimestamp()
     };
+
+    if (item === 'vision') {
+      updates[`rooms/${roomCode}/warlockResult/${playerData.id}`] = {
+        item: 'vision',
+        targetName: targetPlayer?.name || "Unknown",
+        targetRole: targetPlayer?.role || "Unknown",
+        timestamp: getTimestamp()
+      };
+    }
 
     try {
       await update(ref(db), updates);
@@ -368,10 +380,6 @@ const ViewRole = ({ onNext }) => {
     let popupInfo = null;
     if (role.includes("werewolf")) {
       popupInfo = { icon: "🐺", title: "Eksekusi Malam", desc: `Kamu membunuh ${targetPlayer?.name}` };
-    } else if (role.includes("seer")) {
-      // Reveal role langsung — target dari state players
-      const targetRole = players.find(p => p.id === actionTarget)?.role || "Unknown";
-      popupInfo = { icon: "👁️", title: "Pengintaian", desc: `Target: ${targetPlayer?.name}`, targetName: targetPlayer?.name, targetRole };
     } else if (role.includes("guard")) {
       popupInfo = { icon: "🛡️", title: "Proteksi", desc: `Kamu melindungi ${targetPlayer?.name} selama 2 malam`, target: targetPlayer };
     } else if (role.includes("hunter")) {
@@ -458,11 +466,22 @@ const ViewRole = ({ onNext }) => {
 
     // Seer
     if (role.includes("seer") && actionTarget && type !== 'skip') {
+      const targetRole = targetPlayer?.role || "Unknown";
       updates[`rooms/${roomCode}/players/${playerData.id}/currentAction`] = {
         role: "Seer",
         action: "reveal",
         targetId: actionTarget,
         targetName: targetPlayer?.name || "Unknown",
+        timestamp: getTimestamp()
+      };
+      updates[`rooms/${roomCode}/seerReveal/${playerData.id}`] = {
+        name: targetPlayer?.name || "Unknown",
+        role: targetRole,
+        timestamp: getTimestamp()
+      };
+      updates[`rooms/${roomCode}/seerResult/${playerData.id}`] = {
+        name: targetPlayer?.name || "Unknown",
+        role: targetRole,
         timestamp: getTimestamp()
       };
     }

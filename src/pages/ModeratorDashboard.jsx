@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ref, onValue, set } from "firebase/database";
 import { db } from "../lib/firebase";
 import {
@@ -61,6 +61,7 @@ const ModeratorDashboard = () => {
   const activePlayers = players.filter(p => p.status !== 'dead' && p.role !== 'Moderator');
   const votesData = Object.values(votes);
   const killThreshold = Math.floor(activePlayers.length / 2) + 1;
+  const skipCount = votesData.filter(v => v === 'skip').length;
 
   const currentTransactions = merchantTransaksi[`malam_${day}`] || {};
 
@@ -96,19 +97,19 @@ const ModeratorDashboard = () => {
     return () => { unsubscribeVotes(); unsubscribeHistory(); unsubscribeTransaksi(); unsubscribeClues(); };
   }, [roomCode, day]);
 
-  // Handle clue popup state
-  useEffect(() => {
-    if (hasUnsentClue && !showCluePopup) {
-      const firstKey = pendingTransactions[0];
-      const tx = currentTransactions[firstKey];
-      if (tx) {
-        setSelectedPedagang(tx.merchantId);
-        setClueInput("");
-        setShowCluePopup(true);
-        setCurrentTransactionKey(firstKey);
-      }
+  // Reset & update clue target saat list pendingTransactions atau currentTransactions berubah
+  const [prevPendingKey, setPrevPendingKey] = useState(null);
+  const firstKey = pendingTransactions[0] || null;
+  if (firstKey !== prevPendingKey) {
+    setPrevPendingKey(firstKey);
+    const tx = currentTransactions[firstKey];
+    if (tx) {
+      setSelectedPedagang(tx.merchantId);
+      setClueInput("");
+      setShowCluePopup(true);
+      setCurrentTransactionKey(firstKey);
     }
-  }, [hasUnsentClue, showCluePopup, pendingTransactions, currentTransactions]);
+  }
 
   const handleTimeSubmit = () => {
     const totalSeconds = parseInt(timeInput) * 60;
@@ -293,6 +294,34 @@ const ModeratorDashboard = () => {
           </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
+            {/* Skip Vote Monitoring Card */}
+            {isSiang(phase) && (
+              <div className="p-4 sm:p-5 rounded-[2rem] border bg-slate-900 border-white/5 shadow-xl relative overflow-hidden animate-in fade-in duration-300">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-slate-800 text-slate-400">
+                      <AlertTriangle size={22} />
+                    </div>
+                    <div>
+                      <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mb-0.5">Opsi Alternatif</p>
+                      <p className="font-black text-lg text-white">Skip Vote</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-3 border-t border-white/5">
+                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Melewatkan Siang</p>
+                </div>
+                {skipCount > 0 && (
+                  <div className="flex items-center gap-3 bg-slate-950 p-2 rounded-2xl border border-white/5 mt-3 animate-in zoom-in duration-200">
+                     <div className="h-1.5 flex-1 bg-slate-900 rounded-full overflow-hidden">
+                        <div className="h-full bg-slate-500" style={{ width: `${Math.min(100, (skipCount/killThreshold)*100)}%` }} />
+                     </div>
+                     <span className="text-[10px] font-black text-slate-400">{skipCount}V</span>
+                  </div>
+                )}
+              </div>
+            )}
+
             {players.filter(p => p.role !== 'Moderator').map((p) => {
               const voteCount = votesData.filter(v => v === p.id).length;
               const isDead = p.status === 'dead';
@@ -367,7 +396,8 @@ const ModeratorDashboard = () => {
               <p className="text-[9px] text-slate-600 italic text-center py-4">Belum ada aksi tercatat.</p>
             ) : (
               Object.entries(nightHistory).sort((a, b) => b[0].localeCompare(a[0])).map(([period, actions]) => {
-                const periodLabel = period.includes('malam') ? '🌙 Malam' : '☀️ Hari';
+                const [phaseType, dayNumber] = period.split('_');
+                const periodLabel = `${phaseType === 'malam' ? '🌙 Malam' : '☀️ Hari'} ${dayNumber || ''}`;
                 return (
                   <div key={period}>
                     <p className="text-[7px] font-black uppercase tracking-widest text-slate-600 mb-1">{periodLabel}</p>

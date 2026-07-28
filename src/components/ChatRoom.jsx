@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ref, push, onValue } from "firebase/database";
+import { ref, push, onValue, set } from "firebase/database";
 import { db } from "../lib/firebase";
 import { Send, MessageSquare, ChevronDown, Globe, User, ShieldAlert, Ghost, Skull } from 'lucide-react';
 import { Z_LAYER } from '../constants/zIndex';
@@ -112,14 +112,18 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
 
       // Truth leak: jika WW kena Truth, chat Markas bocor ke publik
       if (myDataFromList?.underTruth) {
+        set(ref(db, `rooms/${roomCode}/truthActivity`), {
+          msg: `${myName} membocorkan rahasia Werewolf!`,
+          timestamp: Date.now()
+        });
+
         push(chatRef, {
-          senderId: "SYSTEM_TRUTH",
-          senderName: "SISTEM (TRUTH)",
-          text: `🐺 ${myName.toUpperCase()} BERKATA: ${input}`,
+          senderId: myId,
+          senderName: myName,
+          text: input,
           target: "all",
           channel: "public",
-          timestamp: Date.now() + 1,
-          type: 'warning'
+          timestamp: Date.now() + 1
         });
       }
     } else {
@@ -127,22 +131,18 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
       const isPrivate = targetId !== "all";
 
       if (isPrivate && myDataFromList?.underTruth) {
-        push(chatRef, {
-          senderId: "SYSTEM_TRUTH",
-          senderName: "SISTEM (TRUTH)",
-          text: `⚠️ ${myName.toUpperCase()} BERKATA JUJUR`,
-          target: "all",
-          channel: "public",
-          timestamp: Date.now(),
-          type: 'warning'
+        set(ref(db, `rooms/${roomCode}/truthActivity`), {
+          msg: `${myName} membocorkan bisikan rahasia!`,
+          timestamp: Date.now()
         });
+
         push(chatRef, {
           senderId: myId,
-          senderName: `${myName} (TEREKAM)`,
+          senderName: myName,
           text: input,
           target: "all",
           channel: "public",
-          timestamp: Date.now() + 1
+          timestamp: Date.now()
         });
       } else {
         push(chatRef, {
@@ -281,12 +281,20 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
                   return (
                     <div key={m.id} className={`flex flex-col ${isMeMsg ? 'items-end' : 'items-start'} animate-in fade-in duration-200`}>
                       <div className="flex items-center gap-1.5 mb-1 px-1">
-                        <span className="text-[7px] font-black uppercase tracking-tight text-slate-600">
-                          {isMeMsg ? 'Anda' : m.senderName}
-                        </span>
+                        {isPrivateMsg ? (
+                          <span className="text-[7px] font-black uppercase tracking-tight text-purple-400 flex items-center gap-1">
+                            <span>{isMeMsg ? 'Anda' : m.senderName}</span>
+                            <span className="text-[8px] text-purple-500 font-bold">➔</span>
+                            <span>{m.target === myId ? 'Anda' : (players?.find(p => p.id === m.target)?.name || 'User')}</span>
+                            <span className="text-[6px] text-purple-500/80 lowercase italic font-normal ml-0.5">(whisper)</span>
+                          </span>
+                        ) : (
+                          <span className="text-[7px] font-black uppercase tracking-tight text-slate-600">
+                            {isMeMsg ? 'Anda' : m.senderName}
+                          </span>
+                        )}
                         {isWWMsg && !isMeMsg && <Ghost size={9} className="text-red-500" />}
                         {isGraveyardMsg && !isMeMsg && <Skull size={9} className="text-slate-500" />}
-                        {isPrivateMsg && !isMeMsg && <span className="text-[7px] text-purple-500 font-black">(whisper)</span>}
                         {isSystemTruth && <ShieldAlert size={9} className="text-amber-500" />}
                       </div>
                       <div className={`px-4 py-2.5 text-sm font-medium leading-relaxed shadow-lg max-w-[85%] ${

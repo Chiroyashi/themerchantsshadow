@@ -33,6 +33,7 @@ const GameBoard = ({ onBack }) => {
   // Hitung vote count per player
   const votesArray = Object.values(allVotes);
   const getVoteCount = (playerId) => votesArray.filter(v => v === playerId).length;
+  const skipVoteCount = votesArray.filter(v => v === 'skip').length;
 
   // Reset target & action status pada perubahan phase atau roomCode (render phase reset untuk menghindari setState dalam effect)
   const [prevPhaseRoom, setPrevPhaseRoom] = useState({ phase, roomCode });
@@ -142,6 +143,13 @@ const GameBoard = ({ onBack }) => {
           <p className={`text-[9px] font-black uppercase tracking-widest ${isVotingTime ? 'text-orange-400' : 'text-slate-600'}`}>
             {isVotingTime ? '🗳️ Silahkan Vote' : '🔒 Belum saatnya Vote'}
           </p>
+          {isVotingTime && skipVoteCount > 0 && (
+            <div className="mt-2 animate-in fade-in duration-300">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-900 border border-slate-800 rounded-full text-[8px] font-black text-slate-400 uppercase tracking-widest">
+                ⏭️ Skip: {skipVoteCount} vote
+              </span>
+            </div>
+          )}
         </div>
       </header>
 
@@ -262,9 +270,15 @@ const GameBoard = ({ onBack }) => {
             {isVotingTime && !isDead && (
               <>
                 {hasActed ? (
-                  <div className="w-full py-3.5 bg-emerald-950/40 border border-emerald-500/30 text-emerald-400 rounded-2xl text-[10px] font-black uppercase tracking-widest text-center shadow-lg">
-                    ✓ Suara Terkirim
-                  </div>
+                  selectedTarget === 'skip' ? (
+                    <div className="w-full py-3.5 bg-emerald-950/40 border border-emerald-500/30 text-emerald-400 rounded-2xl text-[10px] font-black uppercase tracking-widest text-center shadow-lg flex items-center justify-center gap-1.5 animate-in fade-in duration-300">
+                      <span>✓</span> Memilih Skip Vote
+                    </div>
+                  ) : (
+                    <div className="w-full py-3.5 bg-emerald-950/40 border border-emerald-500/30 text-emerald-400 rounded-2xl text-[10px] font-black uppercase tracking-widest text-center shadow-lg animate-in fade-in duration-300">
+                      ✓ Suara Terkirim
+                    </div>
+                  )
                 ) : (
                   <button
                     onClick={() => handleAction('skip')}

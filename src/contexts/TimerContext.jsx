@@ -49,8 +49,8 @@ export function TimerProvider({ children }) {
       const fbSecs = parseInt(data.seconds);
       if (!isNaN(fbSecs)) {
         const diff = Math.abs(secondsRef.current - fbSecs);
-        // Sync jika perbedaan besar atau timer pause
-        if (diff > 10 || !data.isActive) {
+        // Sync jika perbedaan besar (> 2 detik) atau timer pause
+        if (diff > 2 || !data.isActive) {
           setSeconds(fbSecs);
         }
       }
@@ -63,6 +63,7 @@ export function TimerProvider({ children }) {
   // Pakai setTimeout recursive, bukan setInterval — mencegah race condition async
   const tickRef = useRef(null);
   useEffect(() => {
+    let active = true;
     if (!isActive || seconds <= 0) {
       endTimeRef.current = null;
       return;
@@ -76,6 +77,7 @@ export function TimerProvider({ children }) {
     const tick = async () => {
       const nextSecs = Math.max(0, Math.round((endTimeRef.current - Date.now()) / 1000));
       if (nextSecs !== secondsRef.current) {
+        if (!active) return;
         setSeconds(nextSecs);
         secondsRef.current = nextSecs;
         let nextPhase = "";
@@ -88,17 +90,30 @@ export function TimerProvider({ children }) {
         }
 
         // Auto-advance semua vote-in — langsung ke Malam
-        if (isHost && nextSecs > 0 && isSiang(phaseRef.current) && !nextPhase && nextSecs % 5 === 0) {
+        if (isHost && nextSecs > 0 && isSiang(phaseRef.current) && !nextPhase) {
           try {
-            const votesSnap = await get(ref(db, `rooms/${roomCode}/votes`));
-            const playersSnap = await get(ref(db, `rooms/${roomCode}/players`));
+            const [votesSnap, playersSnap] = await Promise.all([
+              get(ref(db, `rooms/${roomCode}/votes`)),
+              get(ref(db, `rooms/${roomCode}/players`))
+            ]);
+            if (!active) return;
             if (votesSnap.exists() && playersSnap.exists()) {
               const voteCount = Object.keys(votesSnap.val()).length;
               const alivePlayers = Object.values(playersSnap.val()).filter(
                 p => p.status !== 'dead' && p.role !== 'Moderator'
               ).length;
               if (voteCount >= alivePlayers) {
-                nextPhase = "Malam (Eksekusi)";
+                // Jika waktu tersisa masih lebih dari 10 detik, percepat sisa waktu menjadi 10 detik
+                if (nextSecs > 10) {
+                  const targetSecs = 10;
+                  setSeconds(targetSecs);
+                  secondsRef.current = targetSecs;
+                  endTimeRef.current = Date.now() + targetSecs * 1000;
+                  await update(ref(db, `rooms/${roomCode}/timer`), { seconds: targetSecs });
+                  return; // Keluar dini agar tidak menjadwalkan ulang setTimeout pada tick lama ini
+                } else {
+                  nextPhase = "Malam (Eksekusi)";
+                }
               }
             }
           } catch { /* skip */ }
@@ -130,12 +145,16 @@ export function TimerProvider({ children }) {
 
       // Lanjut tick berikutnya
       if (isActiveRef.current && secondsRef.current > 0) {
+        if (!active) return;
         tickRef.current = setTimeout(tick, 500);
       }
     };
 
     tickRef.current = setTimeout(tick, 500);
-    return () => clearTimeout(tickRef.current);
+    return () => {
+      active = false;
+      clearTimeout(tickRef.current);
+    };
   }, [isActive, seconds, isHost, roomCode]);
 
   // --- Night Result Processing ---
@@ -294,13 +313,15 @@ export function TimerProvider({ children }) {
       }
 
       const target = players.find(p => p.id === action.targetId);
-      updates[`rooms/${roomCode}/warlockResult/${action.playerId}`] = {
-        item: action.purchasedItem,
-        targetName: target?.name || "Unknown",
-        targetRole: target?.role || "Unknown",
-        dead: deadIds.has(action.targetId),
-        timestamp: Date.now()
-      };
+      if (action.purchasedItem === 'poison') {
+        updates[`rooms/${roomCode}/warlockResult/${action.playerId}`] = {
+          item: action.purchasedItem,
+          targetName: target?.name || "Unknown",
+          targetRole: target?.role || "Unknown",
+          dead: deadIds.has(action.targetId),
+          timestamp: Date.now()
+        };
+      }
     }
 
     // ── STAGE 5: Seer — intip role (info murni) ──
@@ -328,10 +349,6 @@ export function TimerProvider({ children }) {
 
     deadIds.forEach(id => {
       updates[`rooms/${roomCode}/players/${id}/status`] = 'dead';
-    });
-    Object.entries(seerResults).forEach(([playerId, result]) => {
-      updates[`rooms/${roomCode}/seerReveal/${playerId}`] = { ...result, timestamp: Date.now() };
-      updates[`rooms/${roomCode}/seerResult/${playerId}`] = { ...result, timestamp: Date.now() };
     });
     Object.keys(truthTargets).forEach(id => {
       updates[`rooms/${roomCode}/players/${id}/underTruth`] = true;
@@ -464,6 +481,10 @@ export function TimerProvider({ children }) {
             if (p.role === 'Warlock') reset.warlockActed = null;
             await update(ref(db, `rooms/${roomCode}/players/${p.id}`), reset);
           }
+          // Clean old results at start of night
+          await set(ref(db, `rooms/${roomCode}/seerResult`), null);
+          await set(ref(db, `rooms/${roomCode}/seerReveal`), null);
+          await set(ref(db, `rooms/${roomCode}/warlockResult`), null);
         } catch { /* skip */ }
 
         endTimeRef.current = Date.now() + 180 * 1000;

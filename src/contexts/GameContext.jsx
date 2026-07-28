@@ -20,6 +20,7 @@ export function GameProvider({ children }) {
     return local || (id && id.startsWith("host_")) || false;
   });
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('player_name') || '');
+  const [gameMatchId, setGameMatchId] = useState(() => localStorage.getItem('game_match_id') || '');
   const [players, setPlayers] = useState([]);
   const [isJoining, setIsJoining] = useState(false);
 
@@ -50,6 +51,8 @@ export function GameProvider({ children }) {
   isHostRef.current = isHost;
   const myPlayerIdRef = useRef(myPlayerId);
   myPlayerIdRef.current = myPlayerId;
+  const roomStatusRef = useRef(roomStatus);
+  roomStatusRef.current = roomStatus;
 
   const myData = players.find(p => p.id === myPlayerId);
 
@@ -62,10 +65,11 @@ export function GameProvider({ children }) {
     localStorage.setItem('room_code', roomCode);
     localStorage.setItem('is_host', isHost);
     localStorage.setItem('player_name', playerName);
+    localStorage.setItem('game_match_id', gameMatchId);
     if (myPlayerId) {
       localStorage.setItem('my_player_id', myPlayerId);
     }
-  }, [currentPage, roomCode, isHost, myPlayerId, playerName]);
+  }, [currentPage, roomCode, isHost, myPlayerId, playerName, gameMatchId]);
 
   // --- Popstate Handler ---
   useEffect(() => {
@@ -92,15 +96,34 @@ export function GameProvider({ children }) {
       if (!data || data.status === "destroyed") {
         if (!hasShownDestroyedRef.current) {
           hasShownDestroyedRef.current = true;
-          showNotif("Room Dibubarkan", "Moderator telah menutup permainan ini.", "error");
+          if (roomStatusRef.current === "ended") {
+            showNotif("Permainan Selesai", "Room telah ditutup karena permainan telah selesai.", "info");
+          } else {
+            showNotif("Room Dibubarkan", "Moderator telah menutup permainan ini.", "error");
+          }
           setTimeout(() => {
             localStorage.clear();
             setRoomCode('');
             setMyPlayerId(null);
+            setGameMatchId('');
             setCurrentPage('landing');
           }, 3000);
         }
         return;
+      }
+
+      // --- Validasi gameMatchId ---
+      if (data.gameMatchId) {
+        const localMatchId = localStorage.getItem('game_match_id');
+        if (localMatchId && data.gameMatchId !== localMatchId) {
+          localStorage.clear();
+          setRoomCode('');
+          setMyPlayerId(null);
+          setGameMatchId('');
+          setCurrentPage('landing');
+          return;
+        }
+        setGameMatchId(data.gameMatchId);
       }
 
       // --- Deteksi Kick ---
@@ -150,7 +173,9 @@ export function GameProvider({ children }) {
     const finalName = name || "Moderator";
     const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     const hostId = "host_" + Date.now();
+    const newMatchId = "match_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
     const roomData = {
+      gameMatchId: newMatchId,
       status: "waiting",
       host: finalName,
       createdAt: Date.now(),
@@ -162,6 +187,7 @@ export function GameProvider({ children }) {
     await set(ref(db, "rooms/" + newCode), roomData);
     setRoomCode(newCode);
     setMyPlayerId(hostId);
+    setGameMatchId(newMatchId);
     setIsHost(true);
     setPlayerName(finalName);
     setCurrentPage('room-lobby');
@@ -179,7 +205,8 @@ export function GameProvider({ children }) {
         showNotif("Gagal", "Room tidak ditemukan.", "error");
         return;
       }
-      if (snapshot.val().status !== "waiting") {
+      const roomVal = snapshot.val();
+      if (roomVal.status !== "waiting") {
         setIsJoining(false);
         showNotif("Ditolak", "Game sedang berjalan.", "error");
         return;
@@ -188,6 +215,7 @@ export function GameProvider({ children }) {
       await set(newPlayerRef, { name: finalName, role: "Pending", status: "alive", joinedAt: Date.now() });
       setRoomCode(code);
       setMyPlayerId(newPlayerRef.key);
+      setGameMatchId(roomVal.gameMatchId || '');
       setIsHost(false);
       setPlayerName(finalName);
       setCurrentPage('room-lobby');
@@ -244,20 +272,22 @@ export function GameProvider({ children }) {
     localStorage.clear();
     setRoomCode('');
     setMyPlayerId(null);
+    setGameMatchId('');
     setCurrentPage('landing');
   }, [isHost, roomCode]);
 
   const handleLeaveGame = useCallback(async (hasWinner) => {
-    if (hasWinner && isHost) {
+    if (hasWinner) {
       await deleteRoom(roomCode);
-    } else if (!hasWinner) {
+    } else {
       update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), { status: "dead" });
     }
     localStorage.clear();
     setRoomCode('');
     setMyPlayerId(null);
+    setGameMatchId('');
     setCurrentPage('landing');
-  }, [isHost, roomCode, myPlayerId]);
+  }, [roomCode, myPlayerId]);
 
   const value = {
     // State
