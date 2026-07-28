@@ -19,7 +19,7 @@ const LandingPage = ({ onNext, onCredits }) => {
               <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span>
             </span>
             <span className="text-[10px] font-black tracking-[0.2em] uppercase text-slate-400">
-              Waranasura Chronicles • Ver 3.0
+              Waranasura Chronicles • Ver 0.0
             </span>
           </div>
 
