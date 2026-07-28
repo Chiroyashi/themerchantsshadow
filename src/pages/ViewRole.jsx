@@ -241,10 +241,20 @@ const ViewRole = ({ onNext }) => {
         path: `rooms/${roomCode}/warlockResult/${playerData.id}`,
         validate: (d) => d && d.targetName,
         map: (d) => {
+          if (d.item === 'vision') {
+            return {
+              icon: '👁️',
+              title: 'Hasil Penerawangan',
+              desc: `Kamu menerawang ${d.targetName}`,
+              targetName: d.targetName,
+              targetRole: d.targetRole,
+            };
+          }
           const label = d.item === 'poison' ? '☠️ Poison' : '👁️ Vision';
           return {
-            icon: label, title: 'Hasil Aksi',
-            desc: `${label} pada ${d.targetName}${d.dead ? ' — Target mati!' : d.item === 'vision' ? ` (${d.targetRole})` : ' — Target selamat'}`,
+            icon: label,
+            title: 'Hasil Aksi',
+            desc: `${label} pada ${d.targetName}${d.dead ? ' — Target mati!' : ' — Target selamat'}`,
           };
         },
       },
@@ -489,9 +499,9 @@ const ViewRole = ({ onNext }) => {
     if (choice === 'skip') {
       popupInfo = { icon: "⏭️", title: "Transaksi", desc: "Kamu Skip transaksi malam ini" };
     } else if (item === 'poison') {
-      popupInfo = { icon: "☠️", title: "Pembelian Gelap", desc: `Kamu membeli POISON, incar ${targetPlayer?.name}` };
+      popupInfo = { icon: "☠️", title: "Pembelian Gelap", desc: targetPlayer ? `Kamu membeli POISON, incar ${targetPlayer.name}` : "Kamu membeli POISON" };
     } else if (item === 'vision') {
-      popupInfo = { icon: "👁️", title: "Pembelian Gelap", desc: `Kamu membeli VISION, incar ${targetPlayer?.name}` };
+      popupInfo = { icon: "👁️", title: "Pembelian Gelap", desc: targetPlayer ? `Kamu membeli VISION, incar ${targetPlayer.name}` : "Kamu membeli VISION" };
     }
     if (popupInfo) {
       setActionPopupData(popupInfo);
@@ -504,7 +514,7 @@ const ViewRole = ({ onNext }) => {
       choice: choice, // 'buy' or 'skip'
       item: item, // 'poison', 'vision', or null
       targetId: targetId || "none",
-      targetName: targetPlayer?.name || "Skip",
+      targetName: targetPlayer?.name || "None",
       timestamp: getTimestamp()
     });
 
@@ -528,7 +538,7 @@ const ViewRole = ({ onNext }) => {
         warlock: playerData.name,
         item: item,
         targetId: targetId || "none",
-        targetName: targetPlayer?.name || "Unknown",
+        targetName: targetPlayer?.name || "None",
         merchantId: randomPedagang?.id || "system",
         merchantName: randomPedagang?.name || "System",
         timestamp: getTimestamp()
@@ -750,29 +760,10 @@ const ViewRole = ({ onNext }) => {
                        <div className="space-y-2 md:space-y-3">
                          <p className="text-[8px] md:text-[9px] font-black text-purple-400 uppercase text-center">Pilih Item</p>
                          <div className="grid grid-cols-2 gap-2">
-                           <button onClick={() => setWarlockItem('poison')} className="py-2 md:py-3 bg-red-600 text-white rounded-xl text-[8px] md:text-[10px] font-black uppercase shadow-lg active:scale-95">☠️ Poison</button>
-                           <button onClick={() => setWarlockItem('vision')} className="py-2 md:py-3 bg-indigo-600 text-white rounded-xl text-[8px] md:text-[10px] font-black uppercase shadow-lg active:scale-95">👁️ Vision</button>
+                           <button onClick={() => sendWarlockAction('buy', 'poison', null)} className="py-2 md:py-3 bg-red-600 text-white rounded-xl text-[8px] md:text-[10px] font-black uppercase shadow-lg active:scale-95">☠️ Poison</button>
+                           <button onClick={() => sendWarlockAction('buy', 'vision', null)} className="py-2 md:py-3 bg-indigo-600 text-white rounded-xl text-[8px] md:text-[10px] font-black uppercase shadow-lg active:scale-95">👁️ Vision</button>
                          </div>
                          <button onClick={() => { setWarlockChoice(null); setWarlockItem(null); }} className="text-[7px] md:text-[8px] text-slate-500 underline">Kembali</button>
-                       </div>
-                     ) : warlockChoice === 'buy' && warlockItem ? (
-                       <div className="space-y-2 md:space-y-3">
-                         <p className="text-[8px] md:text-[9px] font-black text-purple-400 uppercase text-center">{warlockItem === 'poison' ? '☠️ Pilih Target' : '👁️ Pilih Target Cek'}</p>
-                         <button onClick={() => setShowTargetList(!showTargetList)} className="w-full p-3 md:p-4 bg-slate-950 border border-slate-800 rounded-xl text-sm font-bold flex justify-between items-center text-white">
-                           <span className="truncate">{getTargetName()}</span>
-                           <ChevronUp size={16} className={showTargetList ? "rotate-180 transition-transform" : ""} />
-                         </button>
-                         {showTargetList && (
-                           <div className="mt-2 grid gap-1 max-h-32 md:max-h-40 overflow-y-auto custom-scrollbar">
-                             {players.filter(p=>p.id!==playerData.id && p.status!=='dead' && p.role!=='Moderator').map(p=>(
-                               <button key={p.id} onClick={()=>{setActionTarget(p.id); setShowTargetList(false);}} className="p-2 md:p-3 bg-slate-800 hover:bg-purple-600 rounded-lg text-xs text-left text-white transition-colors">{p.name}</button>
-                             ))}
-                           </div>
-                         )}
-                         <div className="grid grid-cols-2 gap-2 mt-3 md:mt-4">
-                           <button onClick={() => sendWarlockAction('buy', warlockItem, actionTarget)} disabled={!actionTarget} className="py-2 md:py-3 bg-purple-600 disabled:bg-slate-800 text-white rounded-xl text-[8px] md:text-[10px] font-black uppercase shadow-lg active:scale-95">Kirim</button>
-                           <button onClick={() => { setWarlockChoice(null); setWarlockItem(null); setActionTarget(""); }} className="py-2 md:py-3 bg-slate-800 text-slate-500 rounded-xl text-[8px] md:text-[10px] font-black uppercase active:scale-95">Batal</button>
-                         </div>
                        </div>
                      ) : null}
                    </div>
