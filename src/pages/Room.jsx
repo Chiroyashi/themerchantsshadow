@@ -1,11 +1,20 @@
 import React, { useState } from 'react';
-import { Plus, Users, ArrowRight, ChevronLeft, UserCircle, ScrollText, BadgeCheck, GripVertical } from 'lucide-react';
+import { Plus, Users, ArrowRight, ChevronLeft, UserCircle, ScrollText, BadgeCheck, GripVertical, Clipboard } from 'lucide-react';
 import { useGameContext } from '../contexts/GameContext';
 
 const Room = ({ onBack }) => {
   const { handleCreateRoom, handleJoinRoom, isJoining } = useGameContext();
   const [inputCode, setInputCode] = useState('');
   const [tempName, setTempName] = useState("");
+
+  const handlePaste = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      setInputCode(text.trim().toUpperCase().substring(0, 6));
+    } catch (err) {
+      console.error("Gagal menempelkan teks:", err);
+    }
+  };
 
   const isNameEmpty = tempName.trim().length < 3;
   const nameLength = tempName.trim().length;
@@ -114,8 +123,16 @@ const Room = ({ onBack }) => {
                     value={inputCode}
                     maxLength={6}
                     onChange={(e) => setInputCode(e.target.value.toUpperCase())}
-                    className="w-full bg-slate-950/80 border-2 border-slate-800 rounded-2xl px-4 py-4 text-center font-mono font-black tracking-[0.2em] focus:border-blue-600 focus:outline-none transition-all text-sm"
+                    className="w-full bg-slate-950/80 border-2 border-slate-800 rounded-2xl pl-4 pr-12 py-4 text-center font-mono font-black tracking-[0.2em] focus:border-blue-600 focus:outline-none transition-all text-sm"
                   />
+                  <button
+                    type="button"
+                    onClick={handlePaste}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2.5 bg-slate-900/60 hover:bg-slate-800 border border-white/5 rounded-xl text-slate-400 hover:text-white transition-all active:scale-90"
+                    title="Paste"
+                  >
+                    <Clipboard size={16} />
+                  </button>
                 </div>
                 <button
                   onClick={() => handleJoinRoom(inputCode, tempName)}

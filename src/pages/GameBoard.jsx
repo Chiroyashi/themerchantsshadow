@@ -35,6 +35,10 @@ const GameBoard = ({ onBack }) => {
   const getVoteCount = (playerId) => votesArray.filter(v => v === playerId).length;
   const skipVoteCount = votesArray.filter(v => v === 'skip').length;
 
+  // Calculate threshold for skip vote
+  const alivePlayersCount = players.filter(p => p.status !== 'dead' && p.role !== 'Moderator').length;
+  const killThreshold = Math.floor(alivePlayersCount / 2) + 1;
+
   // Reset target & action status pada perubahan phase atau roomCode (render phase reset untuk menghindari setState dalam effect)
   const [prevPhaseRoom, setPrevPhaseRoom] = useState({ phase, roomCode });
   if (phase !== prevPhaseRoom.phase || roomCode !== prevPhaseRoom.roomCode) {
@@ -139,15 +143,22 @@ const GameBoard = ({ onBack }) => {
         <div className="w-full max-w-[280px] sm:max-w-xs bg-black/40 rounded-2xl p-2 border border-white/5">
           <SharedTimer seconds={seconds} phase={phase} isActive={isActive} />
         </div>
-        <div className="text-center">
+        <div className="text-center w-full">
           <p className={`text-[9px] font-black uppercase tracking-widest ${isVotingTime ? 'text-orange-400' : 'text-slate-600'}`}>
             {isVotingTime ? '🗳️ Silahkan Vote' : '🔒 Belum saatnya Vote'}
           </p>
           {isVotingTime && skipVoteCount > 0 && (
-            <div className="mt-2 animate-in fade-in duration-300">
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-900 border border-slate-800 rounded-full text-[8px] font-black text-slate-400 uppercase tracking-widest">
-                ⏭️ Skip: {skipVoteCount} vote
-              </span>
+            <div className="w-full max-w-[280px] sm:max-w-xs mx-auto mt-3.5 px-2 animate-in fade-in duration-300">
+              <div className="flex justify-between items-center text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1.5 px-0.5">
+                <span>Progres Skip Vote</span>
+                <span>{skipVoteCount}/{killThreshold} Suara</span>
+              </div>
+              <div className="h-1.5 bg-slate-900 rounded-full border border-slate-800/80 overflow-hidden relative shadow-inner">
+                <div
+                  className="h-full bg-gradient-to-r from-slate-600 to-slate-500 transition-all duration-500 rounded-full shadow-[0_0_8px_rgba(148,163,184,0.3)]"
+                  style={{ width: `${Math.min(100, (skipVoteCount / killThreshold) * 100)}%` }}
+                />
+              </div>
             </div>
           )}
         </div>

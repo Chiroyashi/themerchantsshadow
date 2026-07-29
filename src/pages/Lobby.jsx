@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
 import { Users, Play, Copy, Check, AlertTriangle, ShieldCheck, XCircle, UserMinus, ChevronLeft } from 'lucide-react';
 import { useGameContext } from '../contexts/GameContext';
+import { calculateRoles } from '../utils/roleBalancer';
 
 const Lobby = ({ onBack }) => {
-  const { roomCode, players, isHost, handleStartGame, handleKickPlayer } = useGameContext();
+  const { roomCode, players, myPlayerId, isHost, handleStartGame, handleKickPlayer } = useGameContext();
   const [isCopied, setIsCopied] = useState(false);
 
   // --- LOGIKA PEMBATASAN MINIMAL PEMAIN ---
   const minPlayers = 6;
   const currentPlayerCount = players.length;
   const isReady = currentPlayerCount >= minPlayers;
+  const roleConfig = calculateRoles(currentPlayerCount);
 
   const handleCopyCode = () => {
     if (!roomCode) return;
@@ -81,6 +83,52 @@ const Lobby = ({ onBack }) => {
           </div>
         )}
 
+        {/* --- ROLE PREVIEW AREA --- */}
+        {currentPlayerCount >= 5 && (
+          <div className="bg-slate-900/30 border border-white/5 rounded-[2rem] p-5 text-left relative overflow-hidden backdrop-blur-sm animate-in fade-in duration-500">
+            <p className="text-slate-500 uppercase tracking-[0.2em] text-[8px] font-black italic mb-3">
+              Prediksi Distribusi Peran ({currentPlayerCount} Pemain)
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {roleConfig.antagonists.werewolf > 0 && (
+                <span className="flex items-center gap-1 bg-red-950/40 border border-red-500/20 text-red-400 text-[10px] font-black uppercase px-3 py-1.5 rounded-xl">
+                  🐺 Werewolf x{roleConfig.antagonists.werewolf}
+                </span>
+              )}
+              {roleConfig.antagonists.warlock > 0 && (
+                <span className="flex items-center gap-1 bg-purple-950/40 border border-purple-500/20 text-purple-400 text-[10px] font-black uppercase px-3 py-1.5 rounded-xl">
+                  🔮 Warlock x{roleConfig.antagonists.warlock}
+                </span>
+              )}
+              {roleConfig.protagonists.hakim > 0 && (
+                <span className="flex items-center gap-1 bg-amber-950/40 border border-amber-500/20 text-amber-400 text-[10px] font-black uppercase px-3 py-1.5 rounded-xl">
+                  ⚖️ Hakim x{roleConfig.protagonists.hakim}
+                </span>
+              )}
+              {roleConfig.protagonists.seer > 0 && (
+                <span className="flex items-center gap-1 bg-emerald-950/40 border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase px-3 py-1.5 rounded-xl">
+                  👁️ Seer x{roleConfig.protagonists.seer}
+                </span>
+              )}
+              {roleConfig.protagonists.guard > 0 && (
+                <span className="flex items-center gap-1 bg-cyan-950/40 border border-cyan-500/20 text-cyan-400 text-[10px] font-black uppercase px-3 py-1.5 rounded-xl">
+                  🛡️ Guard x{roleConfig.protagonists.guard}
+                </span>
+              )}
+              {roleConfig.protagonists.hunter > 0 && (
+                <span className="flex items-center gap-1 bg-orange-950/40 border border-orange-500/20 text-orange-400 text-[10px] font-black uppercase px-3 py-1.5 rounded-xl">
+                  🎯 Hunter x{roleConfig.protagonists.hunter}
+                </span>
+              )}
+              {roleConfig.protagonists.pedagang > 0 && (
+                <span className="flex items-center gap-1 bg-blue-950/40 border border-blue-500/20 text-blue-400 text-[10px] font-black uppercase px-3 py-1.5 rounded-xl">
+                  💼 Pedagang x{roleConfig.protagonists.pedagang}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* DAFTAR PEMAIN */}
         <div className="bg-slate-900/40 border border-white/5 rounded-[2.5rem] p-6 shadow-2xl backdrop-blur-sm relative overflow-hidden">
           {/* Background Decorative Icon */}
@@ -94,53 +142,81 @@ const Lobby = ({ onBack }) => {
               </span>
             </div>
             <span className={`text-[10px] font-black px-4 py-1 rounded-full border ${isReady ? 'bg-emerald-600/10 border-emerald-500/20 text-emerald-500' : 'bg-amber-600/10 border-amber-500/20 text-amber-500'}`}>
-              Min. {minPlayers}
+              {isReady ? `Total Pemain: ${currentPlayerCount}` : `Min. ${minPlayers}`}
             </span>
           </div>
           
           <ul className="space-y-2 max-h-80 overflow-y-auto pr-2 custom-scrollbar relative z-10">
-            {players.map((p) => {
-              const isModerator = p.role === 'Moderator';
-              return (
-                <li
-                  key={p.id}
-                  className="flex justify-between items-center bg-slate-950/60 p-3 sm:p-4 rounded-2xl border border-white/5 hover:border-red-600/30 hover:bg-slate-950 transition-all group"
-                >
-                  <div className="flex items-center gap-3">
-                    {/* Avatar */}
-                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${isModerator ? 'bg-red-600/20' : 'bg-blue-600/20'}`}>
-                      <ShieldCheck size={20} className={isModerator ? 'text-red-500' : 'text-blue-400'} />
+            {[...players]
+              .sort((a, b) => {
+                if (a.id === myPlayerId) return -1;
+                if (b.id === myPlayerId) return 1;
+
+                const aIsMod = a.role === 'Moderator';
+                const bIsMod = b.role === 'Moderator';
+                if (aIsMod && !bIsMod) return -1;
+                if (bIsMod && !aIsMod) return 1;
+
+                const aTime = a.joinedAt || 0;
+                const bTime = b.joinedAt || 0;
+                if (aTime !== bTime) return aTime - bTime;
+                return a.id.localeCompare(b.id);
+              })
+              .map((p) => {
+                const isMe = p.id === myPlayerId;
+                const isModerator = p.role === 'Moderator';
+                const isHighlight = isMe && !isModerator;
+                return (
+                  <li
+                    key={p.id}
+                    className="flex justify-between items-center bg-slate-950/60 p-3 sm:p-4 rounded-2xl border border-white/5 hover:border-red-600/30 hover:bg-slate-950 transition-all group"
+                  >
+                    <div className="flex items-center gap-3">
+                      {/* Avatar */}
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+                        isModerator ? 'bg-red-600/20' : isHighlight ? 'bg-emerald-600/20' : 'bg-blue-600/20'
+                      }`}>
+                        <ShieldCheck size={20} className={
+                          isModerator ? 'text-red-500' : isHighlight ? 'text-emerald-400' : 'text-blue-400'
+                        } />
+                      </div>
+
+                      {/* Info */}
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-0.5">Nama</span>
+                        <span className={`font-black text-base truncate max-w-[160px] ${
+                          isHighlight ? 'text-emerald-400' : 'text-white'
+                        }`}>
+                          {p.name}
+                        </span>
+                      </div>
                     </div>
-                    
-                    {/* Info */}
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-0.5">Nama</span>
-                      <span className="font-black text-base text-white truncate max-w-[160px]">
-                        {p.name}
-                      </span>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2">
+                      {isModerator && (
+                        <span className="text-[8px] font-black bg-red-600/20 text-red-500 px-3 py-1.5 rounded-full border border-red-600/30 uppercase tracking-wide">
+                          Host
+                        </span>
+                      )}
+                      {isMe && !isModerator && (
+                        <span className="text-[8px] font-black bg-emerald-600/20 text-emerald-500 px-3 py-1.5 rounded-full border border-emerald-600/30 uppercase tracking-wide">
+                          Anda
+                        </span>
+                      )}
+                      {isHost && !isModerator ? (
+                        <button
+                          onClick={() => handleKickPlayer(p.id)}
+                          className="p-3 hover:bg-red-600 text-slate-600 hover:text-white rounded-xl transition-all active:scale-90 group/kick"
+                          title="Kick"
+                        >
+                          <UserMinus size={18} className="group-hover/kick:animate-pulse" />
+                        </button>
+                      ) : null}
                     </div>
-                  </div>
-                  
-                  {/* Actions */}
-                  <div className="flex items-center gap-2">
-                    {isModerator && (
-                      <span className="text-[8px] font-black bg-red-600/20 text-red-500 px-3 py-1.5 rounded-full border border-red-600/30 uppercase tracking-wide">
-                        Host
-                      </span>
-                    )}
-                    {isHost && !isModerator ? (
-                      <button
-                        onClick={() => handleKickPlayer(p.id)}
-                        className="p-3 hover:bg-red-600 text-slate-600 hover:text-white rounded-xl transition-all active:scale-90 group/kick"
-                        title="Kick"
-                      >
-                        <UserMinus size={18} className="group-hover/kick:animate-pulse" />
-                      </button>
-                    ) : null}
-                  </div>
-                </li>
-              );
-            })}
+                  </li>
+                );
+              })}
           </ul>
         </div>
 

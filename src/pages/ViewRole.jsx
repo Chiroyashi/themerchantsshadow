@@ -384,8 +384,6 @@ const ViewRole = ({ onNext }) => {
       popupInfo = { icon: "🛡️", title: "Proteksi", desc: `Kamu melindungi ${targetPlayer?.name} selama 2 malam`, target: targetPlayer };
     } else if (role.includes("hunter")) {
       popupInfo = { icon: "🎯", title: "Berburu", desc: `Kamu menembak ${targetPlayer?.name}`, target: targetPlayer };
-    } else if (role.includes("hakim") && isPistol) {
-      popupInfo = { icon: "🔫", title: "Eksekusi", desc: `Kamu menembak ${targetPlayer?.name} dengan Pistol` };
     } else if (role.includes("hakim") && !isPistol) {
       popupInfo = { icon: "👁️", title: "Interogasi", desc: `Kamu Truth target ${targetPlayer?.name}` };
     }
@@ -415,10 +413,32 @@ const ViewRole = ({ onNext }) => {
       updates[`rooms/${roomCode}/players/${actionTarget}/status`] = 'dead';
       updates[`rooms/${roomCode}/players/${playerData.id}/pistolActed`] = true;
       updates[`rooms/${roomCode}/players/${playerData.id}/pistolUsedCount`] = pistolUsedCount + 1;
+
+      // Kirim gunshotEvent untuk efek guncang layar & kilatan merah
+      updates[`rooms/${roomCode}/gunshotEvent`] = {
+        targetName: targetPlayer?.name || "Unknown",
+        timestamp: getTimestamp()
+      };
+
+      // Piring pesan sistem ke chat room
+      const chatRef = ref(db, `rooms/${roomCode}/chats`);
+      const newChatRef = push(chatRef);
+      updates[`rooms/${roomCode}/chats/${newChatRef.key}`] = {
+        senderId: "SYSTEM_GUNSHOT",
+        senderName: "PENGUMUMAN",
+        text: `BARRR! Suara tembakan terdengar! Hakim telah menembak ${targetPlayer?.name || "Unknown"}!`,
+        target: "all",
+        channel: "public",
+        timestamp: getTimestamp()
+      };
+
       // Langsung kirim notif kematian ke target
       updates[`rooms/${roomCode}/deadToday`] = {
         day,
         names: [targetPlayer?.name || "Unknown"],
+        details: {
+          [targetPlayer?.name || "Unknown"]: "hakim"
+        },
         timestamp: getTimestamp()
       };
     }
@@ -725,7 +745,7 @@ const ViewRole = ({ onNext }) => {
                 </div>
                 <p className="text-[8px] text-emerald-300/70 italic text-center">
                   {role.includes("hakim")
-                    ? (isNight ? "Truth akan aktif malam ini" : "Pistol akan ditembakkan")
+                    ? (isNight ? "Truth akan aktif malam ini" : "Pistol telah ditembakkan ke target!")
                     : "Keputusan sudah dicatat. Silakan tunggu fase selanjutnya."}
                 </p>
               </div>

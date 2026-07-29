@@ -146,8 +146,9 @@ function AppContent() {
   // Global overlays
   const [voteResult, setVoteResult] = useState(null);
   const [showVoteResult, setShowVoteResult] = useState(false);
-  const [deadToday, setDeadToday] = useState({ names: [], day: 1 });
+  const [deadToday, setDeadToday] = useState({ names: [], day: 1, details: {} });
   const [showDeathPopUp, setShowDeathPopUp] = useState(false);
+  const [showGunshotEffect, setShowGunshotEffect] = useState(false);
 
   // Reset overlay tiap room ganti atau game mulai (in-render state adjustment untuk menghindari warning eslint)
   const [prevRoomCode, setPrevRoomCode] = useState(roomCode);
@@ -155,7 +156,7 @@ function AppContent() {
     setPrevRoomCode(roomCode);
     setShowVoteResult(false);
     setShowDeathPopUp(false);
-    setDeadToday({ names: [], day: 1 });
+    setDeadToday({ names: [], day: 1, details: {} });
     setVoteResult(null);
     prevPhaseRef.current = null;
     dismissedDayRef.current = null;
@@ -186,12 +187,29 @@ function AppContent() {
       const data = snap.val();
       if (data && data.names && data.names.length > 0) {
         if (dismissedDayRef.current === data.day) return;
-        setDeadToday({ names: data.names, day: data.day });
+        setDeadToday({ names: data.names, day: data.day, details: data.details || {} });
         setShowDeathPopUp(true);
       }
     });
     return () => unsub();
   }, [roomCode, currentPage, isHost]);
+
+  // Listen gunshotEvent untuk guncangan layar & kilatan merah
+  useEffect(() => {
+    if (!roomCode || currentPage === 'landing') return;
+    const gunshotRef = ref(db, `rooms/${roomCode}/gunshotEvent`);
+    const unsub = onValue(gunshotRef, snap => {
+      const data = snap.val();
+      if (data && data.timestamp && data.timestamp > (Date.now() - 4000)) {
+        setShowGunshotEffect(true);
+        const timer = setTimeout(() => {
+          setShowGunshotEffect(false);
+        }, 1200);
+        return () => clearTimeout(timer);
+      }
+    });
+    return () => unsub();
+  }, [roomCode, currentPage]);
 
   const isGamePage = ['intro-fable', 'view-role', 'view-mod'].includes(currentPage);
 
@@ -243,8 +261,31 @@ function AppContent() {
   };
 
   return (
-    <div className="antialiased selection:bg-red-500/30">
+    <div className={`antialiased selection:bg-red-500/30 ${showGunshotEffect ? 'animate-shake' : ''}`}>
+      <style>{`
+        @keyframes screen-shake {
+          0%, 100% { transform: translate(0, 0) rotate(0deg); }
+          10% { transform: translate(-6px, -6px) rotate(-1deg); }
+          20% { transform: translate(6px, 6px) rotate(1deg); }
+          30% { transform: translate(-8px, 4px) rotate(-1.5deg); }
+          40% { transform: translate(8px, -4px) rotate(1.5deg); }
+          50% { transform: translate(-6px, 6px) rotate(-1deg); }
+          60% { transform: translate(6px, -6px) rotate(1deg); }
+          70% { transform: translate(-3px, -3px) rotate(-0.5deg); }
+          80% { transform: translate(3px, 3px) rotate(0.5deg); }
+          90% { transform: translate(-1px, 1px) rotate(0deg); }
+        }
+        .animate-shake {
+          animation: screen-shake 0.6s ease-in-out;
+        }
+      `}</style>
+
       {renderPage()}
+
+      {/* Red Gunshot Flash Overlay */}
+      {showGunshotEffect && (
+        <div className="fixed inset-0 bg-red-600/35 pointer-events-none z-[99999] animate-pulse" />
+      )}
 
       {/* GLOBAL: Vote Result Overlay — in-game only */}
       {showVoteResult && voteResult && isGamePage && currentPage !== 'view-mod' && (
@@ -257,10 +298,15 @@ function AppContent() {
 
       {/* GLOBAL: Death Announcement — in-game only */}
       {showDeathPopUp && isGamePage && currentPage !== 'view-mod' && (
-        <DeathAnnouncement deadPlayers={deadToday.names} day={deadToday.day} onClose={() => {
-          dismissedDayRef.current = deadToday.day;
-          setShowDeathPopUp(false);
-        }} />
+        <DeathAnnouncement
+          deadPlayers={deadToday.names}
+          deadDetails={deadToday.details}
+          day={deadToday.day}
+          onClose={() => {
+            dismissedDayRef.current = deadToday.day;
+            setShowDeathPopUp(false);
+          }}
+        />
       )}
     </div>
   );

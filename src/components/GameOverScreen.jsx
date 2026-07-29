@@ -3,6 +3,73 @@ import { Trophy, Skull, Home, Users, ScrollText, Sparkles, Sunrise, Moon, CheckC
 import { Z_LAYER } from '../constants/zIndex';
 import { lockScroll, unlockScroll } from '../utils/scrollLock';
 
+const getRoleVisuals = (roleName) => {
+  const r = roleName?.toLowerCase() || "";
+  if (r.includes('werewolf')) {
+    return { emoji: "🐺", textColor: "text-red-500", bgColor: "bg-red-950/30", borderColor: "border-red-500/20" };
+  }
+  if (r.includes('warlock')) {
+    return { emoji: "🔮", textColor: "text-purple-400", bgColor: "bg-purple-950/30", borderColor: "border-purple-500/20" };
+  }
+  if (r.includes('seer')) {
+    return { emoji: "👁️", textColor: "text-emerald-400", bgColor: "bg-emerald-950/30", borderColor: "border-emerald-500/20" };
+  }
+  if (r.includes('guard')) {
+    return { emoji: "🛡️", textColor: "text-cyan-400", bgColor: "bg-cyan-950/30", borderColor: "border-cyan-500/20" };
+  }
+  if (r.includes('hakim')) {
+    return { emoji: "⚖️", textColor: "text-amber-400", bgColor: "bg-amber-950/30", borderColor: "border-amber-500/20" };
+  }
+  if (r.includes('hunter')) {
+    return { emoji: "🎯", textColor: "text-orange-400", bgColor: "bg-orange-950/30", borderColor: "border-orange-500/20" };
+  }
+  return { emoji: "💼", textColor: "text-blue-400", bgColor: "bg-blue-950/30", borderColor: "border-blue-500/20" };
+};
+
+const getPlayerAchievement = (player, allPlayers, winner) => {
+  const isWargaWinner = winner === 'WARGA';
+  const roleLower = player.role?.toLowerCase() || "";
+  const isAntagonist = roleLower.includes('werewolf') || roleLower.includes('warlock');
+  const isTeamWinner = isWargaWinner ? !isAntagonist : isAntagonist;
+  const isAlive = player.status === 'alive';
+
+  if (player.role === 'Moderator') return null;
+
+  // 1. Last Stand: Only survivor of the winning team
+  const aliveWinningTeam = allPlayers.filter(p => {
+    const pRole = p.role?.toLowerCase() || "";
+    const pAntagonist = pRole.includes('werewolf') || pRole.includes('warlock');
+    const pWinner = isWargaWinner ? !pAntagonist : pAntagonist;
+    return pWinner && p.status === 'alive' && p.role !== 'Moderator';
+  });
+
+  if (isTeamWinner && isAlive && aliveWinningTeam.length === 1) {
+    return { title: "Last Stand 🎖️", desc: "Satu-satunya pemenang yang bertahan hidup" };
+  }
+
+  // 2. Silent Threat: Antagonist who survived
+  if (isAntagonist && isAlive) {
+    return { title: "Silent Threat 🤫", desc: "Serigala berbulu domba yang selamat" };
+  }
+
+  // 3. Survivor: Surviving protagonist
+  if (!isAntagonist && isAlive) {
+    return { title: "Survivor 🛡️", desc: "Berhasil bertahan hidup hingga fajar tiba" };
+  }
+
+  // 4. Martyr: Dead winning protagonist/antagonist (won the game but died)
+  if (isTeamWinner && !isAlive) {
+    return { title: "Martyr 🕊️", desc: "Gugur demi kemenangan tim" };
+  }
+
+  // 5. Fallen: Lost the game and died
+  if (!isAlive) {
+    return { title: "Fallen ☠️", desc: "Jiwanya kini beristirahat di Waranasura" };
+  }
+
+  return null;
+};
+
 const GameOverScreen = ({ winner, players, playerData, onLeave }) => {
   useEffect(() => { lockScroll(); return () => unlockScroll(); }, []);
   const [step, setStep] = useState(1);
@@ -111,17 +178,63 @@ const GameOverScreen = ({ winner, players, playerData, onLeave }) => {
                 const pRole = p.role.toLowerCase();
                 const pIsAntagonist = pRole.includes('werewolf') || pRole.includes('warlock');
                 const pIsWinner = isWargaWinner ? !pIsAntagonist : pIsAntagonist;
+                const isDead = p.status === 'dead';
+                const rVisuals = getRoleVisuals(p.role);
 
                 return (
-                  <div key={p.id} className="bg-slate-900/60 border border-white/5 p-4 rounded-2xl flex items-center justify-between group hover:border-blue-500/30 transition-colors">
-                    <div className="text-left">
-                      <div className="flex items-center gap-2">
-                        <span className="font-black text-white uppercase text-sm tracking-tighter">{p.name}</span>
-                        {p.status === 'dead' && <Skull size={10} className="text-slate-600" />}
+                  <div
+                    key={p.id}
+                    className={`bg-slate-900/60 border border-white/5 p-4 rounded-2xl flex items-center justify-between group hover:border-blue-500/30 transition-all duration-300 ${
+                      isDead ? 'opacity-65' : ''
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      {/* Role Avatar box */}
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${rVisuals.bgColor} ${rVisuals.borderColor}`}>
+                        <span className="text-lg">{rVisuals.emoji}</span>
                       </div>
-                      <span className="text-[8px] font-black text-blue-500 uppercase tracking-widest">{p.role}</span>
+
+                      {/* Info */}
+                      <div className="text-left">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`font-black uppercase text-sm tracking-tighter ${
+                            isDead ? 'text-slate-400 line-through' : 'text-white'
+                          }`}>
+                            {p.name}
+                          </span>
+                          {isDead && (
+                            <span className="inline-flex items-center bg-red-950/30 border border-red-500/20 text-red-500 text-[7px] font-black uppercase px-2 py-0.5 rounded-md">
+                              DEAD
+                            </span>
+                          )}
+                        </div>
+                        <span className={`text-[9px] font-black uppercase tracking-widest ${rVisuals.textColor}`}>
+                          {p.role}
+                        </span>
+                        {/* Achievement Badge */}
+                        {(() => {
+                          const achievement = getPlayerAchievement(p, players, winner);
+                          if (!achievement) return null;
+                          return (
+                            <div className="mt-1">
+                              <span
+                                className="inline-block text-[7.5px] font-black text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 uppercase tracking-wider"
+                                title={achievement.desc}
+                              >
+                                {achievement.title}
+                              </span>
+                            </div>
+                          );
+                        })()}
+                      </div>
                     </div>
-                    <div className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-[0.2em] ${pIsWinner ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border border-rose-500/20'}`}>
+
+                    {/* Win/Lose Badge */}
+                    <div className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-[0.2em] shadow-md ${
+                      pIsWinner
+                        ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shadow-emerald-950/20'
+                        : 'bg-rose-500/10 text-rose-500 border border-rose-500/20 shadow-rose-950/20'
+                    }`}>
                       {pIsWinner ? 'Win' : 'Lose'}
                     </div>
                   </div>

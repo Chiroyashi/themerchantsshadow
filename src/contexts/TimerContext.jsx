@@ -172,6 +172,7 @@ export function TimerProvider({ children }) {
     const logs = [];
     const deadIds = new Set();
     const protectedIds = new Set();
+    const deathCauses = {};
 
     // Baca currentAction dari tiap player
     Object.entries(allActions).forEach(([playerId, playerData]) => {
@@ -245,10 +246,13 @@ export function TimerProvider({ children }) {
 
       if (isWarga) {
         deadIds.add(hunt.targetId);
+        deathCauses[hunt.targetId] = "hunter";
         deadIds.add(hunt.playerId);
+        deathCauses[hunt.playerId] = "hunter_backfire";
         logs.push(`Hunter ${hunt.name} menembak Warga ${hunt.targetName} → Keduanya MATI!`);
       } else {
         deadIds.add(hunt.targetId);
+        deathCauses[hunt.targetId] = "hunter";
         logs.push(`Hunter ${hunt.name} menembak Serigala ${hunt.targetName} → Hunter SELAMAT!`);
       }
 
@@ -285,7 +289,10 @@ export function TimerProvider({ children }) {
 
         const targetAlive = players.find(p => p.id === kill.targetId && p.status !== 'dead');
         if (targetAlive) {
-          deadIds.add(kill.targetId);
+          if (!deathCauses[kill.targetId]) {
+            deadIds.add(kill.targetId);
+            deathCauses[kill.targetId] = "general";
+          }
           logs.push(`Werewolf ${kill.name} membunuh ${kill.targetName}`);
           updates[`rooms/${roomCode}/werewolfResult/${kill.playerId}`] = {
             targetName: kill.targetName,
@@ -303,6 +310,7 @@ export function TimerProvider({ children }) {
       if (action.purchasedItem === 'poison' && action.targetId && !protectedIds.has(action.targetId)) {
         if (!deadIds.has(action.targetId)) {
           deadIds.add(action.targetId);
+          deathCauses[action.targetId] = "general";
           logs.push(`Warlock ${action.name} menggunakan Poison pada ${action.targetName}`);
         }
       } else if (action.purchasedItem === 'vision' && action.targetId) {
@@ -361,13 +369,18 @@ export function TimerProvider({ children }) {
 
     // Set deadToday
     const nightDeadNames = [];
+    const nightDeadDetails = {};
     deadIds.forEach(id => {
       const p = players.find(pl => pl.id === id);
-      if (p) nightDeadNames.push(p.name);
+      if (p) {
+        nightDeadNames.push(p.name);
+        nightDeadDetails[p.name] = deathCauses[id] || "general";
+      }
     });
     updates[`rooms/${roomCode}/deadToday`] = {
       day: dayRef.current,
       names: nightDeadNames.length > 0 ? nightDeadNames : ["TIDAK ADA"],
+      details: nightDeadDetails,
       timestamp: Date.now()
     };
 

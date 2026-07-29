@@ -4,10 +4,14 @@ import { ref, push, onValue, set } from "firebase/database";
 import { db } from "../lib/firebase";
 import { Send, MessageSquare, ChevronDown, Globe, User, ShieldAlert, Ghost, Skull } from 'lucide-react';
 import { Z_LAYER } from '../constants/zIndex';
+import { useTimerContext } from '../contexts/TimerContext';
+import { isMalam } from '../constants/phases';
 
 const getTimestamp = () => Date.now();
 
 const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onToggleExternal, onUnreadChange }) => {
+  const { phase } = useTimerContext();
+  const isNightTime = isMalam(phase);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [targetId, setTargetId] = useState("all");
@@ -275,6 +279,7 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
                   const isMeMsg = m.senderId === myId;
                   const isPrivateMsg = m.target !== "all";
                   const isSystemTruth = m.senderId === "SYSTEM_TRUTH";
+                  const isSystemGunshot = m.senderId === "SYSTEM_GUNSHOT";
                   const isWWMsg = m.channel === 'ww';
                   const isGraveyardMsg = m.channel === 'graveyard';
 
@@ -289,31 +294,36 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
                             <span className="text-[6px] text-purple-500/80 lowercase italic font-normal ml-0.5">(whisper)</span>
                           </span>
                         ) : (
-                          <span className="text-[7px] font-black uppercase tracking-tight text-slate-600">
+                          <span className={`text-[7px] font-black uppercase tracking-tight ${
+                            isGraveyardMsg ? 'text-slate-500/80 italic' : 'text-slate-600'
+                          }`}>
                             {isMeMsg ? 'Anda' : m.senderName}
                           </span>
                         )}
                         {isWWMsg && !isMeMsg && <Ghost size={9} className="text-red-500" />}
-                        {isGraveyardMsg && !isMeMsg && <Skull size={9} className="text-slate-500" />}
+                        {isGraveyardMsg && <Ghost size={9} className="text-slate-500/70 animate-pulse" />}
                         {isSystemTruth && <ShieldAlert size={9} className="text-amber-500" />}
+                        {isSystemGunshot && <ShieldAlert size={9} className="text-red-500 animate-pulse" />}
                       </div>
                       <div className={`px-4 py-2.5 text-sm font-medium leading-relaxed shadow-lg max-w-[85%] ${
                         isSystemTruth
                           ? 'bg-amber-950/30 text-amber-400 border border-amber-500/20 rounded-2xl'
-                          : isGraveyardMsg
-                            ? isMeMsg
-                              ? 'bg-slate-700 text-slate-100 rounded-2xl rounded-br-sm'
-                              : 'bg-slate-800/60 text-slate-300 rounded-2xl rounded-bl-sm border border-slate-600/30'
-                            : isWWMsg
+                          : isSystemGunshot
+                            ? 'bg-red-950/30 text-red-400 border border-red-500/20 rounded-2xl'
+                            : isGraveyardMsg
                               ? isMeMsg
-                                ? 'bg-red-600 text-white rounded-2xl rounded-br-sm'
-                                : 'bg-red-950/40 text-red-200 rounded-2xl rounded-bl-sm border border-red-500/30'
-                              : isMeMsg
-                                ? 'bg-blue-600 text-white rounded-2xl rounded-br-sm'
-                                : 'bg-slate-800 text-slate-200 rounded-2xl rounded-bl-sm border border-white/5'
+                                ? 'bg-slate-800/80 text-slate-300 border border-slate-700/30 rounded-2xl rounded-br-sm shadow-[0_0_10px_rgba(148,163,184,0.05)]'
+                                : 'bg-slate-900/40 text-slate-400 border border-slate-800/50 rounded-2xl rounded-bl-sm italic'
+                              : isWWMsg
+                                ? isMeMsg
+                                  ? 'bg-red-600 text-white rounded-2xl rounded-br-sm'
+                                  : 'bg-red-950/40 text-red-200 rounded-2xl rounded-bl-sm border border-red-500/30'
+                                : isMeMsg
+                                  ? 'bg-blue-600 text-white rounded-2xl rounded-br-sm'
+                                  : 'bg-slate-800 text-slate-200 rounded-2xl rounded-bl-sm border border-white/5'
                       }`}>
-                        {isWWMsg && !isSystemTruth && <span className="text-[9px] mr-1">🐺</span>}
-                        {isGraveyardMsg && <span className="text-[9px] mr-1">💀</span>}
+                        {isWWMsg && !isSystemTruth && !isSystemGunshot && <span className="text-[9px] mr-1">🐺</span>}
+                        {isGraveyardMsg && <span className="text-[9px] mr-1">👻</span>}
                         {m.text}
                       </div>
                     </div>
@@ -331,19 +341,21 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
                 }`}>
 
                   {/* PUBLIC CHANNEL: target selector */}
-                  {channel === 'public' && (
+                  {channel === 'public' && !isDead && (
                     <div className="relative">
                       <div className={`absolute bottom-full left-0 mb-2 w-48 bg-slate-800 border border-white/10 rounded-2xl shadow-2xl transition-all duration-200 origin-bottom-left overflow-hidden
                         ${showTargetMenu ? 'scale-100 opacity-100' : 'scale-75 opacity-0 pointer-events-none'}`}>
                         <div className="p-2.5 border-b border-white/5 text-[8px] font-black uppercase text-slate-500 tracking-widest text-center">Kirim Ke:</div>
                         <div className="max-h-48 overflow-y-auto custom-scrollbar">
-                          <button
-                            onClick={() => { setTargetId("all"); setShowTargetMenu(false); }}
-                            className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold transition-colors hover:bg-white/5 ${targetId === 'all' ? 'text-blue-400 bg-blue-400/5' : 'text-slate-300'}`}
-                          >
-                            <Globe size={14} /> Publik
-                          </button>
-                          {players.filter(p => p.id !== myId && p.role !== 'Moderator').map(p => (
+                          {(!isNightTime || isHost) && (
+                            <button
+                              onClick={() => { setTargetId("all"); setShowTargetMenu(false); }}
+                              className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold transition-colors hover:bg-white/5 ${targetId === 'all' ? 'text-blue-400 bg-blue-400/5' : 'text-slate-300'}`}
+                            >
+                              <Globe size={14} /> Publik
+                            </button>
+                          )}
+                          {players.filter(p => p.id !== myId && p.role !== 'Moderator' && (isHost || p.status !== 'dead')).map(p => (
                             <button
                               key={p.id}
                               onClick={() => { setTargetId(p.id); setShowTargetMenu(false); }}
@@ -389,24 +401,40 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     placeholder={
-                      isHost && isWWChannel
-                        ? "Monitor mode..."
-                        : isWWChannel
-                          ? "Ketik pesan ke Markas..."
-                          : isGraveyard
-                            ? "Ketik pesan ke para arwah..."
-                            : isPrivate
-                              ? `Whisper ke ${getTargetName()}...`
-                              : "Ketik pesan..."
+                      isDead && channel === 'public'
+                        ? "Anda telah gugur (Read-Only)..."
+                        : isHost && isWWChannel
+                          ? "Monitor mode..."
+                          : isWWChannel
+                            ? "Ketik pesan ke Markas..."
+                            : isGraveyard
+                              ? "Ketik pesan ke para arwah..."
+                              : isPrivate
+                                ? `Whisper ke ${getTargetName()}...`
+                                : isNightTime && !isHost
+                                  ? "Malam hari: Pilih pemain untuk bisikan..."
+                                  : "Ketik pesan..."
                     }
-                    disabled={isHost && isWWChannel}
+                    disabled={
+                      (isDead && channel === 'public') ||
+                      (isHost && isWWChannel) ||
+                      (isNightTime && !isHost && channel === 'public' && targetId === 'all')
+                    }
                     className="flex-1 bg-transparent py-2.5 text-sm font-medium text-white outline-none placeholder:text-slate-600 disabled:opacity-40"
                   />
                   <button
                     type="submit"
-                    disabled={!input.trim() || (isHost && isWWChannel)}
+                    disabled={
+                      !input.trim() ||
+                      (isDead && channel === 'public') ||
+                      (isHost && isWWChannel) ||
+                      (isNightTime && !isHost && channel === 'public' && targetId === 'all')
+                    }
                     className={`p-2.5 rounded-xl transition-all duration-200 flex-shrink-0 ${
-                      input.trim() && !(isHost && isWWChannel)
+                      input.trim() &&
+                      !(isDead && channel === 'public') &&
+                      !(isHost && isWWChannel) &&
+                      !(isNightTime && !isHost && channel === 'public' && targetId === 'all')
                         ? isWWChannel
                           ? 'bg-red-600 text-white shadow-lg shadow-red-600/30 hover:bg-red-500 active:scale-90'
                           : 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 hover:bg-blue-500 active:scale-90'
