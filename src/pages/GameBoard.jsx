@@ -213,7 +213,7 @@ const GameBoard = ({ onBack }) => {
                 {!pDead && voteCount > 0 && (
                   <div className="mt-1.5">
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-500/10 rounded-full text-[9px] font-bold text-orange-400">
-                      {voteCount} vote
+                      {voteCount} 👤
                     </span>
                   </div>
                 )}
