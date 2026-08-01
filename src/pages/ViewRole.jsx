@@ -57,7 +57,7 @@ const ViewRole = ({ onNext }) => {
   const { showNotif } = useNotification();
   const playerData = myData;
   const winner = gameWinner;
-  const onLeave = () => handleLeaveGame(!!gameWinner);
+  const onLeave = () => handleLeaveGame(!!gameWinner, 'room-setup');
   // --- 1. DEKLARASI SEMUA HOOKS (WAJIB DI ATAS) ---
   const [isRevealed, setIsRevealed] = useState(false);
   const [showMechanics, setShowMechanics] = useState(false);
@@ -104,6 +104,30 @@ const ViewRole = ({ onNext }) => {
     }
   })();
   const hasActedThisNight = optimisticActed || actedFromDb;
+
+  const getWerewolfVoteCount = (targetPlayerId) => {
+    if (!role.includes("werewolf")) return 0;
+    return (players || []).filter(p =>
+      p.role === 'Werewolf' &&
+      p.status !== 'dead' &&
+      p.currentAction &&
+      p.currentAction.role === 'Werewolf' &&
+      p.currentAction.action === 'kill' &&
+      p.currentAction.targetId === targetPlayerId
+    ).length;
+  };
+
+  const getWerewolfSkipVotesCount = () => {
+    if (!role.includes("werewolf")) return 0;
+    return (players || []).filter(p =>
+      p.role === 'Werewolf' &&
+      p.status !== 'dead' &&
+      p.currentAction &&
+      p.currentAction.role === 'Werewolf' &&
+      p.currentAction.action === 'kill' &&
+      p.currentAction.targetId === 'skip'
+    ).length;
+  };
 
   // ── Gunakan getRoleActionConfig dari roleActions.js ──
   const roleState = {
@@ -474,14 +498,24 @@ const ViewRole = ({ onNext }) => {
     }
 
     // Werewolf
-    if (role.includes("werewolf") && actionTarget && type !== 'skip') {
-      updates[`rooms/${roomCode}/players/${playerData.id}/currentAction`] = {
-        role: "Werewolf",
-        action: "kill",
-        targetId: actionTarget,
-        targetName: targetPlayer?.name || "Unknown",
-        timestamp: getTimestamp()
-      };
+    if (role.includes("werewolf")) {
+      if (type === 'skip') {
+        updates[`rooms/${roomCode}/players/${playerData.id}/currentAction`] = {
+          role: "Werewolf",
+          action: "kill",
+          targetId: "skip",
+          targetName: "Skip",
+          timestamp: getTimestamp()
+        };
+      } else if (actionTarget) {
+        updates[`rooms/${roomCode}/players/${playerData.id}/currentAction`] = {
+          role: "Werewolf",
+          action: "kill",
+          targetId: actionTarget,
+          targetName: targetPlayer?.name || "Unknown",
+          timestamp: getTimestamp()
+        };
+      }
     }
 
     // Seer
@@ -595,16 +629,6 @@ const ViewRole = ({ onNext }) => {
   };
 
   // --- 4. CONDITIONAL RENDER (HANYA BOLEH SETELAH SEMUA HOOKS) ---
-  if (winner) {
-    return (
-      <GameOverScreen 
-        winner={winner} 
-        players={players} 
-        playerData={playerData} 
-        onLeave={onLeave} 
-      />
-    );
-  }
 
   // --- 5. THEME & UI CALCULATION ---
   const theme = (() => {
@@ -882,9 +906,17 @@ const ViewRole = ({ onNext }) => {
                          const isSameTargetAsLastNight = role.includes("guard") && guardLastProtected === p.id;
                          const isSelfDisabled = role.includes("guard") && p.id === playerData?.id && !canGuardSelf;
                          const isDisabled = isSameTargetAsLastNight || isSelfDisabled;
+                         const wwVotes = role.includes("werewolf") ? getWerewolfVoteCount(p.id) : 0;
                          return (
-                           <button key={p.id} onClick={()=>{setActionTarget(p.id); setShowTargetList(false);}} disabled={isDisabled} className={`p-2 md:p-3 rounded-lg text-xs text-left transition-colors ${isDisabled ? 'bg-slate-900 text-slate-600 cursor-not-allowed' : 'bg-slate-800 hover:bg-blue-600 text-white'}`}>
-                             {p.name}{isSameTargetAsLastNight && <span className="text-[7px] text-red-500 ml-1">↺</span>}{isSelfDisabled && <span className="text-[7px] text-amber-500 ml-1">★</span>}
+                           <button key={p.id} onClick={()=>{setActionTarget(p.id); setShowTargetList(false);}} disabled={isDisabled} className={`p-2 md:p-3 rounded-lg text-xs text-left transition-colors flex justify-between items-center ${isDisabled ? 'bg-slate-900 text-slate-600 cursor-not-allowed' : 'bg-slate-800 hover:bg-blue-600 text-white'}`}>
+                             <span>
+                               {p.name}{isSameTargetAsLastNight && <span className="text-[7px] text-red-500 ml-1">↺</span>}{isSelfDisabled && <span className="text-[7px] text-amber-500 ml-1">★</span>}
+                             </span>
+                             {wwVotes > 0 && (
+                               <span className="bg-red-600/35 border border-red-500/50 text-red-300 font-extrabold px-1.5 py-0.5 rounded-md text-[9px] flex items-center gap-0.5">
+                                 🐺 {wwVotes}
+                               </span>
+                             )}
                            </button>
                          );
                        })}
@@ -892,7 +924,9 @@ const ViewRole = ({ onNext }) => {
                    )}
                    <div className="grid grid-cols-2 gap-2 mt-3 md:mt-4">
                      <button onClick={() => handleNightAction("Konfirmasi")} disabled={!actionTarget} className="py-2 md:py-3 bg-blue-600 disabled:bg-slate-800 text-white rounded-xl text-[8px] md:text-[10px] font-black uppercase shadow-lg active:scale-95 transition-all">Konfirmasi</button>
-                     <button onClick={() => { setActionTarget(""); handleNightAction("skip"); }} className="py-2 md:py-3 bg-slate-800 text-slate-500 rounded-xl text-[8px] md:text-[10px] font-black uppercase active:scale-95 transition-all">Skip</button>
+                     <button onClick={() => { setActionTarget(""); handleNightAction("skip"); }} className="py-2 md:py-3 bg-slate-800 text-slate-500 rounded-xl text-[8px] md:text-[10px] font-black uppercase active:scale-95 transition-all">
+                       Skip {role.includes("werewolf") && getWerewolfSkipVotesCount() > 0 && `(🐺 ${getWerewolfSkipVotesCount()})`}
+                     </button>
                    </div>
                  </>
                )}

@@ -276,7 +276,7 @@ export function GameProvider({ children }) {
     setCurrentPage('landing');
   }, [isHost, roomCode]);
 
-  const handleLeaveGame = useCallback(async (hasWinner) => {
+  const handleLeaveGame = useCallback(async (hasWinner, redirectPage = 'landing') => {
     if (hasWinner) {
       await deleteRoom(roomCode);
     } else {
@@ -286,7 +286,7 @@ export function GameProvider({ children }) {
     setRoomCode('');
     setMyPlayerId(null);
     setGameMatchId('');
-    setCurrentPage('landing');
+    setCurrentPage(redirectPage);
   }, [roomCode, myPlayerId]);
 
   const value = {

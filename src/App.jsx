@@ -19,9 +19,10 @@ import Credits from './pages/Credits';
 import IntroFable from './components/IntroFable';
 import DeathAnnouncement from './components/DeathAnnouncement';
 import VoteAnnouncement from './components/VoteAnnouncement';
+import GameOverScreen from './components/GameOverScreen';
 
 function AppContent() {
-  const { currentPage, navigate, players, isHost, roomCode, myData, roomStatus, gameWinner } = useGameContext();
+  const { currentPage, navigate, players, isHost, roomCode, myData, roomStatus, gameWinner, handleLeaveGame } = useGameContext();
   const { phase, day } = useTimerContext();
   const [showBoard, setShowBoard] = useState(false);
   const dismissedDayRef = useRef(null);
@@ -214,6 +215,17 @@ function AppContent() {
   const isGamePage = ['intro-fable', 'view-role', 'view-mod'].includes(currentPage);
 
   const renderPage = () => {
+    if (isGamePage && roomStatus === 'ended' && gameWinner) {
+      return (
+        <GameOverScreen
+          winner={gameWinner}
+          players={players}
+          playerData={myData}
+          onLeave={() => handleLeaveGame(true, 'room-setup')}
+        />
+      );
+    }
+
     switch (currentPage) {
       case 'landing':
         return <LandingPage onNext={() => navigate('introduction')} onCredits={() => navigate('credits')} />;

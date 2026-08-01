@@ -282,6 +282,7 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
                   const isSystemGunshot = m.senderId === "SYSTEM_GUNSHOT";
                   const isWWMsg = m.channel === 'ww';
                   const isGraveyardMsg = m.channel === 'graveyard';
+                  const isUnderTruth = players?.find(p => p.id === m.senderId)?.underTruth;
 
                   return (
                     <div key={m.id} className={`flex flex-col ${isMeMsg ? 'items-end' : 'items-start'} animate-in fade-in duration-200`}>
@@ -305,26 +306,33 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
                         {isSystemTruth && <ShieldAlert size={9} className="text-amber-500" />}
                         {isSystemGunshot && <ShieldAlert size={9} className="text-red-500 animate-pulse" />}
                       </div>
-                      <div className={`px-4 py-2.5 text-sm font-medium leading-relaxed shadow-lg max-w-[85%] ${
-                        isSystemTruth
-                          ? 'bg-amber-950/30 text-amber-400 border border-amber-500/20 rounded-2xl'
-                          : isSystemGunshot
-                            ? 'bg-red-950/30 text-red-400 border border-red-500/20 rounded-2xl'
-                            : isGraveyardMsg
-                              ? isMeMsg
-                                ? 'bg-slate-800/80 text-slate-300 border border-slate-700/30 rounded-2xl rounded-br-sm shadow-[0_0_10px_rgba(148,163,184,0.05)]'
-                                : 'bg-slate-900/40 text-slate-400 border border-slate-800/50 rounded-2xl rounded-bl-sm italic'
-                              : isWWMsg
+                      <div className="flex items-center gap-2 max-w-[85%]">
+                        <div className={`px-4 py-2.5 text-sm font-medium leading-relaxed shadow-lg ${
+                          isSystemTruth
+                            ? 'bg-amber-950/30 text-amber-400 border border-amber-500/20 rounded-2xl'
+                            : isSystemGunshot
+                              ? 'bg-red-950/30 text-red-400 border border-red-500/20 rounded-2xl'
+                              : isGraveyardMsg
                                 ? isMeMsg
-                                  ? 'bg-red-600 text-white rounded-2xl rounded-br-sm'
-                                  : 'bg-red-950/40 text-red-200 rounded-2xl rounded-bl-sm border border-red-500/30'
-                                : isMeMsg
-                                  ? 'bg-blue-600 text-white rounded-2xl rounded-br-sm'
-                                  : 'bg-slate-800 text-slate-200 rounded-2xl rounded-bl-sm border border-white/5'
-                      }`}>
-                        {isWWMsg && !isSystemTruth && !isSystemGunshot && <span className="text-[9px] mr-1">🐺</span>}
-                        {isGraveyardMsg && <span className="text-[9px] mr-1">👻</span>}
-                        {m.text}
+                                  ? 'bg-slate-800/80 text-slate-300 border border-slate-700/30 rounded-2xl rounded-br-sm shadow-[0_0_10px_rgba(148,163,184,0.05)]'
+                                  : 'bg-slate-900/40 text-slate-400 border border-slate-800/50 rounded-2xl rounded-bl-sm italic'
+                                : isWWMsg
+                                  ? isMeMsg
+                                    ? 'bg-red-600 text-white rounded-2xl rounded-br-sm'
+                                    : 'bg-red-950/40 text-red-200 rounded-2xl rounded-bl-sm border border-red-500/30'
+                                  : isMeMsg
+                                    ? 'bg-blue-600 text-white rounded-2xl rounded-br-sm'
+                                    : 'bg-slate-800 text-slate-200 rounded-2xl rounded-bl-sm border border-white/5'
+                        }`}>
+                          {isWWMsg && !isSystemTruth && !isSystemGunshot && <span className="text-[9px] mr-1">🐺</span>}
+                          {isGraveyardMsg && <span className="text-[9px] mr-1">👻</span>}
+                          {m.text}
+                        </div>
+                        {isUnderTruth && (
+                          <span className="text-amber-500 font-extrabold text-base animate-pulse flex-shrink-0 select-none" title="Kebenaran Hakim">
+                            !
+                          </span>
+                        )}
                       </div>
                     </div>
                   );
@@ -420,7 +428,7 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
                       (isHost && isWWChannel) ||
                       (isNightTime && !isHost && channel === 'public' && targetId === 'all')
                     }
-                    className="flex-1 bg-transparent py-2.5 text-sm font-medium text-white outline-none placeholder:text-slate-600 disabled:opacity-40"
+                    className="flex-1 min-w-0 bg-transparent py-2.5 text-sm font-medium text-white outline-none placeholder:text-slate-600 disabled:opacity-40"
                   />
                   <button
                     type="submit"

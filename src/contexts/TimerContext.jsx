@@ -268,37 +268,71 @@ export function TimerProvider({ children }) {
     // ── STAGE 3: Werewolf — cek apakah masih hidup ──
     if (dayRef.current >= 2) {
       const werewolfKills = nightActions.filter(a => a.role === 'Werewolf');
-      for (const kill of werewolfKills) {
-        if (!kill.targetId) continue;
+      // Hanya hitung suara dari Werewolf yang hidup malam ini
+      const activeWerewolfKills = werewolfKills.filter(kill => !deadIds.has(kill.playerId) && kill.targetId && kill.targetId !== 'none');
+      const aliveWerewolves = players.filter(p => p.role === 'Werewolf' && p.status !== 'dead' && !deadIds.has(p.id));
 
-        // Werewolf sudah mati dieksekusi Hunter — skip
-        if (deadIds.has(kill.playerId)) {
-          logs.push(`Werewolf ${kill.name} mati sebelum sempat menyerang!`);
-          continue;
-        }
+      if (activeWerewolfKills.length > 0) {
+        // Hitung suara
+        const werewolfVotesCount = {};
+        activeWerewolfKills.forEach(kill => {
+          werewolfVotesCount[kill.targetId] = (werewolfVotesCount[kill.targetId] || 0) + 1;
+        });
 
-        if (protectedIds.has(kill.targetId)) {
-          logs.push(`Werewolf ${kill.name} mencoba membunuh ${kill.targetName} tapi dilindungi!`);
-          updates[`rooms/${roomCode}/werewolfResult/${kill.playerId}`] = {
-            targetName: kill.targetName,
-            blocked: true,
-            timestamp: Date.now()
-          };
-          continue;
-        }
+        // Cari perolehan suara tertinggi
+        const maxVotes = Math.max(...Object.values(werewolfVotesCount));
+        const topTargets = Object.keys(werewolfVotesCount).filter(targetId => werewolfVotesCount[targetId] === maxVotes);
 
-        const targetAlive = players.find(p => p.id === kill.targetId && p.status !== 'dead');
-        if (targetAlive) {
-          if (!deathCauses[kill.targetId]) {
-            deadIds.add(kill.targetId);
-            deathCauses[kill.targetId] = "general";
+        if (topTargets.length > 1) {
+          // Hasil Seri: Batal Bunuh (0 Korban)
+          logs.push(`Werewolf gagal mencapai konsensus malam ini (suara seri).`);
+          aliveWerewolves.forEach(ww => {
+            updates[`rooms/${roomCode}/werewolfResult/${ww.id}`] = {
+              targetName: "Batal Bunuh (Seri)",
+              blocked: false,
+              timestamp: Date.now()
+            };
+          });
+        } else {
+          const selectedTargetId = topTargets[0];
+          if (selectedTargetId === 'skip') {
+            logs.push(`Werewolf memutuskan untuk melewati malam ini (skip).`);
+            aliveWerewolves.forEach(ww => {
+              updates[`rooms/${roomCode}/werewolfResult/${ww.id}`] = {
+                targetName: "Skip",
+                blocked: false,
+                timestamp: Date.now()
+              };
+            });
+          } else {
+            const selectedTargetName = activeWerewolfKills.find(k => k.targetId === selectedTargetId)?.targetName || "Unknown";
+            if (protectedIds.has(selectedTargetId)) {
+              logs.push(`Werewolf mencoba membunuh ${selectedTargetName} tapi dilindungi!`);
+              aliveWerewolves.forEach(ww => {
+                updates[`rooms/${roomCode}/werewolfResult/${ww.id}`] = {
+                  targetName: selectedTargetName,
+                  blocked: true,
+                  timestamp: Date.now()
+                };
+              });
+            } else {
+              const targetAlive = players.find(p => p.id === selectedTargetId && p.status !== 'dead');
+              if (targetAlive) {
+                if (!deathCauses[selectedTargetId]) {
+                  deadIds.add(selectedTargetId);
+                  deathCauses[selectedTargetId] = "general";
+                }
+                logs.push(`Werewolf membunuh ${selectedTargetName}`);
+                aliveWerewolves.forEach(ww => {
+                  updates[`rooms/${roomCode}/werewolfResult/${ww.id}`] = {
+                    targetName: selectedTargetName,
+                    blocked: false,
+                    timestamp: Date.now()
+                  };
+                });
+              }
+            }
           }
-          logs.push(`Werewolf ${kill.name} membunuh ${kill.targetName}`);
-          updates[`rooms/${roomCode}/werewolfResult/${kill.playerId}`] = {
-            targetName: kill.targetName,
-            blocked: false,
-            timestamp: Date.now()
-          };
         }
       }
     }
@@ -465,16 +499,19 @@ export function TimerProvider({ children }) {
       const targetActive = isActiveOverride !== null ? isActiveOverride : true;
 
       if (pLower.includes("pagi")) {
-        if (nightFn) await nightFn();
-        const newDay = dayRef.current + 1;
-        // Reset truthActed untuk Hakim setiap pagi
+        // Reset underTruth untuk semua player & truthActed untuk Hakim setiap pagi sebelum memproses hasil malam
         try {
           for (const p of players) {
+            const reset = { underTruth: false };
             if (p.role === 'Hakim') {
-              await update(ref(db, `rooms/${roomCode}/players/${p.id}`), { truthActed: null });
+              reset.truthActed = null;
             }
+            await update(ref(db, `rooms/${roomCode}/players/${p.id}`), reset);
           }
         } catch { /* skip */ }
+
+        if (nightFn) await nightFn();
+        const newDay = dayRef.current + 1;
 
         endTimeRef.current = Date.now() + 120 * 1000;
         setIsActive(targetActive);
@@ -489,7 +526,7 @@ export function TimerProvider({ children }) {
         // Reset currentAction, pistolActed, dan warlockActed
         try {
           for (const p of players) {
-            const reset = { currentAction: null, underTruth: false };
+            const reset = { currentAction: null };
             if (p.role === 'Hakim') reset.pistolActed = null;
             if (p.role === 'Warlock') reset.warlockActed = null;
             await update(ref(db, `rooms/${roomCode}/players/${p.id}`), reset);

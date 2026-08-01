@@ -133,16 +133,17 @@ const RoleModal = ({ role, isOpen, onClose }) => {
 
   return (
     <div className="fixed inset-0 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-300" style={{ zIndex: Z_LAYER.ROLE_MODAL }}>
-      <div className={`bg-slate-900 border ${detail.accent} w-full max-w-sm rounded-3xl p-6 sm:p-8 relative shadow-[0_0_50px_rgba(0,0,0,0.6)] transform animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto custom-scrollbar`}>
-        
-        <button 
-          onClick={onClose} 
-          className="absolute top-5 right-5 text-slate-500 hover:text-white transition-colors"
+      <div className={`bg-slate-900 border ${detail.accent} w-full max-w-sm rounded-3xl p-6 sm:p-8 relative shadow-[0_0_50px_rgba(0,0,0,0.6)] transform animate-in zoom-in-95 duration-300 max-h-[90vh] flex flex-col`}>
+
+        <button
+          onClick={onClose}
+          className="absolute top-5 right-5 text-slate-500 hover:text-white transition-colors z-10"
         >
           <X size={20} />
         </button>
 
-        <div className="text-center space-y-6">
+        <div className="overflow-y-auto custom-scrollbar flex-1 pr-1">
+          <div className="text-center space-y-6">
           <div className="flex justify-center drop-shadow-[0_0_15px_rgba(255,255,255,0.05)]">
             {detail.icon}
           </div>
@@ -210,7 +211,7 @@ const RoleModal = ({ role, isOpen, onClose }) => {
             </div>
           </div>
 
-          <button 
+          <button
             onClick={onClose}
             className="w-full py-4 bg-slate-100 text-slate-950 rounded-xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-white active:scale-95 transition-all shadow-lg"
           >
@@ -219,7 +220,8 @@ const RoleModal = ({ role, isOpen, onClose }) => {
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 };
 
 export default RoleModal;
