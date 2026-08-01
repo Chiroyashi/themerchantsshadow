@@ -179,7 +179,7 @@ export function GameProvider({ children }) {
       status: "waiting",
       host: finalName,
       createdAt: Date.now(),
-      timer: { isActive: false, seconds: 120, phase: "Pagi (Diskusi)", day: 1 },
+      timer: { isActive: false, seconds: 60, phase: "Pagi (Diskusi)", day: 1 },
       players: {
         [hostId]: { name: finalName + " (Moderator)", role: "Moderator", status: "alive" }
       }

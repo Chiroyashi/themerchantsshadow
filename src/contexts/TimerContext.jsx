@@ -8,11 +8,25 @@ import { isSiang, isMalam, isPagi, PHASE } from '../constants/phases';
 
 const TimerContext = createContext(null);
 
+const getPhaseDuration = (phaseName, dayNum) => {
+  const pLower = phaseName?.toLowerCase() || '';
+  if (pLower.includes('pagi')) {
+    return dayNum === 1 ? 60 : 90;
+  }
+  if (pLower.includes('siang')) {
+    return 120;
+  }
+  if (pLower.includes('malam')) {
+    return 90;
+  }
+  return 120; // Fallback default
+};
+
 export function TimerProvider({ children }) {
   const { roomCode, isHost, myPlayerId, players } = useGameContext();
 
   // --- Timer State ---
-  const [seconds, setSeconds] = useState(120);
+  const [seconds, setSeconds] = useState(60);
   const [phase, setPhase] = useState("Pagi (Diskusi)");
   const [isActive, setIsActive] = useState(false);
   const [day, setDay] = useState(1);
@@ -513,13 +527,14 @@ export function TimerProvider({ children }) {
         if (nightFn) await nightFn();
         const newDay = dayRef.current + 1;
 
-        endTimeRef.current = Date.now() + 120 * 1000;
+        const duration = getPhaseDuration(newPhase, newDay);
+        endTimeRef.current = Date.now() + duration * 1000;
         setIsActive(targetActive);
-        setSeconds(120);
+        setSeconds(duration);
         setDay(newDay);
 
         await update(ref(db, `rooms/${roomCode}/timer`), {
-          phase: newPhase, day: newDay, isActive: targetActive, seconds: 120
+          phase: newPhase, day: newDay, isActive: targetActive, seconds: duration
         });
       } else if (pLower.includes("malam")) {
         if (voteFn) await voteFn();
@@ -537,20 +552,22 @@ export function TimerProvider({ children }) {
           await set(ref(db, `rooms/${roomCode}/warlockResult`), null);
         } catch { /* skip */ }
 
-        endTimeRef.current = Date.now() + 180 * 1000;
+        const duration = getPhaseDuration(newPhase, dayRef.current);
+        endTimeRef.current = Date.now() + duration * 1000;
         setIsActive(targetActive);
-        setSeconds(180);
+        setSeconds(duration);
 
         await update(ref(db, `rooms/${roomCode}/timer`), {
-          phase: newPhase, isActive: targetActive, seconds: 180
+          phase: newPhase, isActive: targetActive, seconds: duration
         });
       } else {
-        endTimeRef.current = Date.now() + 180 * 1000;
+        const duration = getPhaseDuration(newPhase, dayRef.current);
+        endTimeRef.current = Date.now() + duration * 1000;
         setIsActive(targetActive);
-        setSeconds(180);
+        setSeconds(duration);
 
         await update(ref(db, `rooms/${roomCode}/timer`), {
-          phase: newPhase, isActive: targetActive, seconds: 180
+          phase: newPhase, isActive: targetActive, seconds: duration
         });
       }
 
@@ -575,17 +592,19 @@ export function TimerProvider({ children }) {
     if (!(isHost || myPlayerId?.startsWith('host_'))) return;
     const newActive = !isActiveRef.current;
     setIsActive(newActive);
+    const duration = getPhaseDuration(phaseRef.current, dayRef.current);
     await update(ref(db, `rooms/${roomCode}/timer`), {
       isActive: newActive,
-      seconds: secondsRef.current <= 0 ? 120 : secondsRef.current
+      seconds: secondsRef.current <= 0 ? duration : secondsRef.current
     });
   }, [isHost, myPlayerId, roomCode]);
 
   const resetTimer = useCallback(async () => {
     if (!(isHost || myPlayerId?.startsWith('host_'))) return;
     setIsActive(false);
-    setSeconds(120);
-    await update(ref(db, `rooms/${roomCode}/timer`), { isActive: false, seconds: 120, phase: phaseRef.current });
+    const duration = getPhaseDuration(phaseRef.current, dayRef.current);
+    setSeconds(duration);
+    await update(ref(db, `rooms/${roomCode}/timer`), { isActive: false, seconds: duration, phase: phaseRef.current });
   }, [isHost, myPlayerId, roomCode]);
 
   const editTimer = useCallback(async (newSeconds) => {
