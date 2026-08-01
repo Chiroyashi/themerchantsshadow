@@ -113,7 +113,7 @@ const IntroFable = ({ players, roomCode, onFinish, playerData }) => {
         <div className="absolute bottom-[-10%] right-[-10%] w-[70%] h-[70%] bg-red-900/20 rounded-full blur-[120px] animate-pulse" />
       </div>
 
-      <div className="max-w-md w-full relative z-10">
+      <div className="max-w-md w-full relative z-10 max-h-[90vh] overflow-y-auto custom-scrollbar py-4 px-2">
         
         {/* STEP 1: PROLOGUE */}
         {step === 1 && (

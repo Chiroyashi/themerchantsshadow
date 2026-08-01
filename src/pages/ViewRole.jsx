@@ -964,7 +964,7 @@ const ViewRole = ({ onNext }) => {
         {/* ACTION POPUP */}
         {showActionPopup && actionPopupData && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: Z_LAYER.ACTION_MODAL }}>
-            <div className={`bg-slate-900 border ${actionPopupData.isMiss ? 'border-red-500' : 'border-blue-500/30'} rounded-[2rem] p-8 max-w-sm w-full text-center space-y-6 shadow-2xl animate-in zoom-in duration-300 relative overflow-hidden`}>
+            <div className={`bg-slate-900 border ${actionPopupData.isMiss ? 'border-red-500' : 'border-blue-500/30'} rounded-[2rem] p-8 max-w-sm w-full text-center space-y-6 shadow-2xl animate-in zoom-in duration-300 relative overflow-hidden max-h-[95vh] overflow-y-auto custom-scrollbar`}>
               {actionPopupData.isMiss && (
                 <>
                   <div className="absolute inset-0 pointer-events-none">
@@ -1003,7 +1003,7 @@ const ViewRole = ({ onNext }) => {
         {showCluePopup && myClues && role.includes("pedagang") && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: Z_LAYER.ACTION_MODAL }}>
             <div className="bg-gradient-to-br from-emerald-800 to-teal-600 rounded-[2rem] p-1 w-full max-w-sm md:max-w-lg shadow-2xl shadow-emerald-900/50 animate-in zoom-in duration-300">
-              <div className="bg-slate-900 rounded-[1.8rem] p-4 md:p-6 space-y-4">
+              <div className="bg-slate-900 rounded-[1.8rem] p-4 md:p-6 space-y-4 max-h-[90vh] overflow-y-auto custom-scrollbar">
                 <div className="text-center space-y-2">
                   <div className="w-16 h-16 bg-emerald-600/20 rounded-full mx-auto flex items-center justify-center">
                     <ShoppingBag size={32} className="text-emerald-400" />

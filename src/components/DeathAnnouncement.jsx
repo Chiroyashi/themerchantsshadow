@@ -3,6 +3,29 @@ import { Skull, Sun, Crosshair } from 'lucide-react';
 import { Z_LAYER } from '../constants/zIndex';
 import { lockScroll, unlockScroll } from '../utils/scrollLock';
 
+const CrackedOverlay = () => (
+  <svg className="absolute inset-0 w-full h-full pointer-events-none z-30" viewBox="0 0 100 100" preserveAspectRatio="none">
+    <path
+      d="M15,0 L30,30 L20,55 L45,75 L35,100"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      fill="none"
+      className="text-red-500/35"
+    />
+    <path
+      d="M30,30 L60,35 L75,15 L100,20 M20,55 L0,65 M45,75 L75,80 L100,60 M75,80 L80,100 M60,35 L65,0"
+      stroke="currentColor"
+      strokeWidth="1.0"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      fill="none"
+      className="text-red-500/15"
+    />
+  </svg>
+);
+
 const DeathAnnouncement = ({ deadPlayers, deadDetails = {}, day, onClose }) => {
   const isPeacefulNight = deadPlayers.length === 1 && deadPlayers[0] === "TIDAK ADA";
 
@@ -11,34 +34,11 @@ const DeathAnnouncement = ({ deadPlayers, deadDetails = {}, day, onClose }) => {
     return cause === "hakim" || cause === "hunter" || cause === "hunter_backfire";
   });
 
-  const CrackedOverlay = () => (
-    <svg className="absolute inset-0 w-full h-full pointer-events-none z-30" viewBox="0 0 100 100" preserveAspectRatio="none">
-      <path
-        d="M15,0 L30,30 L20,55 L45,75 L35,100"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-        className="text-red-500/35"
-      />
-      <path
-        d="M30,30 L60,35 L75,15 L100,20 M20,55 L0,65 M45,75 L75,80 L100,60 M75,80 L80,100 M60,35 L65,0"
-        stroke="currentColor"
-        strokeWidth="1.0"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-        className="text-red-500/15"
-      />
-    </svg>
-  );
-
   useEffect(() => {
     lockScroll();
     const timer = setTimeout(() => {
       onClose();
-    }, 2000);
+    }, 5000);
     return () => {
       unlockScroll();
       clearTimeout(timer);
@@ -49,7 +49,7 @@ const DeathAnnouncement = ({ deadPlayers, deadDetails = {}, day, onClose }) => {
 
   return (
     <div className="fixed inset-0 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-700" style={{ zIndex: Z_LAYER.PHASE_OVERLAY }}>
-      <div className={`max-w-sm w-full bg-slate-900 border-2 rounded-[2.5rem] p-8 text-center relative overflow-hidden transition-all duration-1000
+      <div className={`max-w-sm w-full bg-slate-900 border-2 rounded-[2.5rem] p-6 sm:p-8 text-center relative overflow-hidden transition-all duration-1000 max-h-[95vh] overflow-y-auto custom-scrollbar
         ${isPeacefulNight
           ? 'border-emerald-500/30 shadow-[0_0_50px_rgba(16,185,129,0.15)]'
           : hasGunshotDeath

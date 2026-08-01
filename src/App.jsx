@@ -151,10 +151,8 @@ function AppContent() {
   const [showDeathPopUp, setShowDeathPopUp] = useState(false);
   const [showGunshotEffect, setShowGunshotEffect] = useState(false);
 
-  // Reset overlay tiap room ganti atau game mulai (in-render state adjustment untuk menghindari warning eslint)
-  const [prevRoomCode, setPrevRoomCode] = useState(roomCode);
-  if (roomCode !== prevRoomCode) {
-    setPrevRoomCode(roomCode);
+  // Reset overlay tiap room ganti atau game mulai (dipindahkan ke useEffect untuk menghindari warning ESLint)
+  useEffect(() => {
     setShowVoteResult(false);
     setShowDeathPopUp(false);
     setDeadToday({ names: [], day: 1, details: {} });
@@ -162,7 +160,7 @@ function AppContent() {
     prevPhaseRef.current = null;
     dismissedDayRef.current = null;
     hasPlayedEndAudioRef.current = false;
-  }
+  }, [roomCode]);
 
   // Listener voteResult
   useEffect(() => {

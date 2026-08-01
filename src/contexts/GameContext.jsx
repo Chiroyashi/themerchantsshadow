@@ -233,8 +233,9 @@ export function GameProvider({ children }) {
   }, [isHost, roomCode]);
 
   const handleStartGame = useCallback(async () => {
-    if (players.length < 6) {
-      showNotif("Gagal", "Minimal 6 pemain!", "error");
+    const participants = players.filter(p => p.role !== 'Moderator');
+    if (participants.length < 5) {
+      showNotif("Gagal", "Minimal 5 pemain (di luar Moderator)!", "error");
       return;
     }
     const playersWithRoles = distributeRoles(players);
@@ -277,9 +278,9 @@ export function GameProvider({ children }) {
   }, [isHost, roomCode]);
 
   const handleLeaveGame = useCallback(async (hasWinner, redirectPage = 'landing') => {
-    if (hasWinner) {
+    if (hasWinner && isHost) {
       await deleteRoom(roomCode);
-    } else {
+    } else if (!hasWinner) {
       update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), { status: "dead" });
     }
     localStorage.clear();
@@ -287,7 +288,7 @@ export function GameProvider({ children }) {
     setMyPlayerId(null);
     setGameMatchId('');
     setCurrentPage(redirectPage);
-  }, [roomCode, myPlayerId]);
+  }, [roomCode, myPlayerId, isHost]);
 
   const value = {
     // State

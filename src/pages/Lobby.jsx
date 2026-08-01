@@ -8,10 +8,10 @@ const Lobby = ({ onBack }) => {
   const [isCopied, setIsCopied] = useState(false);
 
   // --- LOGIKA PEMBATASAN MINIMAL PEMAIN ---
-  const minPlayers = 6;
-  const currentPlayerCount = players.length;
-  const isReady = currentPlayerCount >= minPlayers;
-  const roleConfig = calculateRoles(currentPlayerCount);
+  const minPlayers = 5;
+  const participantsCount = players.filter(p => p.role !== 'Moderator').length;
+  const isReady = participantsCount >= minPlayers;
+  const roleConfig = calculateRoles(participantsCount);
 
   const handleCopyCode = () => {
     if (!roomCode) return;
@@ -77,17 +77,17 @@ const Lobby = ({ onBack }) => {
             <div className="text-left">
               <p className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-1">Status: Unstable</p>
               <p className="text-slate-400 text-[11px] leading-relaxed italic uppercase tracking-wider">
-                Butuh <span className="text-white font-bold">{minPlayers - currentPlayerCount} orang</span> lagi untuk menstabilkan gerbang Waranasura.
+                Butuh <span className="text-white font-bold">{minPlayers - participantsCount} orang</span> lagi untuk menstabilkan gerbang Waranasura.
               </p>
             </div>
           </div>
         )}
 
         {/* --- ROLE PREVIEW AREA --- */}
-        {currentPlayerCount >= 5 && (
+        {participantsCount >= 5 && (
           <div className="bg-slate-900/30 border border-white/5 rounded-[2rem] p-5 text-left relative overflow-hidden backdrop-blur-sm animate-in fade-in duration-500">
             <p className="text-slate-500 uppercase tracking-[0.2em] text-[8px] font-black italic mb-3">
-              Prediksi Distribusi Peran ({currentPlayerCount} Pemain)
+              Prediksi Distribusi Peran ({participantsCount} Pemain)
             </p>
             <div className="flex flex-wrap gap-2">
               {roleConfig.antagonists.werewolf > 0 && (
@@ -142,7 +142,7 @@ const Lobby = ({ onBack }) => {
               </span>
             </div>
             <span className={`text-[10px] font-black px-4 py-1 rounded-full border ${isReady ? 'bg-emerald-600/10 border-emerald-500/20 text-emerald-500' : 'bg-amber-600/10 border-amber-500/20 text-amber-500'}`}>
-              {isReady ? `Total Pemain: ${currentPlayerCount}` : `Min. ${minPlayers}`}
+              {isReady ? `Total Pemain: ${participantsCount}` : `Min. ${minPlayers}`}
             </span>
           </div>
           
@@ -240,9 +240,9 @@ const Lobby = ({ onBack }) => {
           ) : (
             <div className="py-6 px-6 bg-slate-900/30 border border-white/5 rounded-[2rem] backdrop-blur-sm">
                <p className="text-slate-500 animate-pulse uppercase tracking-[0.3em] text-[9px] font-black italic leading-loose">
-                 {isReady 
-                  ? "Moderator is preparing the gate..." 
-                  : `Summoning ${minPlayers - currentPlayerCount} more souls...`}
+                 {isReady
+                  ? "Moderator is preparing the gate..."
+                  : `Summoning ${minPlayers - participantsCount} more souls...`}
                </p>
             </div>
           )}

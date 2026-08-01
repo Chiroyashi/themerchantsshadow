@@ -12,30 +12,30 @@ export const distributeRoles = (players) => {
   // Proteksi minimal pemain agar mekanisme "The Merchant's Shadow" berjalan
   if (numPlayers < 5) return players;
 
-  // 2. Tentukan Tiga Peran Wajib (The Core Trinity)
-  // Hakim sebagai poros, Werewolf sebagai ancaman, Pedagang sebagai mayoritas/kamuflase
-  let rolePool = ['Hakim', 'Werewolf', 'Pedagang'];
-
-  // 3. Tentukan Jumlah Antagonis (Rasio ~1/3.5 dari total pemain)
+  // 2. Tentukan Jumlah Antagonis (Rasio ~1/3.5 dari total pemain)
   const totalAntagonists = Math.max(1, Math.floor(numPlayers / 3.5));
-  
-  // Tambahkan Warlock jika pemain cukup banyak (>= 7) agar transaksi berjalan
-  if (numPlayers >= 7) {
+  const warlockCount = numPlayers >= 7 ? 1 : 0;
+  const werewolfCount = totalAntagonists - warlockCount;
+
+  let rolePool = [];
+
+  // Tambahkan Antagonis
+  for (let i = 0; i < werewolfCount; i++) {
+    rolePool.push('Werewolf');
+  }
+  for (let i = 0; i < warlockCount; i++) {
     rolePool.push('Warlock');
   }
 
-  // Isi sisa slot Antagonis dengan Werewolf tambahan sampai mencapai rasio
-  while (rolePool.filter(r => r === 'Werewolf' || r === 'Warlock').length < totalAntagonists) {
-    rolePool.push('Werewolf');
+  // Tambahkan Peran Spesial Protagonis
+  rolePool.push('Hakim');
+  rolePool.push('Seer');
+  if (numPlayers >= 6) {
+    rolePool.push('Guard');
   }
-
-  // 4. Tambahkan Peran Spesial Protagonis (Berdasarkan Prioritas)
-  const specialProtagonists = ['Seer', 'Guard', 'Hunter'];
-  specialProtagonists.forEach(role => {
-    if (rolePool.length < numPlayers) {
-      rolePool.push(role);
-    }
-  });
+  if (numPlayers >= 8) {
+    rolePool.push('Hunter');
+  }
 
   // 5. Penuhi Sisa Slot dengan Pedagang (Pedagang adalah mayoritas dalam game ini)
   while (rolePool.length < numPlayers) {

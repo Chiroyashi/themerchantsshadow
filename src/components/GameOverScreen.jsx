@@ -175,7 +175,7 @@ const GameOverScreen = ({ winner, players, playerData, onLeave }) => {
             
             <div className="grid gap-2 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
               {players.filter(p => p.role !== 'Moderator').map((p) => {
-                const pRole = p.role.toLowerCase();
+                const pRole = p.role?.toLowerCase() || "";
                 const pIsAntagonist = pRole.includes('werewolf') || pRole.includes('warlock');
                 const pIsWinner = isWargaWinner ? !pIsAntagonist : pIsAntagonist;
                 const isDead = p.status === 'dead';

@@ -168,7 +168,7 @@ const ModeratorDashboard = () => {
       {/* END GAME MODAL */}
       {showEndGame && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: Z_LAYER.ACTION_MODAL }}>
-          <div className="bg-slate-900 border border-white/10 rounded-[2rem] p-8 max-w-sm w-full text-center space-y-6 animate-in zoom-in duration-300">
+          <div className="bg-slate-900 border border-white/10 rounded-[2rem] p-8 max-w-sm w-full text-center space-y-6 animate-in zoom-in duration-300 max-h-[95vh] overflow-y-auto custom-scrollbar">
             <Trophy className="w-12 h-12 md:w-16 md:h-16 mx-auto text-amber-500" />
             <h2 className="text-lg md:text-xl font-black text-white uppercase italic">Pilih Pemenang</h2>
             <div className="grid grid-cols-2 gap-3 md:gap-4">
@@ -371,7 +371,7 @@ const ModeratorDashboard = () => {
           </div>
 
           {/* CLUE SENDER - POPUP BUTTON */}
-          {pendingTransactions.length > 0 && (
+          {hasUnsentClue && (
             <button 
               onClick={() => {
                 const firstKey = pendingTransactions[0];
@@ -446,7 +446,7 @@ const ModeratorDashboard = () => {
       {showCluePopup && currentTransactionKey && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: Z_LAYER.ACTION_MODAL }}>
           <div className="bg-gradient-to-br from-amber-700 to-yellow-600 rounded-[2rem] p-1 w-full max-w-sm md:max-w-lg shadow-2xl shadow-amber-900/50">
-            <div className="bg-slate-900 rounded-[1.8rem] p-4 md:p-6 space-y-4">
+            <div className="bg-slate-900 rounded-[1.8rem] p-4 md:p-6 space-y-4 max-h-[90vh] overflow-y-auto custom-scrollbar">
               <div className="text-center space-y-2">
                 <AlertTriangle size={32} className="mx-auto text-amber-500" />
                 <h2 className="text-lg md:text-xl font-black text-white uppercase italic">Transaksi Terdeteksi</h2>
