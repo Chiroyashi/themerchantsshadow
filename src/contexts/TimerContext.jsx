@@ -30,6 +30,7 @@ export function TimerProvider({ children }) {
   const [phase, setPhase] = useState("Pagi (Diskusi)");
   const [isActive, setIsActive] = useState(false);
   const [day, setDay] = useState(1);
+  const [allVoted, setAllVoted] = useState(false);
 
   // Refs untuk menghindari stale closures di setInterval
   const secondsRef = useRef(seconds);
@@ -40,6 +41,8 @@ export function TimerProvider({ children }) {
   dayRef.current = day;
   const isActiveRef = useRef(isActive);
   isActiveRef.current = isActive;
+  const allVotedRef = useRef(allVoted);
+  allVotedRef.current = allVoted;
   const processNightResultsRef = useRef(null);
   const processVoteResultsRef = useRef(null);
   const handleSetPhaseRef = useRef(null);
@@ -59,6 +62,7 @@ export function TimerProvider({ children }) {
       }
       setDay(data.day || 1);
       setIsActive(data.isActive || false);
+      setAllVoted(data.allVoted || false);
 
       const fbSecs = parseInt(data.seconds);
       if (!isNaN(fbSecs)) {
@@ -117,16 +121,17 @@ export function TimerProvider({ children }) {
                 p => p.status !== 'dead' && p.role !== 'Moderator'
               ).length;
               if (voteCount >= alivePlayers) {
+                const isAlreadyAllVoted = allVotedRef.current;
                 // Jika waktu tersisa masih lebih dari 10 detik, percepat sisa waktu menjadi 10 detik
                 if (nextSecs > 10) {
                   const targetSecs = 10;
                   setSeconds(targetSecs);
                   secondsRef.current = targetSecs;
                   endTimeRef.current = Date.now() + targetSecs * 1000;
-                  await update(ref(db, `rooms/${roomCode}/timer`), { seconds: targetSecs });
+                  await update(ref(db, `rooms/${roomCode}/timer`), { seconds: targetSecs, allVoted: true });
                   return; // Keluar dini agar tidak menjadwalkan ulang setTimeout pada tick lama ini
-                } else {
-                  nextPhase = "Malam (Eksekusi)";
+                } else if (!isAlreadyAllVoted) {
+                  await update(ref(db, `rooms/${roomCode}/timer`), { allVoted: true });
                 }
               }
             }
@@ -534,7 +539,7 @@ export function TimerProvider({ children }) {
         setDay(newDay);
 
         await update(ref(db, `rooms/${roomCode}/timer`), {
-          phase: newPhase, day: newDay, isActive: targetActive, seconds: duration
+          phase: newPhase, day: newDay, isActive: targetActive, seconds: duration, allVoted: false
         });
       } else if (pLower.includes("malam")) {
         if (voteFn) await voteFn();
@@ -558,7 +563,7 @@ export function TimerProvider({ children }) {
         setSeconds(duration);
 
         await update(ref(db, `rooms/${roomCode}/timer`), {
-          phase: newPhase, isActive: targetActive, seconds: duration
+          phase: newPhase, isActive: targetActive, seconds: duration, allVoted: false
         });
       } else {
         const duration = getPhaseDuration(newPhase, dayRef.current);
@@ -567,7 +572,7 @@ export function TimerProvider({ children }) {
         setSeconds(duration);
 
         await update(ref(db, `rooms/${roomCode}/timer`), {
-          phase: newPhase, isActive: targetActive, seconds: duration
+          phase: newPhase, isActive: targetActive, seconds: duration, allVoted: false
         });
       }
 
@@ -614,7 +619,7 @@ export function TimerProvider({ children }) {
   }, [isHost, myPlayerId, roomCode]);
 
   const value = {
-    seconds, phase, isActive, day,
+    seconds, phase, isActive, day, allVoted,
     toggleTimer, resetTimer, editTimer,
     handleSetPhase, processNightResults, setPhase
   };

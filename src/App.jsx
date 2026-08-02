@@ -4,6 +4,8 @@ import { db } from "./lib/firebase";
 import { NotificationProvider } from './contexts/NotificationContext';
 import { GameProvider, useGameContext } from './contexts/GameContext';
 import { TimerProvider, useTimerContext } from './contexts/TimerContext';
+import { Z_LAYER } from './constants/zIndex';
+import { isSiang } from './constants/phases';
 
 // Import Pages
 import LandingPage from './pages/LandingPage';
@@ -23,7 +25,7 @@ import GameOverScreen from './components/GameOverScreen';
 
 function AppContent() {
   const { currentPage, navigate, players, isHost, roomCode, myData, roomStatus, gameWinner, handleLeaveGame } = useGameContext();
-  const { phase, day } = useTimerContext();
+  const { phase, day, allVoted, seconds } = useTimerContext();
   const [showBoard, setShowBoard] = useState(false);
   const dismissedDayRef = useRef(null);
   const prevPhaseRef = useRef(null);
@@ -151,12 +153,18 @@ function AppContent() {
   const [showDeathPopUp, setShowDeathPopUp] = useState(false);
   const [showGunshotEffect, setShowGunshotEffect] = useState(false);
 
-  // Reset overlay tiap room ganti atau game mulai (dipindahkan ke useEffect untuk menghindari warning ESLint)
-  useEffect(() => {
+  // Reset overlay tiap room ganti atau game mulai (menggunakan render phase state adjustment untuk efisiensi & kepatuhan React 19)
+  const [prevRoomCode, setPrevRoomCode] = useState(roomCode);
+  if (roomCode !== prevRoomCode) {
+    setPrevRoomCode(roomCode);
     setShowVoteResult(false);
     setShowDeathPopUp(false);
     setDeadToday({ names: [], day: 1, details: {} });
     setVoteResult(null);
+  }
+
+  // Update refs di useEffect saat roomCode berubah (kepatuhan React 19: ref hanya boleh dimodifikasi di effect/handler)
+  useEffect(() => {
     prevPhaseRef.current = null;
     dismissedDayRef.current = null;
     hasPlayedEndAudioRef.current = false;
@@ -317,6 +325,43 @@ function AppContent() {
             setShowDeathPopUp(false);
           }}
         />
+      )}
+
+      {/* GLOBAL: Voting Closed / Transition Overlay */}
+      {allVoted && isSiang(phase) && isGamePage && currentPage !== 'view-mod' && (
+        <div
+          className="fixed inset-0 flex items-center justify-center p-6 bg-black/90 backdrop-blur-md animate-in fade-in duration-500"
+          style={{ zIndex: Z_LAYER.PHASE_OVERLAY }}
+        >
+          <div className="max-w-sm w-full bg-slate-900 border-2 border-orange-500/30 shadow-[0_0_50px_rgba(249,115,22,0.15)] rounded-[2.5rem] p-8 text-center relative overflow-hidden">
+            {/* Background Glow */}
+            <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full blur-3xl bg-orange-600/10" />
+            <div className="absolute -bottom-10 -left-10 w-32 h-32 rounded-full blur-3xl bg-orange-600/5" />
+
+            <div className="relative mb-6">
+              <div className="absolute inset-0 blur-2xl rounded-full scale-150 animate-pulse bg-orange-600/20" />
+              <div className="w-20 h-20 bg-gradient-to-tr from-orange-600 to-yellow-500 rounded-full mx-auto flex items-center justify-center shadow-2xl relative border-4 border-white/20">
+                <span className="text-white text-3xl font-black font-mono animate-pulse">{seconds}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2 mb-8 relative z-10">
+              <h2 className="font-black uppercase tracking-[0.4em] text-[10px] text-orange-500">
+                Fase Siang Selesai • Hari {day}
+              </h2>
+              <h1 className="text-white text-2xl font-black italic uppercase leading-none tracking-tighter">
+                VOTING DITUTUP
+              </h1>
+            </div>
+
+            <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">
+              Semua suara telah terkumpul!
+            </p>
+            <p className="text-slate-500 text-[10px] leading-relaxed italic px-4 uppercase font-bold tracking-tight">
+              "Mempersiapkan tiang gantungan... keputusan hukum akan segera diumumkan."
+            </p>
+          </div>
+        </div>
       )}
     </div>
   );

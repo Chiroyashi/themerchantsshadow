@@ -18,18 +18,29 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
   const [isOpenInternal, setIsOpenInternal] = useState(false);
   const isOpen = isOpenExternal !== undefined ? isOpenExternal : isOpenInternal;
   const toggleOpen = isOpenExternal !== undefined ? onToggleExternal : () => {
-    if (!isOpenInternal) {
-      setUnreadCount(0);
-      lastSeenRef.current = getTimestamp();
-    }
     setIsOpenInternal(!isOpenInternal);
   };
   const [showTargetMenu, setShowTargetMenu] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [channel, setChannel] = useState('public'); // 'public' | 'ww' | 'graveyard'
   const scrollRef = useRef(null);
-  const lastSeenRef = useRef(0);
+  const lastSeenRef = useRef(getTimestamp());
   const inputRef = useRef(null);
+
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
+    if (isOpen) {
+      setUnreadCount(0);
+    }
+  }
+
+  // Update lastSeenRef di useEffect saat isOpen berubah (kepatuhan React 19: ref hanya boleh dimodifikasi di effect/handler)
+  useEffect(() => {
+    if (isOpen) {
+      lastSeenRef.current = getTimestamp();
+    }
+  }, [isOpen]);
 
   const myDataFromList = players?.find(p => p.id === myId);
   const myRole = myDataFromList?.role;

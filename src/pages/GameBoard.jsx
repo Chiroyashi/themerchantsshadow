@@ -8,15 +8,14 @@ import SharedTimer from '../components/SharedTimer';
 import ChatRoom from '../components/ChatRoom';
 import { useGameContext } from '../contexts/GameContext';
 import { useTimerContext } from '../contexts/TimerContext';
-import { useNotification } from '../contexts/NotificationContext';
 import { Z_LAYER } from '../constants/zIndex';
 import { isMalam, isSiang } from '../constants/phases';
 
 const GameBoard = ({ onBack }) => {
   const { players, roomCode, myPlayerId } = useGameContext();
   const { seconds, phase, isActive } = useTimerContext();
-  const { showNotif } = useNotification();
   const [selectedTarget, setSelectedTarget] = useState(null);
+  const [confirmingTarget, setConfirmingTarget] = useState(null);
   const [hasActed, setHasActed] = useState(false);
   const [actionNotif, setActionNotif] = useState(null);
   const [allVotes, setAllVotes] = useState({});
@@ -45,6 +44,7 @@ const GameBoard = ({ onBack }) => {
     setPrevPhaseRoom({ phase, roomCode });
     setSelectedTarget(null);
     setHasActed(false);
+    setConfirmingTarget(null);
   }
 
   // Listener vote pemain sendiri
@@ -111,16 +111,7 @@ const GameBoard = ({ onBack }) => {
 
   const handleAction = (targetId) => {
     if (hasActed || isDead || !isVotingTime) return;
-
-    const targetName = targetId === 'skip'
-      ? "tidak ada (Skip)"
-      : (players.find(p => p.id === targetId)?.name || "Unknown");
-
-    const message = targetId === 'skip'
-      ? "Apakah Anda yakin ingin melewatkan vote (Skip) pada siang ini?"
-      : `Apakah Anda yakin ingin memberikan suara (Vote) kepada "${targetName}"? Pilihan ini tidak dapat diubah.`;
-
-    showNotif("Konfirmasi Vote", message, "confirm", () => executeVote(targetId));
+    setConfirmingTarget(targetId);
   };
 
   if (!me) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-red-500 font-black uppercase tracking-widest">Data Error...</div>;
@@ -175,11 +166,11 @@ const GameBoard = ({ onBack }) => {
           return (
             <div
               key={player.id}
-              onClick={() => { if (isVotingTime && !hasActed && !pDead) { handleAction(player.id); } }}
+              onClick={() => { if (isVotingTime && !hasActed && !pDead && confirmingTarget !== player.id) { handleAction(player.id); } }}
               className={`relative p-3 sm:p-4 rounded-3xl border-2 transition-all text-center overflow-hidden select-none
                 ${pDead ? 'bg-slate-900/40 border-transparent grayscale opacity-40' : 'bg-slate-900 border-slate-800 shadow-xl'}
                 ${isSelected && !pDead ? 'border-red-500 bg-red-600/10 ring-4 ring-red-500/20' : ''}
-                ${isVotingTime && !pDead && !hasActed ? 'active:scale-95 cursor-pointer hover:border-blue-500/50' : ''}
+                ${isVotingTime && !pDead && !hasActed && confirmingTarget !== player.id ? 'active:scale-95 cursor-pointer hover:border-blue-500/50' : ''}
               `}
             >
               <div className="flex justify-between items-start mb-3">
@@ -201,21 +192,37 @@ const GameBoard = ({ onBack }) => {
 
               {isVotingTime && (
               <div className="mt-3 pt-2 border-t border-white/5 text-center">
-                <span className={`inline-block px-4 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wide ${
-                  pDead
-                    ? 'bg-red-900/20 text-red-700'
-                    : isSelected
-                      ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30'
-                      : 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
-                }`}>
-                  {pDead ? '☠️ Mati' : isSelected ? '✓ Voted' : '🗳️ Vote'}
-                </span>
-                {!pDead && voteCount > 0 && (
-                  <div className="mt-1.5">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-500/10 rounded-full text-[9px] font-bold text-orange-400">
-                      {voteCount} 👤
+                {confirmingTarget === player.id ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      executeVote(player.id);
+                      setConfirmingTarget(null);
+                    }}
+                    className="w-full py-1.5 bg-red-600 hover:bg-red-500 text-white font-black rounded-lg text-[9px] uppercase tracking-wider transition-colors animate-in zoom-in duration-200"
+                  >
+                    Yakin?
+                  </button>
+                ) : (
+                  <>
+                    <span className={`inline-block px-4 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wide ${
+                      pDead
+                        ? 'bg-red-900/20 text-red-700'
+                        : isSelected
+                          ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30'
+                          : 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
+                    }`}>
+                      {pDead ? '☠️ Mati' : isSelected ? '✓ Voted' : '🗳️ Vote'}
                     </span>
-                  </div>
+                    {!pDead && voteCount > 0 && (
+                      <div className="mt-1.5">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-500/10 rounded-full text-[9px] font-bold text-orange-400">
+                          {voteCount} 👤
+                        </span>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
               )}
@@ -290,6 +297,17 @@ const GameBoard = ({ onBack }) => {
                       ✓ Suara Terkirim
                     </div>
                   )
+                ) : confirmingTarget === 'skip' ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      executeVote('skip');
+                      setConfirmingTarget(null);
+                    }}
+                    className="w-full py-3.5 bg-red-600 hover:bg-red-500 text-white font-black rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg animate-in zoom-in duration-200"
+                  >
+                    Yakin Skip?
+                  </button>
                 ) : (
                   <button
                     onClick={() => handleAction('skip')}

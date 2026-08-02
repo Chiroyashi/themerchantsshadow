@@ -215,12 +215,15 @@ const ViewRole = ({ onNext }) => {
         const data = snapshot.val();
         if (data && data.message) {
           setMyClues(data);
-          setShowCluePopup(true);
+          const isDismissed = localStorage.getItem(`dismissed_clue_${roomCode}_${day}`) === 'true';
+          if (!isDismissed) {
+            setShowCluePopup(true);
+          }
         }
       });
       return () => unsubscribe();
     }
-  }, [roomCode, playerData?.id, role]);
+  }, [roomCode, playerData?.id, role, day]);
 
   // ── Morning popup: 1 generic listener untuk semua role ──
   useEffect(() => {
@@ -291,14 +294,17 @@ const ViewRole = ({ onNext }) => {
         return onValue(ref_, (snap) => {
           const data = snap.val();
           if (cfg.validate(data)) {
+            const isDismissed = localStorage.getItem(`dismissed_action_${roomCode}_${day}_${phase}`) === 'true';
             setActionPopupData(cfg.map(data));
-            setShowActionPopup(true);
+            if (!isDismissed) {
+              setShowActionPopup(true);
+            }
           }
         });
       });
 
     return () => unsubs.forEach(u => u());
-  }, [roomCode, playerData?.id, role]);
+  }, [roomCode, playerData?.id, role, day, phase]);
 
   // Scroll lock for popups
   useEffect(() => {
@@ -400,16 +406,34 @@ const ViewRole = ({ onNext }) => {
     const isHakim = role.includes("hakim");
     const isPistol = type === 'pistol';
 
-    // Tentukan popup berdasarkan role
+    // Tentukan popup berdasarkan role dan jenis aksi (regular vs skip)
     let popupInfo = null;
+    const isSkip = type === 'skip';
+
     if (role.includes("werewolf")) {
-      popupInfo = { icon: "🐺", title: "Eksekusi Malam", desc: `Kamu membunuh ${targetPlayer?.name}` };
+      if (isSkip) {
+        popupInfo = { icon: "🐺", title: "Aksi Dilewati", desc: "Kamu memilih untuk melewati malam ini tanpa menyerang siapa pun." };
+      } else {
+        popupInfo = { icon: "🐺", title: "Target Dikunci", desc: `Kamu memilih untuk menyerang ${targetPlayer?.name || "Target"}. Hasil eksekusi akan terungkap besok pagi.` };
+      }
     } else if (role.includes("guard")) {
-      popupInfo = { icon: "🛡️", title: "Proteksi", desc: `Kamu melindungi ${targetPlayer?.name} selama 2 malam`, target: targetPlayer };
+      if (isSkip) {
+        popupInfo = { icon: "🛡️", title: "Aksi Dilewati", desc: "Kamu memilih untuk tidak melindungi siapa pun malam ini." };
+      } else {
+        popupInfo = { icon: "🛡️", title: "Proteksi", desc: `Kamu melindungi ${targetPlayer?.name || "Target"} selama 2 malam`, target: targetPlayer };
+      }
     } else if (role.includes("hunter")) {
-      popupInfo = { icon: "🎯", title: "Berburu", desc: `Kamu menembak ${targetPlayer?.name}`, target: targetPlayer };
+      if (isSkip) {
+        popupInfo = { icon: "🎯", title: "Aksi Dilewati", desc: "Kamu memilih untuk tidak berburu malam ini." };
+      } else {
+        popupInfo = { icon: "🎯", title: "Berburu", desc: `Tembakan diarahkan kepada ${targetPlayer?.name || "Target"}. Hasil tembakan akan terungkap besok pagi.`, target: targetPlayer };
+      }
     } else if (role.includes("hakim") && !isPistol) {
-      popupInfo = { icon: "👁️", title: "Interogasi", desc: `Kamu Truth target ${targetPlayer?.name}` };
+      if (isSkip) {
+        popupInfo = { icon: "👁️", title: "Aksi Dilewati", desc: "Kamu memilih untuk tidak menggunakan Truth malam ini." };
+      } else {
+        popupInfo = { icon: "👁️", title: "Interogasi", desc: `Kamu Truth target ${targetPlayer?.name || "Target"}` };
+      }
     }
     if (popupInfo) {
       setActionPopupData(popupInfo);
@@ -941,7 +965,7 @@ const ViewRole = ({ onNext }) => {
               <div className="bg-emerald-900/30 border border-emerald-500/30 rounded-2xl p-4 space-y-2">
                 <div className="flex items-center gap-2">
                   <ShoppingBag size={14} className="text-emerald-500" />
-                  <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500">Clue dari暗中 (Dagang)</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500">Petunjuk Transaksi Gelap</p>
                 </div>
                 <p className="text-xs text-emerald-400 italic leading-relaxed">{myClues.message}</p>
                 <p className="text-[7px] text-slate-500">Hari ke-{myClues.day}</p>
@@ -991,7 +1015,10 @@ const ViewRole = ({ onNext }) => {
                 </div>
               )}
               <button
-                onClick={() => setShowActionPopup(false)}
+                onClick={() => {
+                  setShowActionPopup(false);
+                  localStorage.setItem(`dismissed_action_${roomCode}_${day}_${phase}`, 'true');
+                }}
                 className={`w-full py-4 rounded-2xl font-black uppercase text-xs tracking-widest active:scale-95 transition-all ${actionPopupData.isMiss ? 'bg-red-600 text-white hover:bg-red-500' : 'bg-blue-600 text-white hover:bg-blue-500'}`}
               >
                 Tutup
@@ -1008,7 +1035,7 @@ const ViewRole = ({ onNext }) => {
                   <div className="w-16 h-16 bg-emerald-600/20 rounded-full mx-auto flex items-center justify-center">
                     <ShoppingBag size={32} className="text-emerald-400" />
                   </div>
-                  <h2 className="text-lg md:text-xl font-black text-emerald-400 uppercase italic">暗中 (Pelanggan Gelap)</h2>
+                  <h2 className="text-lg md:text-xl font-black text-emerald-400 uppercase italic">Transaksi Gelap (Clue)</h2>
                   <p className="text-[8px] md:text-[10px] text-slate-500 font-bold uppercase tracking-widest">Kamu mendapat pesan rahasia!</p>
                 </div>
 
@@ -1023,8 +1050,11 @@ const ViewRole = ({ onNext }) => {
                 </div>
 
                 {/* Close Button */}
-                <button 
-                  onClick={() => setShowCluePopup(false)}
+                <button
+                  onClick={() => {
+                    setShowCluePopup(false);
+                    localStorage.setItem(`dismissed_clue_${roomCode}_${day}`, 'true');
+                  }}
                   className="w-full py-3 bg-emerald-600 rounded-xl font-black uppercase text-xs md:text-sm shadow-lg hover:bg-emerald-500 transition-colors"
                 >
                   Tutup

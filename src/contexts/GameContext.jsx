@@ -96,10 +96,12 @@ export function GameProvider({ children }) {
       if (!data || data.status === "destroyed") {
         if (!hasShownDestroyedRef.current) {
           hasShownDestroyedRef.current = true;
-          if (roomStatusRef.current === "ended") {
-            showNotif("Permainan Selesai", "Room telah ditutup karena permainan telah selesai.", "info");
-          } else {
-            showNotif("Room Dibubarkan", "Moderator telah menutup permainan ini.", "error");
+          if (!curIsHost) {
+            if (roomStatusRef.current === "ended") {
+              showNotif("Permainan Selesai", "Room telah ditutup karena permainan telah selesai.", "info");
+            } else {
+              showNotif("Room Dibubarkan", "Moderator telah menutup permainan ini.", "error");
+            }
           }
           setTimeout(() => {
             localStorage.clear();
@@ -107,7 +109,7 @@ export function GameProvider({ children }) {
             setMyPlayerId(null);
             setGameMatchId('');
             setCurrentPage('landing');
-          }, 3000);
+          }, curIsHost ? 0 : 3000);
         }
         return;
       }
@@ -274,7 +276,7 @@ export function GameProvider({ children }) {
     setRoomCode('');
     setMyPlayerId(null);
     setGameMatchId('');
-    setCurrentPage('landing');
+    setCurrentPage('room-setup');
   }, [isHost, roomCode]);
 
   const handleLeaveGame = useCallback(async (hasWinner, redirectPage = 'landing') => {
