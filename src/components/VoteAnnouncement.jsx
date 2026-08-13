@@ -77,18 +77,25 @@ const VoteAnnouncement = ({ names, day, onClose }) => {
 
   if (!names || names.length === 0) return null;
 
-  const borderColor = isPeaceful
-    ? 'border-emerald-500/30 shadow-[0_0_50px_rgba(16,185,129,0.15)]'
-    : 'border-red-600 shadow-[0_0_60px_rgba(220,38,38,0.45)]';
   const glowBg = isPeaceful ? 'bg-emerald-600' : 'bg-red-700';
   const accentText = isPeaceful ? 'text-emerald-400' : 'text-red-500';
   const buttonStyle = isPeaceful
     ? 'bg-emerald-600 text-white hover:bg-emerald-500'
     : 'bg-white text-black hover:bg-slate-200';
 
+  const gradientBg = isPeaceful
+    ? 'linear-gradient(to bottom, rgba(2, 6, 23, 1) 0%, rgba(2, 6, 23, 0.7) 70%, rgba(6, 95, 70, 1) 100%)'
+    : 'linear-gradient(to bottom, rgba(2, 6, 23, 1) 0%, rgba(2, 6, 23, 0.7) 70%, rgba(153, 27, 27, 1) 100%)';
+
   return (
-    <div className="fixed inset-0 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-700" style={{ zIndex: Z_LAYER.PHASE_OVERLAY }}>
-      <div className={`max-w-sm w-full bg-slate-900 border-2 rounded-[2.5rem] p-6 sm:p-8 text-center relative overflow-hidden transition-all duration-1000 max-h-[95vh] overflow-y-auto custom-scrollbar ${borderColor}`}>
+    <div
+      className="fixed inset-0 flex flex-col items-center justify-center p-6 sm:p-8 animate-in fade-in duration-700 overflow-y-auto custom-scrollbar text-center"
+      style={{
+        zIndex: Z_LAYER.PHASE_OVERLAY,
+        background: gradientBg
+      }}
+    >
+      <div className="max-w-md w-full my-auto flex flex-col justify-center gap-6 relative z-10">
         <style>{`
           @keyframes hang-swing {
             0% { transform: rotate(-8deg); }
@@ -109,10 +116,7 @@ const VoteAnnouncement = ({ names, day, onClose }) => {
 
         {!isPeaceful && <GallowsOverlay />}
 
-        <div className={`absolute -top-10 -right-10 w-32 h-32 rounded-full blur-3xl ${glowBg}/10`} />
-        <div className={`absolute -bottom-10 -left-10 w-32 h-32 rounded-full blur-3xl ${glowBg}/5`} />
-
-        <div className="relative mb-6">
+        <div className="relative mb-4">
           <div className={`absolute inset-0 blur-2xl rounded-full scale-150 animate-pulse ${glowBg}/20`} />
           {isPeaceful ? (
             <ShieldCheck size={72} className="text-slate-500 mx-auto relative z-10 animate-bounce" />
@@ -121,7 +125,7 @@ const VoteAnnouncement = ({ names, day, onClose }) => {
           )}
         </div>
 
-        <div className="space-y-2 mb-8 relative z-10">
+        <div className="space-y-2 relative z-10">
           <h2 className={`font-black uppercase tracking-[0.4em] text-[10px] ${accentText}`}>
             Laporan Forensik • Hari {day}
           </h2>
@@ -138,17 +142,17 @@ const VoteAnnouncement = ({ names, day, onClose }) => {
           ) : (
             <div className="bg-red-950/20 border border-red-500/20 py-2.5 rounded-2xl">
               <p className="text-red-400 text-[10px] font-black uppercase tracking-[0.2em]">Status: Tereliminasi</p>
-1            </div>
+            </div>
           )}
         </div>
 
-        <p className="text-slate-500 text-[10px] mt-8 leading-relaxed italic px-4 uppercase font-bold tracking-tight relative z-10">
+        <p className="text-slate-300 text-[10px] leading-relaxed italic px-4 uppercase font-bold tracking-tight relative z-10">
           {isPeaceful
             ? '"Keadilan membutuhkan bukti. Tidak ada yang dihukum hari ini."'
             : '"Keputusan telah diambil. Semoga Waranasura beristirahat dalam damai."'}
         </p>
 
-        <div className="mt-8 relative z-10 h-14">
+        <div className="mt-4 relative z-10 h-14 w-full">
           <button
             onClick={onClose}
             className={`w-full h-full rounded-2xl font-black text-xs uppercase tracking-[0.2em] active:scale-95 transition-all animate-in zoom-in duration-300 shadow-xl ${buttonStyle}`}

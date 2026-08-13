@@ -55,6 +55,7 @@ const IntroFable = ({ players, roomCode, onFinish, playerData }) => {
     if (p.role !== 'Moderator') acc[p.role] = (acc[p.role] || 0) + 1;
     return acc;
   }, {});
+  const totalWarga = players.filter(p => p.role !== 'Moderator').length;
 
   useEffect(() => { lockScroll(); return () => unlockScroll(); }, []);
 
@@ -62,7 +63,7 @@ const IntroFable = ({ players, roomCode, onFinish, playerData }) => {
   // Catatan: sengaja kosongin dependency array — pakai ref biar gak restart
   useEffect(() => {
     const startTime = Date.now();
-    const totalDuration = 20;
+    const totalDuration = 25;
 
     const interval = setInterval(() => {
       const elapsed = (Date.now() - startTime) / 1000;
@@ -71,8 +72,8 @@ const IntroFable = ({ players, roomCode, onFinish, playerData }) => {
 
       if (elapsed < 6) setStep(1);
       else if (elapsed < 11) setStep(2);
-      else if (elapsed < 16) setStep(3);
-      else if (elapsed < 21) setStep(4);
+      else if (elapsed < 21) setStep(3);
+      else if (elapsed < 26) setStep(4);
       else if (!finishedRef.current) {
         finishedRef.current = true;
         clearInterval(interval);
@@ -84,14 +85,14 @@ const IntroFable = ({ players, roomCode, onFinish, playerData }) => {
       }
     }, 100);
 
-    // Fallback: jika 30 detik tidak selesai, paksa selesai
+    // Fallback: jika 35 detik tidak selesai, paksa selesai
     const fallback = setTimeout(() => {
       if (!finishedRef.current) {
         finishedRef.current = true;
         clearInterval(interval);
         onFinishRef.current();
       }
-    }, 30000);
+    }, 35000);
 
     return () => {
       clearInterval(interval);
@@ -109,8 +110,12 @@ const IntroFable = ({ players, roomCode, onFinish, playerData }) => {
     <div className="fixed inset-0 bg-slate-950 flex items-center justify-center p-4 md:p-6 text-center overflow-hidden font-sans" style={{ zIndex: Z_LAYER.INTRO_FABLE }}>
       {/* Ambience Layer */}
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[70%] h-[70%] bg-blue-900/20 rounded-full blur-[120px] animate-pulse" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[70%] h-[70%] bg-red-900/20 rounded-full blur-[120px] animate-pulse" />
+        <div className={`absolute top-[-10%] left-[-10%] w-[70%] h-[70%] rounded-full blur-[120px] animate-pulse transition-all duration-1000 ${
+          step === 3 ? 'bg-emerald-900/30' : 'bg-blue-900/20'
+        }`} />
+        <div className={`absolute bottom-[-10%] right-[-10%] w-[70%] h-[70%] rounded-full blur-[120px] animate-pulse transition-all duration-1000 ${
+          step === 3 ? 'bg-purple-900/30' : 'bg-red-900/20'
+        }`} />
       </div>
 
       <div className="max-w-md w-full relative z-10 max-h-[90vh] overflow-y-auto custom-scrollbar py-4 px-2">
@@ -119,13 +124,13 @@ const IntroFable = ({ players, roomCode, onFinish, playerData }) => {
         {step === 1 && (
           <div className="space-y-4 md:space-y-6 animate-in fade-in zoom-in duration-1000">
             <Scroll className="w-12 h-12 md:w-16 md:h-16 text-amber-500 mx-auto mb-4 drop-shadow-[0_0_15px_rgba(245,158,11,0.5)]" />
-            <h2 className="text-2xl md:text-3xl font-black text-white italic tracking-tighter uppercase">Waranasura</h2>
+            <h2 className="text-2xl md:text-3xl font-black text-white italic tracking-tighter uppercase">WARANASURA</h2>
             <div className="space-y-3 md:space-y-4">
               <p className="text-slate-300 leading-relaxed italic text-xs md:text-sm">
-                "Disebuah kota bernama <span className="text-amber-500 font-bold">Waranasura</span>, ada <span className="text-blue-400 font-bold">{counts['Pedagang'] || 0} Pedagang</span> yang mempertaruhkan segalanya demi kepingan koin..."
+                "Di kota Waranasura, <span className="text-blue-400 font-bold">{totalWarga} Warga</span> mempertaruhkan segalanya demi bertahan hidup..."
               </p>
               <p className="text-slate-400 leading-relaxed italic text-[10px] md:text-xs opacity-80">
-                Namun di balik hiruk pikuk pasar, bayangan gelap mulai bergerak mencari mangsa.
+                Namun di balik keramaian, bayangan gelap mulai berburu...
               </p>
             </div>
           </div>
@@ -139,13 +144,13 @@ const IntroFable = ({ players, roomCode, onFinish, playerData }) => {
               <Sparkles className="absolute -top-1 md:-top-2 -right-1 md:-right-2 text-white animate-pulse" />
             </div>
             <h1 className="text-xl md:text-2xl font-black text-white italic tracking-tighter leading-none uppercase">
-              "Keadilan Adalah <br/> Milik Mereka yang Berani!"
+              "Keadilan Milik Mereka yang Berani!"
             </h1>
-            
+
             <div className="bg-amber-500 p-1 rounded-[2rem] rotate-2 shadow-[0_20px_50px_rgba(245,158,11,0.3)]">
               <div className="bg-slate-900 rounded-[1.8rem] p-4 md:p-6 rotate-[-2deg]">
-                <p className="text-[8px] md:text-[10px] font-black uppercase tracking-[.2em] text-amber-500 mb-1">Identitas Terbuka</p>
-                <span className="inline-block text-3xl md:text-4xl font-black text-amber-400 uppercase italic tracking-tight bg-amber-500/10 px-3 md:px-4 py-1 md:py-2 rounded-xl">Hakim</span>
+                <p className="text-[8px] md:text-[10px] font-black uppercase tracking-[.2em] text-amber-500 mb-1">IDENTITAS TERBUKA</p>
+                <span className="inline-block text-3xl md:text-4xl font-black text-amber-400 uppercase italic tracking-tight bg-amber-500/10 px-3 md:px-4 py-1 md:py-2 rounded-xl">HAKIM / THE JUDGE</span>
                 <h3 className="text-xl md:text-2xl font-black text-white uppercase italic tracking-tight mt-2 md:mt-3">{hakim?.name || "ANONYMOUS"}</h3>
                 <p className="text-slate-500 text-[8px] md:text-[10px] mt-1 md:mt-2 font-bold uppercase tracking-widest">The Grand Justice of Waranasura</p>
               </div>
@@ -158,15 +163,15 @@ const IntroFable = ({ players, roomCode, onFinish, playerData }) => {
           <div className="space-y-4 md:space-y-6 animate-in fade-in zoom-in duration-700">
             <div className="flex flex-col items-center gap-1 mb-2">
               <Users size={20} md:size={24} className="text-blue-500" />
-              <h2 className="text-[8px] md:text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">Tatanan Penduduk</h2>
+              <h2 className="text-[8px] md:text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">KOMPOSISI PERAN</h2>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-3 md:gap-4">
               {Object.entries(counts).map(([role, count]) => {
                 const roleData = roleIcons[role] || { icon: Users, color: "text-slate-400" };
                 const Icon = roleData.icon;
                 return (
-                  <div key={role} className="p-3 md:p-4 rounded-2xl flex flex-col items-center group hover:scale-105 transition-transform">
+                  <div key={role} className="p-3 md:p-4 rounded-2xl bg-slate-900/80 border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.5)] backdrop-blur-sm flex flex-col items-center group hover:scale-105 transition-transform">
                     <Icon size={32} md:size={36} className={`mb-1 transition-colors ${roleData.color}`} />
                     <span className="text-2xl md:text-3xl font-black text-white leading-none">{count}</span>
                     <span className={`text-[8px] md:text-[10px] font-black uppercase tracking-widest mt-1 ${roleData.color}`}>{role}</span>
@@ -187,13 +192,13 @@ const IntroFable = ({ players, roomCode, onFinish, playerData }) => {
                </div>
             </div>
             <div className="space-y-3">
-              <h2 className="text-4xl font-black text-white italic tracking-tighter uppercase">Fajar Menyingsing</h2>
+              <h2 className="text-4xl font-black text-white italic tracking-tighter uppercase">PUTARAN 1: PAGI HARI</h2>
               <p className="text-slate-400 text-sm italic px-6 leading-relaxed">
-                "Rahasia malam mulai terbongkar. Siapa yang akan bertahan, dan siapa yang akan menjadi tumbal?"
+                "Kegelapan telah hadir... Temukan pengkhianat di antara kalian!"
               </p>
             </div>
             <div className="inline-block px-4 py-2 bg-blue-600/10 border border-blue-500/20 rounded-full">
-               <p className="text-[9px] text-blue-400 font-black uppercase tracking-widest">Permainan Segera Dimulai...</p>
+               <p className="text-[9px] text-blue-400 font-black uppercase tracking-widest">Siap-siap...</p>
             </div>
           </div>
         )}

@@ -72,7 +72,7 @@ const getPlayerAchievement = (player, allPlayers, winner) => {
 
 const GameOverScreen = ({ winner, players, playerData, onLeave }) => {
   useEffect(() => { lockScroll(); return () => unlockScroll(); }, []);
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(2);
   const isWargaWinner = winner === 'WARGA';
 
   // Logika Menang/Kalah Personal
@@ -91,32 +91,6 @@ const GameOverScreen = ({ winner, players, playerData, onLeave }) => {
       </div>
 
       <div className="max-w-md w-full relative">
-        {/* STEP 1: EPILOG NARASI (Gaya IntroFable) */}
-        {step === 1 && (
-          <div className="space-y-6 animate-in fade-in zoom-in duration-1000">
-            <div className={`text-[10px] font-black uppercase tracking-[0.4em] px-4 py-1.5 rounded-full inline-block mx-auto ${
-              isWargaWinner
-                ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
-                : 'bg-red-600/10 text-red-500 border border-red-500/20'
-            }`}>
-              {isWargaWinner ? "Tim Penduduk Menang" : "Tim Werewolf Menang"}
-            </div>
-            <ScrollText className={`w-16 h-16 mx-auto mb-2 drop-shadow-2xl ${isWargaWinner ? 'text-amber-500' : 'text-red-600'}`} />
-            <h2 className="text-2xl font-black text-white italic tracking-tighter uppercase">Epilog Waranasura</h2>
-            <div className="space-y-4">
-              <p className="text-slate-300 leading-relaxed italic text-sm px-4">
-                {isWargaWinner
-                  ? "Cahaya mentari akhirnya menembus kabut tebal yang menyelimuti kota. Kabar tentang tewasnya ancaman terakhir menyebar cepat, membawa fajar baru yang damai..."
-                  : "Malam tak kunjung usai. Jeritan penduduk terakhir tenggelam di balik tawa dingin sang Warlock dan raungan buas para Werewolf yang kini berkuasa..."}
-              </p>
-              <p className={`text-sm font-black uppercase tracking-[0.3em] ${isWargaWinner ? 'text-blue-400' : 'text-red-500'}`}>
-                {isWargaWinner ? "KOTA INI TELAH PULIH" : "KOTA INI TELAH JATUH"}
-              </p>
-            </div>
-            <button onClick={nextStep} className="mt-8 px-10 py-4 bg-white/5 border border-white/10 rounded-full text-[10px] font-black uppercase tracking-[0.3em] text-white hover:bg-white/10 transition-all active:scale-95">Lihat Nasibmu</button>
-          </div>
-        )}
-
         {/* STEP 2: PERSONAL FATE (YOU WIN/LOSE) */}
         {step === 2 && (
           <div className="space-y-8 animate-in slide-in-from-bottom-8 duration-700">
@@ -154,14 +128,14 @@ const GameOverScreen = ({ winner, players, playerData, onLeave }) => {
             <div className={`p-1 rounded-2xl rotate-1 shadow-2xl ${isIWinner ? 'bg-gradient-to-r from-amber-500 to-yellow-300' : 'bg-slate-800'}`}>
               <div className="bg-slate-900 rounded-xl p-6 rotate-[-1deg]">
                 <p className="text-slate-400 text-xs italic leading-relaxed">
-                  {isIWinner 
-                    ? "Namamu akan terukir dalam sejarah Waranasura sebagai pahlawan yang membawa cahaya kembali ke kota ini."
+                  {isIWinner
+                    ? "Namamu akan terukir dalam sejarah Waranasura sebagai pahlawan yang membawa cahaya kembali to kota ini."
                     : "Bayanganmu kini hanya menjadi bagian dari kabut abadi yang menyelimuti sisa-sisa reruntuhan kota terkutuk ini."}
                 </p>
               </div>
             </div>
 
-            <button onClick={nextStep} className="mt-4 px-10 py-4 bg-blue-600 rounded-full text-[10px] font-black uppercase tracking-[0.3em] text-white shadow-lg shadow-blue-900/40 active:scale-95 transition-all">Nasib Penduduk Lain</button>
+            <button onClick={nextStep} className="mt-4 px-10 py-4 bg-blue-600 rounded-full text-[10px] font-black uppercase tracking-[0.3em] text-white shadow-lg shadow-blue-900/40 active:scale-95 transition-all">Lihat Peran?</button>
           </div>
         )}
 

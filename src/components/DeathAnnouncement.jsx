@@ -47,22 +47,25 @@ const DeathAnnouncement = ({ deadPlayers, deadDetails = {}, day, onClose }) => {
 
   if (!deadPlayers || deadPlayers.length === 0) return null;
 
-  return (
-    <div className="fixed inset-0 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-700" style={{ zIndex: Z_LAYER.PHASE_OVERLAY }}>
-      <div className={`max-w-sm w-full bg-slate-900 border-2 rounded-[2.5rem] p-6 sm:p-8 text-center relative overflow-hidden transition-all duration-1000 max-h-[95vh] overflow-y-auto custom-scrollbar
-        ${isPeacefulNight
-          ? 'border-emerald-500/30 shadow-[0_0_50px_rgba(16,185,129,0.15)]'
-          : hasGunshotDeath
-            ? 'border-red-500 shadow-[0_0_60px_rgba(239,68,68,0.45)]'
-            : 'border-red-600 shadow-[0_0_50px_rgba(220,38,38,0.3)]'}`}>
+  const gradientBg = isPeacefulNight
+    ? 'linear-gradient(to bottom, rgba(2, 6, 23, 1) 0%, rgba(2, 6, 23, 0.7) 70%, rgba(6, 95, 70, 1) 100%)'
+    : hasGunshotDeath
+      ? 'linear-gradient(to bottom, rgba(2, 6, 23, 1) 0%, rgba(2, 6, 23, 0.7) 70%, rgba(220, 38, 38, 1) 100%)'
+      : 'linear-gradient(to bottom, rgba(2, 6, 23, 1) 0%, rgba(2, 6, 23, 0.7) 70%, rgba(153, 27, 27, 1) 100%)';
 
+  return (
+    <div
+      className="fixed inset-0 flex flex-col items-center justify-center p-6 sm:p-8 animate-in fade-in duration-700 overflow-y-auto custom-scrollbar text-center"
+      style={{
+        zIndex: Z_LAYER.PHASE_OVERLAY,
+        background: gradientBg
+      }}
+    >
+      <div className="max-w-md w-full my-auto flex flex-col justify-center gap-6 relative z-10 animate-in zoom-in duration-300">
         {hasGunshotDeath && <CrackedOverlay />}
 
         {/* Dekorasi Background Cahaya */}
-        <div className={`absolute -top-10 -right-10 w-32 h-32 rounded-full blur-3xl ${isPeacefulNight ? 'bg-emerald-600/10' : 'bg-red-600/10'}`} />
-        <div className={`absolute -bottom-10 -left-10 w-32 h-32 rounded-full blur-3xl ${isPeacefulNight ? 'bg-emerald-600/5' : 'bg-red-600/5'}`} />
-
-        <div className="relative mb-6">
+        <div className="relative mb-4">
           <div className={`absolute inset-0 blur-2xl rounded-full scale-150 animate-pulse ${isPeacefulNight ? 'bg-emerald-600/20' : 'bg-red-600/20'}`} />
           {isPeacefulNight ? (
             <Sun size={72} className="text-emerald-400 mx-auto relative z-10 animate-bounce" />
@@ -82,7 +85,7 @@ const DeathAnnouncement = ({ deadPlayers, deadDetails = {}, day, onClose }) => {
           </h1>
         </div>
 
-        <div className="space-y-3 relative z-10 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+        <div className="space-y-3 relative z-10 max-h-48 overflow-y-auto custom-scrollbar pr-1 w-full">
           {isPeacefulNight ? (
             <div className="bg-emerald-600/10 border border-emerald-600/20 py-6 rounded-2xl animate-in zoom-in duration-1000">
               <p className="text-emerald-400 text-xs font-black uppercase tracking-widest">Semua Orang Selamat</p>
@@ -120,14 +123,14 @@ const DeathAnnouncement = ({ deadPlayers, deadDetails = {}, day, onClose }) => {
           )}
         </div>
 
-        <p className="text-slate-500 text-[10px] mt-8 leading-relaxed italic px-4 uppercase font-bold tracking-tight relative z-10">
+        <p className="text-slate-300 text-[10px] mt-8 leading-relaxed italic px-4 uppercase font-bold tracking-tight relative z-10">
           {isPeacefulNight
             ? '"Fajar menyingsing dengan kedamaian. Tapi waspadalah, serigala masih mengintai."'
             : '"Kegelapan malam menyisakan duka. Siapa yang akan kalian hukum pagi ini?"'}
         </p>
 
         {/* Tombol Aksi — langsung muncul */}
-        <div className="mt-8 relative z-10 h-14">
+        <div className="mt-8 relative z-10 h-14 w-full">
           <button
             onClick={onClose}
             className={`w-full h-full rounded-2xl font-black text-xs uppercase tracking-[0.2em] active:scale-95 transition-all animate-in zoom-in duration-300 shadow-xl
