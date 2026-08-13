@@ -1,39 +1,180 @@
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&display=swap');
 @import "tailwindcss";
 
 @theme {
+  /* Override Default Font to Mono */
+  --font-sans: 'Share Tech Mono', ui-monospace, monospace;
+  --font-retro: 'VT323', monospace;
+
+  /* Overrides core palette to 'Dark Balatro' colors */
+  --color-slate-950: #0D0E15; /* Primary Background */
+  --color-slate-900: #151722; /* Surface Dark / Card Base */
+  --color-slate-800: #1C1F2E; /* Border Dark / Inputs */
+  --color-slate-700: #2E3249;
+  --color-slate-600: #4A4F73;
+  --color-slate-500: #6B729C;
+  --color-slate-400: #9AA0C5;
+
+  /* Primary Accent: Red/Orange CRT Neon */
+  --color-red-500: #FF3B30;
+  --color-red-600: #FF5E00;
+  --color-red-700: #E0352B;
+  --color-red-800: #C22F26;
+  --color-red-900: #9E261F;
+  --color-red-950: #1A0A0A;
+
+  /* Secondary Accent: Balatro Cyan / Blue */
+  --color-blue-400: #2F80ED;
+  --color-blue-500: #00E5FF;
+  --color-blue-600: #00C4DB;
+  --color-blue-700: #009CAD;
+  --color-cyan-400: #2F80ED;
+  --color-cyan-500: #00E5FF;
+
+  /* Gold Highlight: Neon Yellow / Gold */
+  --color-amber-400: #FFE135;
+  --color-amber-500: #FFD700;
+  --color-amber-600: #E6C200;
+
+  /* Neon Purple / Magenta */
+  --color-purple-500: #BD00FF;
+  --color-purple-600: #D800FF;
+  --color-purple-950: #1C0026;
+
+  /* Neon Green */
+  --color-emerald-500: #39FF14;
+  --color-emerald-600: #32E010;
+  --color-emerald-950: #0A2605;
+
+  /* Neon shadows */
+  --shadow-neon-red: 0 0 10px rgba(255, 59, 48, 0.4), 0 0 20px rgba(255, 59, 48, 0.2);
+  --shadow-neon-blue: 0 0 10px rgba(0, 229, 255, 0.4), 0 0 20px rgba(0, 229, 255, 0.2);
+  --shadow-neon-gold: 0 0 10px rgba(255, 215, 0, 0.4), 0 0 20px rgba(255, 215, 0, 0.2);
+
   --animate-spin-slow: spin 8s linear infinite;
 }
 
-/* Menggunakan directive @layer untuk memastikan CSS ini terintegrasi dengan Tailwind */
+/* Base body styles & CRT scanlines */
+body {
+  position: relative;
+  background-color: #0D0E15;
+  animation: crt-flicker 0.15s infinite;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 99999;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.12) 0px,
+      rgba(0, 0, 0, 0.12) 1px,
+      transparent 1px,
+      transparent 3px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.08) 0px,
+      rgba(0, 0, 0, 0.08) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+  background-size: 100% 3px, 3px 100%;
+}
+
+/* Headings: VT323 pixel font + custom text-shadow CRT glow using currentColor */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'VT323', monospace;
+  text-shadow: 0 0 8px currentColor;
+  letter-spacing: 0.05em;
+}
+
+/* Base button scaling and hover behaviors */
+button {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+button:active {
+  transform: scale(0.95) !important;
+}
+
+/* Glow effects on red-themed buttons */
+button.bg-red-700, button.bg-red-600 {
+  box-shadow: 0 0 8px rgba(255, 59, 48, 0.2);
+}
+button.bg-red-700:hover, button.bg-red-600:hover {
+  box-shadow: 0 0 15px rgba(255, 94, 0, 0.5);
+}
+
+/* Card Borders: Automatic opacity of 30% that transitions to 100% on hover/active */
+.border-red-500, .border-red-600 {
+  border-color: rgba(255, 59, 48, 0.3) !important;
+  box-shadow: 0 0 4px rgba(255, 59, 48, 0.1);
+  transition: all 0.2s ease-in-out;
+}
+.border-red-500:hover, .border-red-600:hover, .border-red-500.active, .border-red-600.active {
+  border-color: rgba(255, 59, 48, 1) !important;
+  box-shadow: 0 0 12px rgba(255, 59, 48, 0.4);
+}
+
+.border-blue-500, .border-blue-400 {
+  border-color: rgba(0, 229, 255, 0.3) !important;
+  box-shadow: 0 0 4px rgba(0, 229, 255, 0.1);
+  transition: all 0.2s ease-in-out;
+}
+.border-blue-500:hover, .border-blue-400:hover, .border-blue-500.active, .border-blue-400.active {
+  border-color: rgba(0, 229, 255, 1) !important;
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.4);
+}
+
+.border-amber-500 {
+  border-color: rgba(255, 215, 0, 0.3) !important;
+  box-shadow: 0 0 4px rgba(255, 215, 0, 0.1);
+  transition: all 0.2s ease-in-out;
+}
+.border-amber-500:hover, .border-amber-500.active {
+  border-color: rgba(255, 215, 0, 1) !important;
+  box-shadow: 0 0 12px rgba(255, 215, 0, 0.4);
+}
+
+/* Card hover glow effects for general containers */
+.bg-slate-900.border-slate-800 {
+  border-color: rgba(255, 255, 255, 0.05);
+  transition: all 0.2s ease-in-out;
+}
+.bg-slate-900.border-slate-800:hover {
+  border-color: rgba(0, 229, 255, 0.4);
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.2);
+}
+
+/* CRT Animations */
+@keyframes crt-flicker {
+  0% { opacity: 0.995; }
+  50% { opacity: 1; }
+  100% { opacity: 0.998; }
+}
+
 @layer utilities {
   /* --- CUSTOM SCROLLBAR UNTUK POP-UP --- */
-
-  /* 1. Ukuran Scrollbar */
   .custom-scrollbar::-webkit-scrollbar {
-    width: 6px; /* Dibuat sedikit lebih tipis agar lebih elegan */
+    width: 6px;
     height: 6px;
   }
-
-  /* 2. Jalur Scrollbar (Track) */
   .custom-scrollbar::-webkit-scrollbar-track {
     background: transparent;
   }
-
-  /* 3. Gagang Scrollbar (Thumb) */
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    /* Menggunakan variabel warna slate Tailwind agar konsisten */
     background-color: theme('colors.slate.700 / 40%');
     border-radius: 99px;
     border: 2px solid transparent;
     background-clip: content-box;
   }
-
-  /* 4. Efek Hover */
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background-color: theme('colors.slate.600 / 60%');
   }
 
-  /* Sembunyikan scrollbar untuk elemen tertentu jika diperlukan */
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
@@ -47,122 +188,89 @@
     from { opacity: 0; }
     to { opacity: 1; }
   }
-
   @keyframes zoomIn {
     from { transform: scale(0.95); opacity: 0; }
     to { transform: scale(1); opacity: 1; }
   }
-
   @keyframes zoomIn95 {
     from { transform: scale(0.95); }
     to { transform: scale(1); }
   }
-
   @keyframes slideInFromBottom {
     from { transform: translateY(1rem); opacity: 0; }
     to { transform: translateY(0); opacity: 1; }
   }
-
   @keyframes slideInFromBottom8 {
     from { transform: translateY(2rem); opacity: 0; }
     to { transform: translateY(0); opacity: 1; }
   }
-
   @keyframes slideInFromBottom5 {
     from { transform: translateY(1.25rem); opacity: 0; }
     to { transform: translateY(0); opacity: 1; }
   }
-
   @keyframes slideInFromBottom2 {
     from { transform: translateY(0.5rem); opacity: 0; }
     to { transform: translateY(0); opacity: 1; }
   }
-
   @keyframes slideInFromTop {
     from { transform: translateY(-1rem); opacity: 0; }
     to { transform: translateY(0); opacity: 1; }
   }
-
   @keyframes slideInFromLeft {
     from { transform: translateX(-1rem); opacity: 0; }
     to { transform: translateX(0); opacity: 1; }
   }
-
   @keyframes slideInFromRight {
     from { transform: translateX(1rem); opacity: 0; }
     to { transform: translateX(0); opacity: 1; }
   }
-
   @keyframes spinSlow {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
   }
 
-  /* Utility classes */
   .animate-in {
     animation-duration: 300ms;
     animation-fill-mode: both;
     animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   }
-
   .fade-in {
     animation-name: fadeIn;
   }
-
   .zoom-in {
     animation-name: zoomIn;
   }
-
   .zoom-in-95 {
     animation-name: zoomIn95;
   }
-
   .slide-in-from-bottom-2 {
     animation-name: slideInFromBottom2;
   }
-
   .slide-in-from-bottom-4 {
     animation-name: slideInFromBottom;
   }
-
   .slide-in-from-bottom-5 {
     animation-name: slideInFromBottom5;
   }
-
   .slide-in-from-bottom-8 {
     animation-name: slideInFromBottom8;
   }
-
   .slide-in-from-top-4 {
     animation-name: slideInFromTop;
   }
-
   .slide-in-from-left-4 {
     animation-name: slideInFromLeft;
   }
-
   .slide-in-from-right-4 {
     animation-name: slideInFromRight;
   }
-
   .animate-spin-slow {
     animation: spinSlow 8s linear infinite;
   }
 
-  /* Durasi */
-  .duration-200 {
-    animation-duration: 200ms;
-  }
-  .duration-300 {
-    animation-duration: 300ms;
-  }
-  .duration-500 {
-    animation-duration: 500ms;
-  }
-  .duration-700 {
-    animation-duration: 700ms;
-  }
-  .duration-1000 {
-    animation-duration: 1000ms;
-  }
+  .duration-200 { animation-duration: 200ms; }
+  .duration-300 { animation-duration: 300ms; }
+  .duration-500 { animation-duration: 500ms; }
+  .duration-700 { animation-duration: 700ms; }
+  .duration-1000 { animation-duration: 1000ms; }
 }

@@ -68,7 +68,7 @@ const VoteAnnouncement = ({ names, day, onClose }) => {
     lockScroll();
     const timer = setTimeout(() => {
       onClose();
-    }, 5000);
+    }, 4000);
     return () => {
       unlockScroll();
       clearTimeout(timer);
@@ -79,9 +79,6 @@ const VoteAnnouncement = ({ names, day, onClose }) => {
 
   const glowBg = isPeaceful ? 'bg-emerald-600' : 'bg-red-700';
   const accentText = isPeaceful ? 'text-emerald-400' : 'text-red-500';
-  const buttonStyle = isPeaceful
-    ? 'bg-emerald-600 text-white hover:bg-emerald-500'
-    : 'bg-white text-black hover:bg-slate-200';
 
   const gradientBg = isPeaceful
     ? 'linear-gradient(to bottom, rgba(2, 6, 23, 1) 0%, rgba(2, 6, 23, 0.7) 70%, rgba(6, 95, 70, 1) 100%)'
@@ -151,15 +148,6 @@ const VoteAnnouncement = ({ names, day, onClose }) => {
             ? '"Keadilan membutuhkan bukti. Tidak ada yang dihukum hari ini."'
             : '"Keputusan telah diambil. Semoga Waranasura beristirahat dalam damai."'}
         </p>
-
-        <div className="mt-4 relative z-10 h-14 w-full">
-          <button
-            onClick={onClose}
-            className={`w-full h-full rounded-2xl font-black text-xs uppercase tracking-[0.2em] active:scale-95 transition-all animate-in zoom-in duration-300 shadow-xl ${buttonStyle}`}
-          >
-            Lanjut ke Malam
-          </button>
-        </div>
       </div>
     </div>
   );

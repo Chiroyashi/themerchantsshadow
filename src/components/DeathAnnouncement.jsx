@@ -38,7 +38,7 @@ const DeathAnnouncement = ({ deadPlayers, deadDetails = {}, day, onClose }) => {
     lockScroll();
     const timer = setTimeout(() => {
       onClose();
-    }, 5000);
+    }, 4000);
     return () => {
       unlockScroll();
       clearTimeout(timer);
@@ -128,17 +128,6 @@ const DeathAnnouncement = ({ deadPlayers, deadDetails = {}, day, onClose }) => {
             ? '"Fajar menyingsing dengan kedamaian. Tapi waspadalah, serigala masih mengintai."'
             : '"Kegelapan malam menyisakan duka. Siapa yang akan kalian hukum pagi ini?"'}
         </p>
-
-        {/* Tombol Aksi — langsung muncul */}
-        <div className="mt-8 relative z-10 h-14 w-full">
-          <button
-            onClick={onClose}
-            className={`w-full h-full rounded-2xl font-black text-xs uppercase tracking-[0.2em] active:scale-95 transition-all animate-in zoom-in duration-300 shadow-xl
-              ${isPeacefulNight ? 'bg-emerald-600 text-white hover:bg-emerald-500' : 'bg-white text-black hover:bg-slate-200'}`}
-          >
-            Mulai Diskusi
-          </button>
-        </div>
       </div>
     </div>
   );
