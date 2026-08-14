@@ -200,7 +200,6 @@ const ViewRole = ({ onNext }) => {
     const unsubscribe = onValue(activityRef, (snapshot) => {
       const data = snapshot.val();
       if (data && data.timestamp > (Date.now() - 3000)) {
-        new Audio(`${import.meta.env.BASE_URL}sounds/notif.mp3`).play().catch(() => {});
         setActionStatus({ type: 'success', msg: `AKTIVITAS TERDETEKSI: ${data.msg}` });
         setTimeout(() => setActionStatus(null), 4000);
       }
