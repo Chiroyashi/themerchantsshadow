@@ -103,21 +103,23 @@ const DeathAnnouncement = ({ deadPlayers, deadDetails = {}, day, onClose }) => {
               if (cause === "hakim") causeText = "☠️ DIHUKUM MATI OLEH HAKIM";
               if (cause === "hunter") causeText = "🎯 TEWAS DITEMBAK HUNTER";
               if (cause === "hunter_backfire") causeText = "💥 SALAH TEMBAK & GUGUR";
+              if (cause === "werewolf") causeText = "🐺 TEWAS DICAKAR WEREWOLF";
+              if (cause === "poison") causeText = "🧪 TEWAS TERACUNI WARLOCK";
 
-              const isShot = cause === "hakim" || cause === "hunter" || cause === "hunter_backfire";
+              const isSpecialDeath = ["hakim", "hunter", "hunter_backfire", "werewolf", "poison"].includes(cause);
 
               return (
                 <div
                   key={idx}
                   className={`relative py-5 rounded-2xl animate-in slide-in-from-bottom-4 transition-all shadow-lg border overflow-hidden ${
-                    isShot
+                    isSpecialDeath
                       ? 'bg-red-950/20 border-2 border-red-500 shadow-red-950/30'
                       : 'bg-red-600/10 border-red-600/20'
                   }`}
                 >
-                  {isShot && (
+                  {isSpecialDeath && (
                     <span className="absolute -bottom-2 -right-2 text-6xl opacity-10 pointer-events-none rotate-12">
-                      {cause === "hakim" ? "🔫" : cause === "hunter" ? "🎯" : "💥"}
+                      {cause === "hakim" ? "🔫" : cause === "hunter" ? "🎯" : cause === "hunter_backfire" ? "💥" : cause === "werewolf" ? "🐺" : "🧪"}
                     </span>
                   )}
                   <span className="text-white font-black text-2xl tracking-tighter uppercase relative z-10">{name}</span>

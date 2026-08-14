@@ -22,11 +22,13 @@ import IntroFable from './components/IntroFable';
 import DeathAnnouncement from './components/DeathAnnouncement';
 import VoteAnnouncement from './components/VoteAnnouncement';
 import GameOverScreen from './components/GameOverScreen';
+import PersonalDeathAnimation from './components/PersonalDeathAnimation';
 
 function AppContent() {
   const { currentPage, navigate, players, isHost, roomCode, myData, roomStatus, gameWinner, handleLeaveGame } = useGameContext();
   const { phase, day, allVoted, seconds } = useTimerContext();
   const [showBoard, setShowBoard] = useState(false);
+  const [activeDeathAnimation, setActiveDeathAnimation] = useState(null);
   const dismissedDayRef = useRef(null);
   const prevPhaseRef = useRef(null);
   const hasPlayedOpeningRef = useRef(false);
@@ -195,11 +197,24 @@ function AppContent() {
       if (data && data.names && data.names.length > 0) {
         if (dismissedDayRef.current === data.day) return;
         setDeadToday({ names: data.names, day: data.day, details: data.details || {} });
-        setShowDeathPopUp(true);
+
+        // Cek apakah saya termasuk yang mati
+        const myNameStr = myData?.name;
+        const amIKilled = data.names.includes(myNameStr);
+        if (amIKilled) {
+          const cause = data.details?.[myNameStr] || "general";
+          if (["hunter", "hunter_backfire", "werewolf", "poison", "hakim"].includes(cause)) {
+            setActiveDeathAnimation(cause);
+          } else {
+            setShowDeathPopUp(true);
+          }
+        } else {
+          setShowDeathPopUp(true);
+        }
       }
     });
     return () => unsub();
-  }, [roomCode, currentPage, isHost]);
+  }, [roomCode, currentPage, isHost, myData]);
 
   // Listen gunshotEvent untuk guncangan layar & kilatan merah
   useEffect(() => {
@@ -323,6 +338,18 @@ function AppContent() {
           onClose={() => {
             dismissedDayRef.current = deadToday.day;
             setShowDeathPopUp(false);
+          }}
+        />
+      )}
+
+      {/* GLOBAL: Personal Death Animation Overlay (1-4) */}
+      {activeDeathAnimation && isGamePage && currentPage !== 'view-mod' && (
+        <PersonalDeathAnimation
+          cause={activeDeathAnimation}
+          playerName={myData?.name}
+          onFinish={() => {
+            setActiveDeathAnimation(null);
+            setShowDeathPopUp(true);
           }}
         />
       )}

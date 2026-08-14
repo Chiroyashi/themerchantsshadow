@@ -339,7 +339,7 @@ export function TimerProvider({ children }) {
               if (targetAlive) {
                 if (!deathCauses[selectedTargetId]) {
                   deadIds.add(selectedTargetId);
-                  deathCauses[selectedTargetId] = "general";
+                  deathCauses[selectedTargetId] = "werewolf";
                 }
                 logs.push(`Werewolf membunuh ${selectedTargetName}`);
                 aliveWerewolves.forEach(ww => {
@@ -363,7 +363,7 @@ export function TimerProvider({ children }) {
       if (action.purchasedItem === 'poison' && action.targetId && !protectedIds.has(action.targetId)) {
         if (!deadIds.has(action.targetId)) {
           deadIds.add(action.targetId);
-          deathCauses[action.targetId] = "general";
+          deathCauses[action.targetId] = "poison";
           logs.push(`Warlock ${action.name} menggunakan Poison pada ${action.targetName}`);
         }
       } else if (action.purchasedItem === 'vision' && action.targetId) {
