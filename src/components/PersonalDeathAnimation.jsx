@@ -7,18 +7,16 @@ export default function PersonalDeathAnimation({ cause, playerName, onFinish }) 
   useEffect(() => {
     let soundFile = '';
     if (cause === 'hunter' || cause === 'hunter_backfire') {
-      soundFile = 'hunter.mp3';
+      soundFile = 'shotgun.mp3';
     } else if (cause === 'werewolf') {
       soundFile = 'werewolf.mp3';
-    } else if (cause === 'poison') {
-      soundFile = 'warlock.mp3';
     } else if (cause === 'hakim') {
       soundFile = 'hakim.mp3';
     }
 
     if (soundFile) {
-      const audio = new Audio(`${import.meta.env.BASE_URL}sounds/${soundFile}`);
-      audio.volume = 0.4;
+      const audio = new Audio(`${import.meta.env.BASE_URL}assets/${soundFile}`);
+      audio.volume = 0.45;
       audio.play().catch(() => {});
     }
   }, [cause]);

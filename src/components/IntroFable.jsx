@@ -150,7 +150,7 @@ const IntroFable = ({ players, roomCode, onFinish, playerData }) => {
             <div className="bg-amber-500 p-1 rounded-[2rem] rotate-2 shadow-[0_20px_50px_rgba(245,158,11,0.3)]">
               <div className="bg-slate-900 rounded-[1.8rem] p-4 md:p-6 rotate-[-2deg]">
                 <p className="text-[8px] md:text-[10px] font-black uppercase tracking-[.2em] text-amber-500 mb-1">IDENTITAS TERBUKA</p>
-                <span className="inline-block text-3xl md:text-4xl font-black text-amber-400 uppercase italic tracking-tight bg-amber-500/10 px-3 md:px-4 py-1 md:py-2 rounded-xl">HAKIM</span>
+                <span className="inline-block text-3xl md:text-4xl font-black text-amber-400 uppercase italic tracking-tight bg-amber-500/10 px-3 md:px-4 py-1 md:py-2 rounded-xl">HAKIM`</span>
                 <h3 className="text-xl md:text-2xl font-black text-white uppercase italic tracking-tight mt-2 md:mt-3">{hakim?.name || "ANONYMOUS"}</h3>
                 <p className="text-slate-500 text-[8px] md:text-[10px] mt-1 md:mt-2 font-bold uppercase tracking-widest">The Grand Justice of Waranasura</p>
               </div>

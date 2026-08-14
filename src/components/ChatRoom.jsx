@@ -6,6 +6,7 @@ import { Send, MessageSquare, ChevronDown, Globe, User, ShieldAlert, Ghost, Skul
 import { Z_LAYER } from '../constants/zIndex';
 import { useTimerContext } from '../contexts/TimerContext';
 import { isMalam } from '../constants/phases';
+import { playNotificationChime } from '../utils/audio';
 
 const getTimestamp = () => Date.now();
 
@@ -94,7 +95,11 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
 
         if (!isOpen) {
           const newCount = sorted.filter(m => m.timestamp > lastSeenRef.current && m.senderId !== myId).length;
-          if (newCount > 0) setUnreadCount(prev => prev + newCount);
+          if (newCount > 0) {
+            setUnreadCount(prev => prev + newCount);
+            const hasFresh = sorted.some(m => m.timestamp > (Date.now() - 4000) && m.senderId !== myId);
+            if (hasFresh) playNotificationChime();
+          }
         }
       }
     });
@@ -389,9 +394,14 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
                         }`}>
                           {isWWMsg && !isSystemTruth && !isSystemGunshot && <span className="text-[9px] mr-1">🐺</span>}
                           {isGraveyardMsg && <span className="text-[9px] mr-1">👻</span>}
+                          {isUnderTruth && !isSystemTruth && !isSystemGunshot && (
+                            <span className="inline-block bg-amber-500/20 border border-amber-500/30 text-amber-400 text-[8px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded-md mr-1.5 select-none">
+                              [JUJUR]
+                            </span>
+                          )}
                           {m.text}
                         </div>
-                        {isUnderTruth && (
+                        {isUnderTruth && m.senderId !== myId && (
                           <span className="text-amber-500 font-extrabold text-base animate-pulse flex-shrink-0 select-none" title="Kebenaran Hakim">
                             !
                           </span>

@@ -23,6 +23,7 @@ import DeathAnnouncement from './components/DeathAnnouncement';
 import VoteAnnouncement from './components/VoteAnnouncement';
 import GameOverScreen from './components/GameOverScreen';
 import PersonalDeathAnimation from './components/PersonalDeathAnimation';
+import { playClickSound } from './utils/audio';
 
 function AppContent() {
   const { currentPage, navigate, players, isHost, roomCode, myData, roomStatus, gameWinner, handleLeaveGame } = useGameContext();
@@ -54,6 +55,18 @@ function AppContent() {
     prevPhaseRef.current = null;
     dismissedDayRef.current = null;
   }, [roomCode]);
+
+  // Global UI click sound listener
+  useEffect(() => {
+    const handleGlobalClick = (e) => {
+      const target = e.target.closest('button, [role="button"], a');
+      if (target && !target.disabled) {
+        playClickSound();
+      }
+    };
+    document.addEventListener('click', handleGlobalClick, true);
+    return () => document.removeEventListener('click', handleGlobalClick, true);
+  }, []);
 
   // Listener voteResult
   useEffect(() => {

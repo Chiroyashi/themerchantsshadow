@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { ShieldCheck, User } from 'lucide-react';
 import { Z_LAYER } from '../constants/zIndex';
 import { lockScroll, unlockScroll } from '../utils/scrollLock';
+import { playGallowsExecutionSound } from '../utils/audio';
 
 const GallowsOverlay = () => (
   <svg className="absolute inset-0 w-full h-full pointer-events-none z-30 animate-pulse duration-[3000ms]" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -71,9 +72,7 @@ const VoteAnnouncement = ({ names, day, onClose }) => {
 
   useEffect(() => {
     if (!isPeaceful) {
-      const audio = new Audio(`${import.meta.env.BASE_URL}sounds/gallows.mp3`);
-      audio.volume = 0.45;
-      audio.play().catch(() => {});
+      playGallowsExecutionSound();
     }
   }, [isPeaceful]);
 
