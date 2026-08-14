@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { ShieldCheck, User } from 'lucide-react';
 import { Z_LAYER } from '../constants/zIndex';
 import { lockScroll, unlockScroll } from '../utils/scrollLock';
@@ -63,17 +63,22 @@ const HangedCharacter = ({ name }) => (
 
 const VoteAnnouncement = ({ names, day, onClose }) => {
   const isPeaceful = names?.length === 1 && names[0] === "TIDAK ADA";
+  const closeRef = useRef(onClose);
+
+  useEffect(() => {
+    closeRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     lockScroll();
     const timer = setTimeout(() => {
-      onClose();
+      closeRef.current();
     }, 4000);
     return () => {
       unlockScroll();
       clearTimeout(timer);
     };
-  }, [onClose]);
+  }, []);
 
   if (!names || names.length === 0) return null;
 

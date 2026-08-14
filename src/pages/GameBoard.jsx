@@ -27,7 +27,15 @@ const GameBoard = ({ onBack }) => {
   const isDead = me?.status === 'dead';
   const malam = isMalam(phase);
   const isVotingTime = isSiang(phase);
-  const gamePlayers = players.filter(p => p.role !== 'Moderator');
+  const gamePlayers = players
+    .filter(p => p.role !== 'Moderator')
+    .sort((a, b) => {
+      const aDead = a.status === 'dead';
+      const bDead = b.status === 'dead';
+      if (aDead && !bDead) return 1;
+      if (!aDead && bDead) return -1;
+      return 0;
+    });
 
   // Hitung vote count per player
   const votesArray = Object.values(allVotes);
@@ -138,15 +146,15 @@ const GameBoard = ({ onBack }) => {
           <p className={`text-[9px] font-black uppercase tracking-widest ${isVotingTime ? 'text-orange-400' : 'text-slate-600'}`}>
             {isVotingTime ? '🗳️ Silahkan Vote' : '🔒 Belum saatnya Vote'}
           </p>
-          {isVotingTime && skipVoteCount > 0 && (
+          {isVotingTime && (
             <div className="w-full max-w-[280px] sm:max-w-xs mx-auto mt-3.5 px-2 animate-in fade-in duration-300">
-              <div className="flex justify-between items-center text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1.5 px-0.5">
+              <div className="flex justify-between items-center text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 px-0.5">
                 <span>Progres Skip Vote</span>
-                <span>{skipVoteCount}/{killThreshold} Suara</span>
+                <span className="text-amber-500 font-extrabold text-xs">{skipVoteCount} Suara</span>
               </div>
-              <div className="h-1.5 bg-slate-900 rounded-full border border-slate-800/80 overflow-hidden relative shadow-inner">
+              <div className="h-2 bg-slate-900 rounded-full border border-slate-800/80 overflow-hidden relative shadow-inner">
                 <div
-                  className="h-full bg-gradient-to-r from-slate-600 to-slate-500 transition-all duration-500 rounded-full shadow-[0_0_8px_rgba(148,163,184,0.3)]"
+                  className="h-full bg-gradient-to-r from-amber-500 to-orange-500 transition-all duration-500 rounded-full shadow-[0_0_8px_rgba(249,115,22,0.4)]"
                   style={{ width: `${Math.min(100, (skipVoteCount / killThreshold) * 100)}%` }}
                 />
               </div>
@@ -209,11 +217,13 @@ const GameBoard = ({ onBack }) => {
                     <span className={`inline-block px-4 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wide ${
                       pDead
                         ? 'bg-red-900/20 text-red-700'
-                        : isSelected
-                          ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30'
-                          : 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
+                        : isDead
+                          ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
+                          : isSelected
+                            ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30'
+                            : 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
                     }`}>
-                      {pDead ? '☠️ Mati' : isSelected ? '✓ Voted' : '🗳️ Vote'}
+                      {isDead ? (pDead ? `☠️ ${player.role}` : player.role) : pDead ? '☠️ Mati' : isSelected ? '✓ Voted' : '🗳️ Vote'}
                     </span>
                     {!pDead && voteCount > 0 && (
                       <div className="mt-1.5">
@@ -231,11 +241,11 @@ const GameBoard = ({ onBack }) => {
                 <span className={`inline-block px-4 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wide ${
                   pDead
                     ? 'bg-red-900/20 text-red-700'
-                    : isMe
+                    : isMe || isDead
                       ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
                       : 'bg-slate-800/40 text-slate-500 border border-slate-700/30'
                 }`}>
-                  {pDead ? '☠️ Mati' : isMe ? player.role : '🛡️ Aktif'}
+                  {pDead ? (isDead ? `☠️ ${player.role}` : '☠️ Mati') : (isMe || isDead) ? player.role : '🛡️ Aktif'}
                 </span>
               </div>
               )}

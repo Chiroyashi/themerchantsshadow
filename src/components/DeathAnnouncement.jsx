@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Skull, Sun, Crosshair } from 'lucide-react';
 import { Z_LAYER } from '../constants/zIndex';
 import { lockScroll, unlockScroll } from '../utils/scrollLock';
@@ -28,6 +28,11 @@ const CrackedOverlay = () => (
 
 const DeathAnnouncement = ({ deadPlayers, deadDetails = {}, day, onClose }) => {
   const isPeacefulNight = deadPlayers.length === 1 && deadPlayers[0] === "TIDAK ADA";
+  const closeRef = useRef(onClose);
+
+  useEffect(() => {
+    closeRef.current = onClose;
+  }, [onClose]);
 
   const hasGunshotDeath = !isPeacefulNight && deadPlayers.some(name => {
     const cause = deadDetails?.[name] || "general";
@@ -37,13 +42,13 @@ const DeathAnnouncement = ({ deadPlayers, deadDetails = {}, day, onClose }) => {
   useEffect(() => {
     lockScroll();
     const timer = setTimeout(() => {
-      onClose();
+      closeRef.current();
     }, 4000);
     return () => {
       unlockScroll();
       clearTimeout(timer);
     };
-  }, [onClose]);
+  }, []);
 
   if (!deadPlayers || deadPlayers.length === 0) return null;
 
