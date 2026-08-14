@@ -5,6 +5,25 @@ import { lockScroll, unlockScroll } from '../utils/scrollLock';
 
 export default function PersonalDeathAnimation({ cause, playerName, onFinish }) {
   useEffect(() => {
+    let soundFile = '';
+    if (cause === 'hunter' || cause === 'hunter_backfire') {
+      soundFile = 'hunter.mp3';
+    } else if (cause === 'werewolf') {
+      soundFile = 'werewolf.mp3';
+    } else if (cause === 'poison') {
+      soundFile = 'warlock.mp3';
+    } else if (cause === 'hakim') {
+      soundFile = 'hakim.mp3';
+    }
+
+    if (soundFile) {
+      const audio = new Audio(`${import.meta.env.BASE_URL}sounds/${soundFile}`);
+      audio.volume = 0.4;
+      audio.play().catch(() => {});
+    }
+  }, [cause]);
+
+  useEffect(() => {
     lockScroll();
     const timer = setTimeout(() => {
       onFinish();

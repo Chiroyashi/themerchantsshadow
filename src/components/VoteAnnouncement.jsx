@@ -70,6 +70,14 @@ const VoteAnnouncement = ({ names, day, onClose }) => {
   }, [onClose]);
 
   useEffect(() => {
+    if (!isPeaceful) {
+      const audio = new Audio(`${import.meta.env.BASE_URL}sounds/gallows.mp3`);
+      audio.volume = 0.45;
+      audio.play().catch(() => {});
+    }
+  }, [isPeaceful]);
+
+  useEffect(() => {
     lockScroll();
     const timer = setTimeout(() => {
       closeRef.current();
