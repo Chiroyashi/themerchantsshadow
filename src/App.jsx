@@ -22,129 +22,16 @@ import IntroFable from './components/IntroFable';
 import DeathAnnouncement from './components/DeathAnnouncement';
 import VoteAnnouncement from './components/VoteAnnouncement';
 import GameOverScreen from './components/GameOverScreen';
+import PersonalDeathAnimation from './components/PersonalDeathAnimation';
+import { playClickSound } from './utils/audio';
 
 function AppContent() {
   const { currentPage, navigate, players, isHost, roomCode, myData, roomStatus, gameWinner, handleLeaveGame } = useGameContext();
   const { phase, day, allVoted, seconds } = useTimerContext();
   const [showBoard, setShowBoard] = useState(false);
+  const [activeDeathAnimation, setActiveDeathAnimation] = useState(null);
   const dismissedDayRef = useRef(null);
   const prevPhaseRef = useRef(null);
-  const hasPlayedOpeningRef = useRef(false);
-  const hasPlayedEndAudioRef = useRef(false);
-
-  // Background Audio Refs
-  const morningAudioRef = useRef(null);
-  const nightAudioRef = useRef(null);
-  const victoryAudioRef = useRef(null);
-  const defeatAudioRef = useRef(null);
-
-  // Initialize Audios once
-  useEffect(() => {
-    morningAudioRef.current = new Audio(`${import.meta.env.BASE_URL}sounds/opening_after_introfable.mp3`);
-    morningAudioRef.current.loop = false;
-    morningAudioRef.current.volume = 0.25;
-
-    nightAudioRef.current = new Audio(`${import.meta.env.BASE_URL}sounds/Nightphase_looping_till_nextphase.mp3`);
-    nightAudioRef.current.loop = true;
-    nightAudioRef.current.volume = 0.25;
-
-    victoryAudioRef.current = new Audio(`${import.meta.env.BASE_URL}sounds/Victory.mp3`);
-    victoryAudioRef.current.loop = false;
-    victoryAudioRef.current.volume = 0.3;
-
-    defeatAudioRef.current = new Audio(`${import.meta.env.BASE_URL}sounds/defeat.mp3`);
-    defeatAudioRef.current.loop = false;
-    defeatAudioRef.current.volume = 0.3;
-
-    return () => {
-      if (morningAudioRef.current) {
-        morningAudioRef.current.pause();
-        morningAudioRef.current = null;
-      }
-      if (nightAudioRef.current) {
-        nightAudioRef.current.pause();
-        nightAudioRef.current = null;
-      }
-      if (victoryAudioRef.current) {
-        victoryAudioRef.current.pause();
-        victoryAudioRef.current = null;
-      }
-      if (defeatAudioRef.current) {
-        defeatAudioRef.current.pause();
-        defeatAudioRef.current = null;
-      }
-    };
-  }, []);
-
-  // Sync background music with currentPage and phase
-  useEffect(() => {
-    const isGameActive = ['view-role', 'view-mod'].includes(currentPage);
-
-    if (!isGameActive) {
-      if (morningAudioRef.current) morningAudioRef.current.pause();
-      if (nightAudioRef.current) nightAudioRef.current.pause();
-      if (victoryAudioRef.current) victoryAudioRef.current.pause();
-      if (defeatAudioRef.current) defeatAudioRef.current.pause();
-      hasPlayedOpeningRef.current = false;
-      hasPlayedEndAudioRef.current = false;
-      return;
-    }
-
-    // JIKA GAME SELESAI (ENDED)
-    if (roomStatus === 'ended') {
-      if (morningAudioRef.current) morningAudioRef.current.pause();
-      if (nightAudioRef.current) nightAudioRef.current.pause();
-
-      if (!isHost && !hasPlayedEndAudioRef.current) {
-        hasPlayedEndAudioRef.current = true;
-
-        const isWargaWinner = gameWinner === 'WARGA';
-        const myRole = myData?.role?.toLowerCase() || "";
-        const isAntagonist = myRole.includes('werewolf') || myRole.includes('warlock');
-        const isIWinner = isWargaWinner ? !isAntagonist : isAntagonist;
-
-        if (isIWinner) {
-          if (victoryAudioRef.current) {
-            victoryAudioRef.current.currentTime = 0;
-            victoryAudioRef.current.play().catch(() => {});
-          }
-        } else {
-          if (defeatAudioRef.current) {
-            defeatAudioRef.current.currentTime = 0;
-            defeatAudioRef.current.play().catch(() => {});
-          }
-        }
-      }
-      return;
-    }
-
-    // JIKA GAME MASIH BERJALAN
-    if (victoryAudioRef.current) victoryAudioRef.current.pause();
-    if (defeatAudioRef.current) defeatAudioRef.current.pause();
-    hasPlayedEndAudioRef.current = false;
-
-    const isNightPhase = phase?.toLowerCase().includes('malam');
-
-    if (isNightPhase) {
-      if (morningAudioRef.current) morningAudioRef.current.pause();
-      if (nightAudioRef.current) {
-        if (nightAudioRef.current.paused) {
-          nightAudioRef.current.currentTime = 0;
-          nightAudioRef.current.play().catch(() => {});
-        }
-      }
-    } else {
-      if (nightAudioRef.current) nightAudioRef.current.pause();
-      if (morningAudioRef.current) {
-        const isDay1Pagi = day === 1 && phase?.toLowerCase().includes('pagi');
-        if (isDay1Pagi && !hasPlayedOpeningRef.current) {
-          hasPlayedOpeningRef.current = true;
-          morningAudioRef.current.currentTime = 0;
-          morningAudioRef.current.play().catch(() => {});
-        }
-      }
-    }
-  }, [currentPage, phase, day, roomStatus, gameWinner, isHost, myData]);
 
   // Global overlays
   const [voteResult, setVoteResult] = useState(null);
@@ -167,8 +54,19 @@ function AppContent() {
   useEffect(() => {
     prevPhaseRef.current = null;
     dismissedDayRef.current = null;
-    hasPlayedEndAudioRef.current = false;
   }, [roomCode]);
+
+  // Global UI click sound listener
+  useEffect(() => {
+    const handleGlobalClick = (e) => {
+      const target = e.target.closest('button, [role="button"], a');
+      if (target && !target.disabled) {
+        playClickSound();
+      }
+    };
+    document.addEventListener('click', handleGlobalClick, true);
+    return () => document.removeEventListener('click', handleGlobalClick, true);
+  }, []);
 
   // Listener voteResult
   useEffect(() => {
@@ -195,11 +93,24 @@ function AppContent() {
       if (data && data.names && data.names.length > 0) {
         if (dismissedDayRef.current === data.day) return;
         setDeadToday({ names: data.names, day: data.day, details: data.details || {} });
-        setShowDeathPopUp(true);
+
+        // Cek apakah saya termasuk yang mati
+        const myNameStr = myData?.name;
+        const amIKilled = data.names.includes(myNameStr);
+        if (amIKilled) {
+          const cause = data.details?.[myNameStr] || "general";
+          if (["hunter", "hunter_backfire", "werewolf", "poison", "hakim"].includes(cause)) {
+            setActiveDeathAnimation(cause);
+          } else {
+            setShowDeathPopUp(true);
+          }
+        } else {
+          setShowDeathPopUp(true);
+        }
       }
     });
     return () => unsub();
-  }, [roomCode, currentPage, isHost]);
+  }, [roomCode, currentPage, isHost, myData]);
 
   // Listen gunshotEvent untuk guncangan layar & kilatan merah
   useEffect(() => {
@@ -323,6 +234,18 @@ function AppContent() {
           onClose={() => {
             dismissedDayRef.current = deadToday.day;
             setShowDeathPopUp(false);
+          }}
+        />
+      )}
+
+      {/* GLOBAL: Personal Death Animation Overlay (1-4) */}
+      {activeDeathAnimation && isGamePage && currentPage !== 'view-mod' && (
+        <PersonalDeathAnimation
+          cause={activeDeathAnimation}
+          playerName={myData?.name}
+          onFinish={() => {
+            setActiveDeathAnimation(null);
+            setShowDeathPopUp(true);
           }}
         />
       )}

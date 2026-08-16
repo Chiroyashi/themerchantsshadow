@@ -13,6 +13,7 @@ import IntroFable from '../components/IntroFable';
 import GameOverScreen from '../components/GameOverScreen';
 import { useGameContext } from '../contexts/GameContext';
 import { useTimerContext } from '../contexts/TimerContext';
+import { playNotificationChime } from '../utils/audio';
 import { useNotification } from '../contexts/NotificationContext';
 import { checkWinCondition } from '../utils/winCondition';
 import { getRoleActionConfig } from '../utils/roleActions';
@@ -200,7 +201,7 @@ const ViewRole = ({ onNext }) => {
     const unsubscribe = onValue(activityRef, (snapshot) => {
       const data = snapshot.val();
       if (data && data.timestamp > (Date.now() - 3000)) {
-        new Audio(`${import.meta.env.BASE_URL}sounds/notif.mp3`).play().catch(() => {});
+        playNotificationChime();
         setActionStatus({ type: 'success', msg: `AKTIVITAS TERDETEKSI: ${data.msg}` });
         setTimeout(() => setActionStatus(null), 4000);
       }

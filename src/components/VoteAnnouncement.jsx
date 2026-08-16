@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
-import { ShieldCheck, User } from 'lucide-react';
+import React, { useEffect, useRef } from 'react';
+import { ShieldCheck, User, X } from 'lucide-react';
 import { Z_LAYER } from '../constants/zIndex';
 import { lockScroll, unlockScroll } from '../utils/scrollLock';
+import { playGallowsExecutionSound } from '../utils/audio';
 
 const GallowsOverlay = () => (
   <svg className="absolute inset-0 w-full h-full pointer-events-none z-30 animate-pulse duration-[3000ms]" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -36,24 +37,24 @@ const GallowsOverlay = () => (
 );
 
 const HangedCharacter = ({ name }) => (
-  <div className="flex flex-col items-center justify-center relative w-full pt-4 pb-2 z-10">
+  <div className="flex flex-col items-center justify-center relative w-full pt-4 pb-2 z-10 h-72">
     {/* Wooden Beam / Gallows Top */}
-    <div className="w-20 h-2.5 bg-amber-950 border border-amber-900 rounded-md shadow-md z-20 relative" />
+    <div className="w-24 h-2.5 bg-amber-950 border border-amber-900 rounded-md shadow-md z-20 relative" />
 
-    {/* Swinging Container - pivots from the top wood */}
-    <div className="flex flex-col items-center origin-top animate-swing z-10" style={{ transformOrigin: 'top center' }}>
+    {/* Drop & Swing Container */}
+    <div className="flex flex-col items-center origin-top animate-drop-swing z-10" style={{ transformOrigin: 'top center' }}>
       {/* Hanging Rope */}
-      <div className="w-1 h-14 bg-amber-700/80 shadow-[0_0_4px_rgba(180,83,9,0.3)] relative">
+      <div className="w-1 h-16 bg-amber-700/80 shadow-[0_0_4px_rgba(180,83,9,0.3)] relative">
         {/* Noose knot */}
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-3.5 h-4 bg-amber-800 border border-amber-900 rounded-sm" />
       </div>
 
       {/* Circular Gallows Seat containing User icon */}
-      <div className="w-16 h-16 rounded-full bg-red-950/90 border-2 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.5)] flex items-center justify-center relative z-10 animate-bounce-slow mt-[-2px]">
-        <User size={36} className="text-red-500 animate-pulse" />
+      <div className="w-16 h-16 rounded-full bg-slate-900 border-2 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.5)] flex items-center justify-center relative z-10 mt-[-2px] animate-hanged-avatar">
+        <User size={36} className="text-red-500" />
       </div>
 
-      {/* Executed Player's Name - placed outside/under the circle but swinging with it */}
+      {/* Executed Player's Name */}
       <div className="mt-3 bg-red-950/40 border border-red-500/20 px-4 py-1.5 rounded-full shadow-lg backdrop-blur-sm">
         <span className="text-white font-black text-sm tracking-tight uppercase whitespace-nowrap">{name}</span>
       </div>
@@ -63,17 +64,35 @@ const HangedCharacter = ({ name }) => (
 
 const VoteAnnouncement = ({ names, day, onClose }) => {
   const isPeaceful = names?.length === 1 && names[0] === "TIDAK ADA";
+  const closeRef = useRef(onClose);
+  const hasClosed = useRef(false);
+
+  useEffect(() => {
+    closeRef.current = onClose;
+  }, [onClose]);
+
+  const handleDismiss = () => {
+    if (hasClosed.current) return;
+    hasClosed.current = true;
+    closeRef.current();
+  };
+
+  useEffect(() => {
+    if (!isPeaceful) {
+      playGallowsExecutionSound();
+    }
+  }, [isPeaceful]);
 
   useEffect(() => {
     lockScroll();
     const timer = setTimeout(() => {
-      onClose();
-    }, 4000);
+      handleDismiss();
+    }, 3800); // Set duration matching animation duration (3.8s)
     return () => {
       unlockScroll();
       clearTimeout(timer);
     };
-  }, [onClose]);
+  }, []);
 
   if (!names || names.length === 0) return null;
 
@@ -92,22 +111,38 @@ const VoteAnnouncement = ({ names, day, onClose }) => {
         background: gradientBg
       }}
     >
+      <button
+        onClick={handleDismiss}
+        className="absolute top-6 right-6 p-2 rounded-full bg-slate-950/40 border border-white/5 hover:bg-slate-900/60 text-slate-400 hover:text-white transition-all active:scale-95 z-50 cursor-pointer flex items-center justify-center shadow-lg"
+        aria-label="Tutup"
+      >
+        <X size={20} />
+      </button>
+
       <div className="max-w-md w-full my-auto flex flex-col justify-center gap-6 relative z-10">
         <style>{`
-          @keyframes hang-swing {
-            0% { transform: rotate(-8deg); }
-            50% { transform: rotate(8deg); }
-            100% { transform: rotate(-8deg); }
+          @keyframes hangDropSwing {
+            0% { transform: translateY(-60px) rotate(0deg); }
+            4% { transform: translateY(0px) rotate(0deg); }
+            12% { transform: translateY(0px) rotate(10deg); }
+            24% { transform: translateY(0px) rotate(-10deg); }
+            38% { transform: translateY(0px) rotate(7deg); }
+            52% { transform: translateY(0px) rotate(-7deg); }
+            68% { transform: translateY(0px) rotate(4deg); }
+            84% { transform: translateY(0px) rotate(-4deg); }
+            100% { transform: translateY(0px) rotate(0deg); }
           }
-          @keyframes bounce-slow {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(4px); }
+          @keyframes hangedAvatarDim {
+            0% { filter: brightness(1) grayscale(0%); }
+            4% { filter: brightness(1) grayscale(0%); }
+            75% { filter: brightness(0.55) grayscale(40%); }
+            100% { filter: brightness(0.08) grayscale(100%) contrast(150%); }
           }
-          .animate-swing {
-            animation: hang-swing 3s ease-in-out infinite;
+          .animate-drop-swing {
+            animation: hangDropSwing 3.8s cubic-bezier(0.25, 1, 0.5, 1) forwards;
           }
-          .animate-bounce-slow {
-            animation: bounce-slow 1.5s ease-in-out infinite;
+          .animate-hanged-avatar {
+            animation: hangedAvatarDim 3.8s ease-out forwards;
           }
         `}</style>
 
@@ -127,7 +162,7 @@ const VoteAnnouncement = ({ names, day, onClose }) => {
             Laporan Forensik • Hari {day}
           </h2>
           <h1 className="text-white text-2xl font-black italic uppercase leading-none tracking-tighter">
-            {isPeaceful ? 'Tidak Ada Hukuman' : 'Dihukum Gantung'}
+            {isPeaceful ? 'Tidak Ada Hukuman' : 'DIGANTUNG OLEH WARGA'}
           </h1>
         </div>
 

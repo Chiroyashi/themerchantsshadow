@@ -311,18 +311,25 @@ const ModeratorDashboard = () => {
                 <div className="flex items-center justify-between pt-3 border-t border-white/5">
                   <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Melewatkan Siang</p>
                 </div>
-                {skipCount > 0 && (
-                  <div className="flex items-center gap-3 bg-slate-950 p-2 rounded-2xl border border-white/5 mt-3 animate-in zoom-in duration-200">
-                     <div className="h-1.5 flex-1 bg-slate-900 rounded-full overflow-hidden">
-                        <div className="h-full bg-slate-500" style={{ width: `${Math.min(100, (skipCount/killThreshold)*100)}%` }} />
-                     </div>
-                     <span className="text-[10px] font-black text-slate-400">{skipCount}V</span>
-                  </div>
-                )}
+                <div className="flex items-center gap-3 bg-slate-950 p-2 rounded-2xl border border-white/5 mt-3">
+                   <div className="h-2 flex-1 bg-slate-900 rounded-full overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-amber-500 to-orange-500 transition-all duration-300" style={{ width: `${Math.min(100, (skipCount/killThreshold)*100)}%` }} />
+                   </div>
+                   <span className="text-xs font-black text-amber-500">{skipCount} Suara</span>
+                </div>
               </div>
             )}
 
-            {players.filter(p => p.role !== 'Moderator').map((p) => {
+            {players
+              .filter(p => p.role !== 'Moderator')
+              .sort((a, b) => {
+                const aDead = a.status === 'dead';
+                const bDead = b.status === 'dead';
+                if (aDead && !bDead) return 1;
+                if (!aDead && bDead) return -1;
+                return 0;
+              })
+              .map((p) => {
               const voteCount = votesData.filter(v => v === p.id).length;
               const isDead = p.status === 'dead';
               return (

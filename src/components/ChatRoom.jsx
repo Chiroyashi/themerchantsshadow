@@ -6,6 +6,7 @@ import { Send, MessageSquare, ChevronDown, Globe, User, ShieldAlert, Ghost, Skul
 import { Z_LAYER } from '../constants/zIndex';
 import { useTimerContext } from '../contexts/TimerContext';
 import { isMalam } from '../constants/phases';
+import { playNotificationChime } from '../utils/audio';
 
 const getTimestamp = () => Date.now();
 
@@ -23,6 +24,12 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
   const [showTargetMenu, setShowTargetMenu] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [channel, setChannel] = useState('public'); // 'public' | 'ww' | 'graveyard'
+  const [lastSeenChannels, setLastSeenChannels] = useState({
+    public: getTimestamp(),
+    ww: getTimestamp(),
+    graveyard: getTimestamp()
+  });
+
   const scrollRef = useRef(null);
   const lastSeenRef = useRef(getTimestamp());
   const inputRef = useRef(null);
@@ -32,6 +39,10 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
     setPrevIsOpen(isOpen);
     if (isOpen) {
       setUnreadCount(0);
+      setLastSeenChannels(prev => ({
+        ...prev,
+        [channel]: getTimestamp()
+      }));
     }
   }
 
@@ -84,7 +95,11 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
 
         if (!isOpen) {
           const newCount = sorted.filter(m => m.timestamp > lastSeenRef.current && m.senderId !== myId).length;
-          if (newCount > 0) setUnreadCount(prev => prev + newCount);
+          if (newCount > 0) {
+            setUnreadCount(prev => prev + newCount);
+            const hasFresh = sorted.some(m => m.timestamp > (Date.now() - 4000) && m.senderId !== myId);
+            if (hasFresh) playNotificationChime();
+          }
         }
       }
     });
@@ -96,7 +111,7 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
       setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
       setTimeout(() => inputRef.current?.focus(), 200);
     }
-  }, [messages, isOpen]);
+  }, [messages, channel, isOpen]);
 
   const sendMessage = (e) => {
     e.preventDefault();
@@ -180,6 +195,33 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
     return p ? p.name.split(' ')[0] : "User";
   };
 
+  const filteredMessages = messages.filter(m => {
+    if (channel === 'public') {
+      return m.channel === 'public' || !m.channel;
+    }
+    return m.channel === channel;
+  });
+
+  const getUnreadCountForChannel = (ch) => {
+    if (isOpen && channel === ch) return 0;
+    const chMsgs = messages.filter(m => {
+      if (ch === 'public') {
+        return m.channel === 'public' || !m.channel;
+      }
+      return m.channel === ch;
+    });
+    const lastSeenTime = lastSeenChannels[ch] || 0;
+    return chMsgs.filter(m => m.timestamp > lastSeenTime && m.senderId !== myId).length;
+  };
+
+  const handleSelectChannel = (ch) => {
+    setChannel(ch);
+    setLastSeenChannels(prev => ({
+      ...prev,
+      [ch]: getTimestamp()
+    }));
+  };
+
   const isPrivate = targetId !== "all";
   const isWWChannel = channel === 'ww';
   const isGraveyard = channel === 'graveyard';
@@ -239,37 +281,52 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
                 {/* TAB: Umum | Markas | Arwah */}
                 <div className="flex gap-1">
                   <button
-                    onClick={() => setChannel('public')}
-                    className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                    onClick={() => handleSelectChannel('public')}
+                    className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all relative ${
                       channel === 'public'
                         ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
                         : 'bg-slate-950/40 text-slate-600 border border-transparent'
                     }`}
                   >
                     💬 Umum
+                    {getUnreadCountForChannel('public') > 0 && (
+                      <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] rounded-full bg-red-600 text-white text-[8px] font-black flex items-center justify-center px-0.5 shadow-lg animate-in zoom-in duration-200">
+                        {getUnreadCountForChannel('public')}
+                      </span>
+                    )}
                   </button>
                   {canAccessWW && (
                     <button
-                      onClick={() => { setChannel('ww'); setTargetId('all'); }}
-                      className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                      onClick={() => { handleSelectChannel('ww'); setTargetId('all'); }}
+                      className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all relative ${
                         channel === 'ww'
                           ? 'bg-red-600/20 text-red-400 border border-red-500/30'
                           : 'bg-slate-950/40 text-slate-600 border border-transparent'
                       }`}
                     >
                       🐺 Markas
+                      {getUnreadCountForChannel('ww') > 0 && (
+                        <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] rounded-full bg-red-600 text-white text-[8px] font-black flex items-center justify-center px-0.5 shadow-lg animate-in zoom-in duration-200">
+                          {getUnreadCountForChannel('ww')}
+                        </span>
+                      )}
                     </button>
                   )}
                   {canAccessGraveyard && (
                     <button
-                      onClick={() => { setChannel('graveyard'); setTargetId('all'); }}
-                      className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                      onClick={() => { handleSelectChannel('graveyard'); setTargetId('all'); }}
+                      className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all relative ${
                         channel === 'graveyard'
                           ? 'bg-slate-600/30 text-slate-300 border border-slate-500/30'
                           : 'bg-slate-950/40 text-slate-600 border border-transparent'
                       }`}
                     >
                       💀 Arwah
+                      {getUnreadCountForChannel('graveyard') > 0 && (
+                        <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] rounded-full bg-red-600 text-white text-[8px] font-black flex items-center justify-center px-0.5 shadow-lg animate-in zoom-in duration-200">
+                          {getUnreadCountForChannel('graveyard')}
+                        </span>
+                      )}
                     </button>
                   )}
                 </div>
@@ -277,7 +334,7 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
 
               {/* MESSAGES */}
               <div className="h-[45vh] overflow-y-auto px-5 py-4 space-y-3 custom-scrollbar" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(100,116,139,0.3) transparent' }}>
-                {messages.length === 0 && (
+                {filteredMessages.length === 0 && (
                   <div className="text-center py-10">
                     <MessageSquare size={32} className="mx-auto text-slate-700 mb-3" />
                     <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest">Belum ada pesan</p>
@@ -286,7 +343,7 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
                     </p>
                   </div>
                 )}
-                {messages.map((m) => {
+                {filteredMessages.map((m) => {
                   const isMeMsg = m.senderId === myId;
                   const isPrivateMsg = m.target !== "all";
                   const isSystemTruth = m.senderId === "SYSTEM_TRUTH";
@@ -337,9 +394,14 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
                         }`}>
                           {isWWMsg && !isSystemTruth && !isSystemGunshot && <span className="text-[9px] mr-1">🐺</span>}
                           {isGraveyardMsg && <span className="text-[9px] mr-1">👻</span>}
+                          {isUnderTruth && !isSystemTruth && !isSystemGunshot && (
+                            <span className="inline-block bg-amber-500/20 border border-amber-500/30 text-amber-400 text-[8px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded-md mr-1.5 select-none">
+                              [JUJUR]
+                            </span>
+                          )}
                           {m.text}
                         </div>
-                        {isUnderTruth && (
+                        {isUnderTruth && m.senderId !== myId && (
                           <span className="text-amber-500 font-extrabold text-base animate-pulse flex-shrink-0 select-none" title="Kebenaran Hakim">
                             !
                           </span>
