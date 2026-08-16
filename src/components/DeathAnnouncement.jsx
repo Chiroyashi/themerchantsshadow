@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Skull, Sun, Crosshair } from 'lucide-react';
+import { Skull, Sun, Crosshair, X } from 'lucide-react';
 import { Z_LAYER } from '../constants/zIndex';
 import { lockScroll, unlockScroll } from '../utils/scrollLock';
 
@@ -29,10 +29,17 @@ const CrackedOverlay = () => (
 const DeathAnnouncement = ({ deadPlayers, deadDetails = {}, day, onClose }) => {
   const isPeacefulNight = deadPlayers.length === 1 && deadPlayers[0] === "TIDAK ADA";
   const closeRef = useRef(onClose);
+  const hasClosed = useRef(false);
 
   useEffect(() => {
     closeRef.current = onClose;
   }, [onClose]);
+
+  const handleDismiss = () => {
+    if (hasClosed.current) return;
+    hasClosed.current = true;
+    closeRef.current();
+  };
 
   const hasGunshotDeath = !isPeacefulNight && deadPlayers.some(name => {
     const cause = deadDetails?.[name] || "general";
@@ -42,7 +49,7 @@ const DeathAnnouncement = ({ deadPlayers, deadDetails = {}, day, onClose }) => {
   useEffect(() => {
     lockScroll();
     const timer = setTimeout(() => {
-      closeRef.current();
+      handleDismiss();
     }, 4000);
     return () => {
       unlockScroll();
@@ -66,6 +73,14 @@ const DeathAnnouncement = ({ deadPlayers, deadDetails = {}, day, onClose }) => {
         background: gradientBg
       }}
     >
+      <button
+        onClick={handleDismiss}
+        className="absolute top-6 right-6 p-2 rounded-full bg-slate-950/40 border border-white/5 hover:bg-slate-900/60 text-slate-400 hover:text-white transition-all active:scale-95 z-50 cursor-pointer flex items-center justify-center shadow-lg"
+        aria-label="Tutup"
+      >
+        <X size={20} />
+      </button>
+
       <div className="max-w-md w-full my-auto flex flex-col justify-center gap-6 relative z-10 animate-in zoom-in duration-300">
         {hasGunshotDeath && <CrackedOverlay />}
 

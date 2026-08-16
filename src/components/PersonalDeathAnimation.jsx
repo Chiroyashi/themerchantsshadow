@@ -1,9 +1,23 @@
-import React, { useEffect } from 'react';
-import { User, Crosshair, Skull, Gavel, ShieldAlert } from 'lucide-react';
+import React, { useEffect, useRef } from 'react';
+import { User, Crosshair, Skull, Gavel, ShieldAlert, X } from 'lucide-react';
 import { Z_LAYER } from '../constants/zIndex';
 import { lockScroll, unlockScroll } from '../utils/scrollLock';
 
 export default function PersonalDeathAnimation({ cause, playerName, onFinish }) {
+  const finishRef = useRef(onFinish);
+  const hasFinished = useRef(false);
+  const audioRef = useRef(null);
+
+  useEffect(() => {
+    finishRef.current = onFinish;
+  }, [onFinish]);
+
+  const handleFinish = () => {
+    if (hasFinished.current) return;
+    hasFinished.current = true;
+    finishRef.current();
+  };
+
   useEffect(() => {
     let soundFile = '';
     if (cause === 'hunter' || cause === 'hunter_backfire') {
@@ -17,20 +31,28 @@ export default function PersonalDeathAnimation({ cause, playerName, onFinish }) 
     if (soundFile) {
       const audio = new Audio(`${import.meta.env.BASE_URL}assets/${soundFile}`);
       audio.volume = 0.45;
+      audioRef.current = audio;
       audio.play().catch(() => {});
     }
+
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
   }, [cause]);
 
   useEffect(() => {
     lockScroll();
     const timer = setTimeout(() => {
-      onFinish();
+      handleFinish();
     }, 3800); // Animation duration is 3.8s
     return () => {
       unlockScroll();
       clearTimeout(timer);
     };
-  }, [onFinish]);
+  }, []);
 
   const renderAnimationContent = () => {
     switch (cause) {
@@ -213,6 +235,14 @@ export default function PersonalDeathAnimation({ cause, playerName, onFinish }) 
       className="fixed inset-0 flex flex-col items-center justify-center bg-slate-950 pointer-events-auto"
       style={{ zIndex: Z_LAYER.PHASE_OVERLAY }}
     >
+      <button
+        onClick={handleFinish}
+        className="absolute top-6 right-6 p-2 rounded-full bg-slate-900/60 hover:bg-slate-800/80 text-slate-400 hover:text-white border border-slate-800 transition-all active:scale-95 z-50 cursor-pointer flex items-center justify-center shadow-lg"
+        aria-label="Lewati"
+      >
+        <X size={20} />
+      </button>
+
       <style>{`
         /* =======================================================
            COMMON ANIMATIONS
