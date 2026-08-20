@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
-import { X, Shield, Skull, Zap, Info, Eye, Target, Scale } from 'lucide-react';
+import { X, Shield, Skull, Zap, Info, Eye, Target, Scale, Heart } from 'lucide-react';
 import { Z_LAYER } from '../constants/zIndex';
 import { lockScroll, unlockScroll } from '../utils/scrollLock';
+import ClownIcon from './ClownIcon';
 
 const RoleModal = ({ role, isOpen, onClose }) => {
   useEffect(() => {
@@ -12,7 +13,44 @@ const RoleModal = ({ role, isOpen, onClose }) => {
 
   const getRoleDetail = (roleName) => {
     const r = roleName?.toLowerCase() || "";
-    
+
+    // --- TEAM INDEPENDEN ---
+    if (r.includes('lovers')) return {
+      title: "The Lovers",
+      icon: <Heart className="text-pink-500" size={40} />,
+      desc: "Dua jiwa yang ditakdirkan terikat. Cinta kalian melampaui batas dan peran.",
+      powers: [
+        "Malam ke-2: Pilih 1 pemain hidup untuk menjadi pasangan cintamu.",
+        "Setelah terikat, tim/faksimu akan mengikuti tim/faksi pasanganmu.",
+        "Jika salah satu dari kalian mati, yang lain ikut mati seketika karena patah hati."
+      ],
+      accent: "border-pink-600/50",
+      dot: "bg-pink-600",
+      tips: [
+        "Pilihlah pasangan yang sekiranya bisa melindungimu atau memiliki informasi berharga.",
+        "Gunakan bisikan (whisper) rahasia untuk saling berkoordinasi mengatur voting.",
+        "Jika pasanganmu mati, game over untukmu juga. Jadi lindungilah dia segenap jiwamu."
+      ]
+    };
+
+    if (r.includes('joker')) return {
+      title: "The Joker",
+      icon: <ClownIcon className="text-green-500" size={40} />,
+      desc: "Badut kekacauan pembawa bom. Keinginan terbesarmu adalah mati digantung di tiang gantungan.",
+      powers: [
+        "Menang instan jika kamu dieksekusi melalui voting publik di siang hari.",
+        "Jika digantung, kamu meledakkan bom yang mematikan forum (kamu selamat).",
+        "Kamu tidak memiliki aksi malam hari."
+      ],
+      accent: "border-green-600/50",
+      dot: "bg-green-600",
+      tips: [
+        "Berperilakulah mencurigakan agar warga mengira kamu adalah Werewolf.",
+        "Bebas berbohong atau memprovokasi kecurigaan di siang hari.",
+        "Jangan sampai ketahuan jika kamu Joker, atau warga sengaja tidak akan melakukan vote padamu."
+      ]
+    };
+
     // --- TEAM ANTAGONIS ---
     if (r.includes('werewolf')) return {
       title: "The Werewolf",

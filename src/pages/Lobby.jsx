@@ -1,17 +1,20 @@
 import React, { useState } from 'react';
-import { Users, Play, Copy, Check, AlertTriangle, ShieldCheck, XCircle, UserMinus, ChevronLeft } from 'lucide-react';
+import { Users, Play, Copy, Check, AlertTriangle, ShieldCheck, XCircle, UserMinus, ChevronLeft, Eye, Shield, Crosshair, Wand2, Settings, Heart } from 'lucide-react';
+import ClownIcon from '../components/ClownIcon';
 import { useGameContext } from '../contexts/GameContext';
 import { calculateRoles } from '../utils/roleBalancer';
+import { isRoleActive } from '../utils/gameLogic';
 
 const Lobby = ({ onBack }) => {
-  const { roomCode, players, myPlayerId, isHost, handleStartGame, handleKickPlayer } = useGameContext();
+  const { roomCode, players, myPlayerId, isHost, handleStartGame, handleKickPlayer, roleSettings, handleToggleRole } = useGameContext();
   const [isCopied, setIsCopied] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   // --- LOGIKA PEMBATASAN MINIMAL PEMAIN ---
   const minPlayers = 5;
   const participantsCount = players.filter(p => p.role !== 'Moderator').length;
   const isReady = participantsCount >= minPlayers;
-  const roleConfig = calculateRoles(participantsCount);
+  const roleConfig = calculateRoles(participantsCount, roleSettings);
 
   const handleCopyCode = () => {
     if (!roomCode) return;
@@ -120,6 +123,16 @@ const Lobby = ({ onBack }) => {
                   🎯 Hunter x{roleConfig.protagonists.hunter}
                 </span>
               )}
+              {roleConfig.protagonists.lovers > 0 && (
+                <span className="flex items-center gap-1 bg-pink-950/40 border border-pink-500/20 text-pink-400 text-[10px] font-black uppercase px-3 py-1.5 rounded-xl">
+                  💖 Lovers x{roleConfig.protagonists.lovers}
+                </span>
+              )}
+              {roleConfig.protagonists.joker > 0 && (
+                <span className="flex items-center gap-1 bg-green-950/40 border border-green-500/20 text-green-400 text-[10px] font-black uppercase px-3 py-1.5 rounded-xl">
+                  🤡 Joker x{roleConfig.protagonists.joker}
+                </span>
+              )}
               {roleConfig.protagonists.pedagang > 0 && (
                 <span className="flex items-center gap-1 bg-blue-950/40 border border-blue-500/20 text-blue-400 text-[10px] font-black uppercase px-3 py-1.5 rounded-xl">
                   💼 Pedagang x{roleConfig.protagonists.pedagang}
@@ -127,6 +140,16 @@ const Lobby = ({ onBack }) => {
               )}
             </div>
           </div>
+        )}
+
+        {/* ROLE SETTINGS BUTTON (HOST ONLY) */}
+        {isHost && (
+          <button
+            onClick={() => setShowSettingsModal(true)}
+            className="w-full flex items-center justify-center gap-2 py-4 bg-slate-900 border border-slate-800 rounded-2xl text-amber-500 font-black text-[9px] uppercase tracking-widest hover:bg-slate-800 transition-colors cursor-pointer"
+          >
+            <Settings size={14} /> Pengaturan Peran
+          </button>
         )}
 
         {/* DAFTAR PEMAIN */}
@@ -253,6 +276,76 @@ const Lobby = ({ onBack }) => {
           Waranasura Chronicles • Secured Connection
         </p>
       </div>
+
+      {/* ROLE SETTINGS POPUP MODAL (HOST ONLY) */}
+      {showSettingsModal && isHost && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[9999]" onClick={() => setShowSettingsModal(false)}>
+          <div className="bg-slate-900 border border-white/5 rounded-[2rem] p-6 max-w-sm w-full space-y-4 shadow-2xl animate-in zoom-in duration-300" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2 border-b border-white/5 pb-3">
+              <Settings size={18} className="text-amber-500" />
+              <h2 className="text-sm font-black uppercase tracking-wider text-white">Pengaturan Peran</h2>
+            </div>
+            <p className="text-[9px] text-slate-500 uppercase font-bold tracking-tight text-left">
+              Wajib: Pedagang, Werewolf, Hakim. Konfigurasi sisa peran:
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { key: 'Seer', label: 'Seer', icon: Eye },
+                { key: 'Guard', label: 'Guard', icon: Shield },
+                { key: 'Hunter', label: 'Hunter', icon: Crosshair },
+                { key: 'Warlock', label: 'Warlock', icon: Wand2 },
+                { key: 'Lovers', label: 'Lovers', icon: Heart },
+                { key: 'Joker', label: 'Joker', icon: ClownIcon }
+              ].map(r => {
+                const isEnabled = isRoleActive(r.key, roleSettings, participantsCount);
+                const Icon = r.icon;
+                const isRecommended = (
+                  (r.key === 'Seer' && participantsCount >= 5) ||
+                  (r.key === 'Guard' && participantsCount >= 6) ||
+                  (r.key === 'Hunter' && participantsCount >= 8) ||
+                  (r.key === 'Warlock' && participantsCount >= 7) ||
+                  (r.key === 'Lovers' && participantsCount >= 5) ||
+                  (r.key === 'Joker' && participantsCount >= 6)
+                );
+                return (
+                  <button
+                    key={r.key}
+                    onClick={() => handleToggleRole(r.key, !isEnabled)}
+                    className={`flex items-center justify-between p-3 rounded-2xl border transition-all text-left cursor-pointer active:scale-95 ${
+                      isEnabled
+                        ? 'bg-blue-600/10 border-blue-500/30 text-white'
+                        : 'bg-slate-950/40 border-transparent text-slate-500'
+                    }`}
+                  >
+                    <div className="flex flex-col items-start gap-1">
+                      <div className="flex items-center gap-2">
+                        <Icon size={16} className={isEnabled ? 'text-blue-400' : 'text-slate-600'} />
+                        <span className="text-[10px] font-black uppercase tracking-wider">{r.label}</span>
+                      </div>
+                      {isRecommended && (
+                        <span className="text-[7px] font-black uppercase bg-emerald-600/20 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20 mt-0.5">
+                          Rekomendasi
+                        </span>
+                      )}
+                    </div>
+                    <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center transition-all ${
+                      isEnabled ? 'border-blue-500 bg-blue-500' : 'border-slate-750 bg-transparent'
+                    }`}>
+                      {isEnabled && <Check size={10} className="text-white font-black" />}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              onClick={() => setShowSettingsModal(false)}
+              className="w-full py-4 bg-amber-600 hover:bg-amber-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-colors cursor-pointer"
+            >
+              Tutup & Simpan
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

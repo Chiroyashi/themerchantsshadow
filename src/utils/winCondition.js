@@ -19,9 +19,19 @@ export const checkWinCondition = async (roomCode) => {
   // Moderator tidak dihitung sebagai pemain
   const alive = players.filter(p => p.status !== 'dead' && p.role !== 'Moderator');
 
-  const antagonistRoles = ['Werewolf', 'Warlock'];
-  const antagonists = alive.filter(p => antagonistRoles.includes(p.role));
-  const protagonists = alive.filter(p => !antagonistRoles.includes(p.role));
+  const getPlayerFaksi = (p) => {
+    if (p.role === 'Lovers') {
+      return p.loversTeam || 'WARGA';
+    }
+    if (p.role === 'Joker') {
+      return 'JOKER';
+    }
+    const antagonistRoles = ['Werewolf', 'Warlock'];
+    return antagonistRoles.includes(p.role) ? 'SERIGALA' : 'WARGA';
+  };
+
+  const antagonists = alive.filter(p => getPlayerFaksi(p) === 'SERIGALA');
+  const protagonists = alive.filter(p => getPlayerFaksi(p) === 'WARGA');
 
   let winner = null;
   if (antagonists.length === 0) {

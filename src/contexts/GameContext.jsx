@@ -36,6 +36,7 @@ export function GameProvider({ children }) {
   // --- Game State ---
   const [gameWinner, setGameWinner] = useState(null);
   const [roomStatus, setRoomStatus] = useState(null);
+  const [roleSettings, setRoleSettings] = useState({});
 
   // --- Navigation State ---
   const [currentPage, setCurrentPage] = useState(() => {
@@ -152,6 +153,9 @@ export function GameProvider({ children }) {
       // --- Room Status ---
       setRoomStatus(data.status);
 
+      // --- Role Settings ---
+      setRoleSettings(data.roleSettings || {});
+
       // --- Navigasi Otomatis ---
       if (data.status === "intro" && curPage === "room-lobby") {
         setCurrentPage('intro-fable');
@@ -240,7 +244,7 @@ export function GameProvider({ children }) {
       showNotif("Gagal", "Minimal 5 pemain (di luar Moderator)!", "error");
       return;
     }
-    const playersWithRoles = distributeRoles(players);
+    const playersWithRoles = distributeRoles(players, roleSettings);
     const updates = {};
     playersWithRoles.forEach(p => {
       updates["players/" + p.id + "/role"] = p.role;
@@ -249,7 +253,7 @@ export function GameProvider({ children }) {
     updates["introStartedAt"] = Date.now();
     updates["status"] = "intro";
     await update(ref(db, "rooms/" + roomCode), updates);
-  }, [players, roomCode, showNotif]);
+  }, [players, roomCode, roleSettings, showNotif]);
 
   const handleKillPlayer = useCallback(async (id, status) => {
     if (isHost) {
@@ -292,15 +296,20 @@ export function GameProvider({ children }) {
     setCurrentPage(redirectPage);
   }, [roomCode, myPlayerId, isHost]);
 
+  const handleToggleRole = useCallback(async (roleName, isEnabled) => {
+    if (!isHost || !roomCode) return;
+    await set(ref(db, `rooms/${roomCode}/roleSettings/${roleName}`), isEnabled);
+  }, [isHost, roomCode]);
+
   const value = {
     // State
     roomCode, myPlayerId, isHost, playerName, players, myData,
-    gameWinner, roomStatus, isJoining,
+    gameWinner, roomStatus, isJoining, roleSettings,
     currentPage, setHasShownDestroyed: () => { hasShownDestroyedRef.current = true; },
     // Actions
     navigate, handleCreateRoom, handleJoinRoom, handleKickPlayer,
     handleStartGame, handleKillPlayer, handleEndGame,
-    handleDestroyRoom, handleLeaveGame,
+    handleDestroyRoom, handleLeaveGame, handleToggleRole,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

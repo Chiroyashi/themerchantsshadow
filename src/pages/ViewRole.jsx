@@ -4,8 +4,10 @@ import { db } from "../lib/firebase";
 import {
   Eye, EyeOff, Shield, Skull, HelpCircle, BookOpen, X, Ghost,
   LayoutGrid, MessageSquare, Send, Zap, Search, Crosshair,
-  ShoppingCart, ChevronUp, User, UserCheck, Info, Clock, Gavel, ShoppingBag
+  ShoppingCart, ChevronUp, User, UserCheck, Info, Clock, Gavel, ShoppingBag,
+  Wallet, Wand2, Heart
 } from 'lucide-react';
+import ClownIcon from '../components/ClownIcon';
 import SharedTimer from '../components/SharedTimer';
 import RoleModal from '../components/RoleModal';
 import ChatRoom from '../components/ChatRoom';
@@ -242,6 +244,15 @@ const ViewRole = ({ onNext }) => {
         }),
       },
       {
+        role: 'lovers',
+        path: `rooms/${roomCode}/players/${playerData.id}/partnerName`,
+        validate: (d) => d,
+        map: (d) => ({
+          icon: '💖', title: 'Ikatan Cinta Abadi',
+          desc: `Kamu kini telah terikat dengan ${d}! Jika salah satu dari kalian mati, yang lain juga ikut mati.`,
+        }),
+      },
+      {
         role: 'hunter',
         path: `rooms/${roomCode}/hunterResult/${playerData.id}`,
         validate: (d) => d && d.targetName,
@@ -429,6 +440,12 @@ const ViewRole = ({ onNext }) => {
       } else {
         popupInfo = { icon: "🎯", title: "Berburu", desc: `Tembakan diarahkan kepada ${targetPlayer?.name || "Target"}. Hasil tembakan akan terungkap besok pagi.`, target: targetPlayer };
       }
+    }   else if (role.includes("lovers")) {
+      if (isSkip) {
+        popupInfo = { icon: "💖", title: "Aksi Dilewati", desc: "Kamu memilih untuk tidak mengikat cinta siapa pun malam ini." };
+      } else {
+        popupInfo = { icon: "💖", title: "Ikatan Cinta", desc: `Kamu memilih ${targetPlayer?.name || "Target"} sebagai pasangan hidup sematimu.` };
+      }
     } else if (role.includes("hakim") && !isPistol) {
       if (isSkip) {
         popupInfo = { icon: "👁️", title: "Aksi Dilewati", desc: "Kamu memilih untuk tidak menggunakan Truth malam ini." };
@@ -463,6 +480,16 @@ const ViewRole = ({ onNext }) => {
       updates[`rooms/${roomCode}/players/${playerData.id}/pistolActed`] = true;
       updates[`rooms/${roomCode}/players/${playerData.id}/pistolUsedCount`] = pistolUsedCount + 1;
 
+      const targetPlayer = players.find(p => p.id === actionTarget);
+      const namesList = [targetPlayer?.name || "Unknown"];
+      const detailsList = { [targetPlayer?.name || "Unknown"]: "hakim" };
+
+      if (targetPlayer && targetPlayer.partnerId) {
+        updates[`rooms/${roomCode}/players/${targetPlayer.partnerId}/status`] = 'dead';
+        namesList.push(targetPlayer.partnerName);
+        detailsList[targetPlayer.partnerName] = "lovers";
+      }
+
       // Kirim gunshotEvent untuk efek guncang layar & kilatan merah
       updates[`rooms/${roomCode}/gunshotEvent`] = {
         targetName: targetPlayer?.name || "Unknown",
@@ -475,7 +502,7 @@ const ViewRole = ({ onNext }) => {
       updates[`rooms/${roomCode}/chats/${newChatRef.key}`] = {
         senderId: "SYSTEM_GUNSHOT",
         senderName: "PENGUMUMAN",
-        text: `BARRR! Suara tembakan terdengar! Hakim telah menembak ${targetPlayer?.name || "Unknown"}!`,
+        text: `BARRR! Suara tembakan terdengar! Hakim telah menembak ${targetPlayer?.name || "Unknown"}!${targetPlayer?.partnerId ? ` Pasangannya (${targetPlayer.partnerName}) ikut tewas karena patah hati!` : ''}`,
         target: "all",
         channel: "public",
         timestamp: getTimestamp()
@@ -484,10 +511,8 @@ const ViewRole = ({ onNext }) => {
       // Langsung kirim notif kematian ke target
       updates[`rooms/${roomCode}/deadToday`] = {
         day,
-        names: [targetPlayer?.name || "Unknown"],
-        details: {
-          [targetPlayer?.name || "Unknown"]: "hakim"
-        },
+        names: namesList,
+        details: detailsList,
         timestamp: getTimestamp()
       };
     }
@@ -561,6 +586,17 @@ const ViewRole = ({ onNext }) => {
       updates[`rooms/${roomCode}/seerResult/${playerData.id}`] = {
         name: targetPlayer?.name || "Unknown",
         role: targetRole,
+        timestamp: getTimestamp()
+      };
+    }
+
+    // Lovers
+    if (role.includes("lovers") && actionTarget && type !== 'skip') {
+      updates[`rooms/${roomCode}/players/${playerData.id}/currentAction`] = {
+        role: "Lovers",
+        action: "bind",
+        targetId: actionTarget,
+        targetName: targetPlayer?.name || "Unknown",
         timestamp: getTimestamp()
       };
     }
@@ -657,15 +693,43 @@ const ViewRole = ({ onNext }) => {
 
   // --- 5. THEME & UI CALCULATION ---
   const theme = (() => {
-    if (isDead) return { color: "text-slate-500", bg: "bg-slate-900/50", border: "border-slate-800", icon: Ghost };
-    if (role.includes('werewolf') || role.includes('warlock')) 
-      return { color: "text-red-500", bg: "bg-red-950/20", border: "border-red-600", icon: Skull };
-    if (role.includes('hakim')) 
-      return { color: "text-amber-500", bg: "bg-amber-950/20", border: "border-amber-600", icon: Gavel };
-    return { color: "text-blue-500", bg: "bg-blue-950/20", border: "border-blue-600", icon: Shield };
+    if (isDead) return { color: "text-slate-500", bg: "bg-slate-900/50", border: "border-slate-800", bgInner: "bg-slate-950/40", bgIcon: "bg-slate-900/40", icon: Ghost };
+    if (role.includes('werewolf'))
+      return { color: "text-red-500", bg: "bg-red-950/20", border: "border-red-600", bgInner: "bg-red-950/20", bgIcon: "bg-red-950/30", icon: Skull };
+    if (role.includes('warlock'))
+      return { color: "text-purple-600", bg: "bg-purple-950/20", border: "border-purple-600", bgInner: "bg-purple-950/20", bgIcon: "bg-purple-950/30", icon: Wand2 };
+    if (role.includes('seer'))
+      return { color: "text-purple-500", bg: "bg-purple-950/20", border: "border-purple-600", bgInner: "bg-purple-950/20", bgIcon: "bg-purple-950/30", icon: Eye };
+    if (role.includes('guard'))
+      return { color: "text-blue-500", bg: "bg-blue-950/20", border: "border-blue-600", bgInner: "bg-blue-950/20", bgIcon: "bg-blue-950/30", icon: Shield };
+    if (role.includes('hakim'))
+      return { color: "text-amber-500", bg: "bg-amber-950/20", border: "border-amber-600", bgInner: "bg-amber-950/20", bgIcon: "bg-amber-950/30", icon: Gavel };
+    if (role.includes('hunter'))
+      return { color: "text-orange-500", bg: "bg-orange-950/20", border: "border-orange-600", bgInner: "bg-orange-950/20", bgIcon: "bg-orange-950/30", icon: Crosshair };
+    if (role.includes('lovers'))
+      return { color: "text-pink-500", bg: "bg-pink-950/20", border: "border-pink-600", bgInner: "bg-pink-950/20", bgIcon: "bg-pink-950/30", icon: Heart };
+    if (role.includes('joker'))
+      return { color: "text-green-500", bg: "bg-green-950/20", border: "border-green-600", bgInner: "bg-green-950/20", bgIcon: "bg-green-950/30", icon: ClownIcon };
+    if (role.includes('pedagang') || role.includes('merchant'))
+      return { color: "text-emerald-500", bg: "bg-emerald-950/20", border: "border-emerald-600", bgInner: "bg-emerald-950/20", bgIcon: "bg-emerald-950/30", icon: Wallet };
+
+    return { color: "text-blue-500", bg: "bg-blue-950/20", border: "border-blue-600", bgInner: "bg-blue-950/20", bgIcon: "bg-blue-950/30", icon: Shield };
   })();
 
   const RoleIcon = theme.icon;
+  const faksi = (() => {
+    if (isDead) return 'DEAD';
+    if (role.includes('lovers')) {
+      if (playerData?.loversTeam === 'SERIGALA') return 'SERIGALA';
+      if (playerData?.loversTeam === 'WARGA') return 'WARGA';
+      if (playerData?.loversTeam === 'INDEPENDEN') return 'JOKER';
+      return 'LOVERS_NO_TEAM';
+    }
+    if (role.includes('joker')) return 'JOKER';
+    if (role.includes('werewolf') || role.includes('warlock')) return 'SERIGALA';
+    return 'WARGA';
+  })();
+
   const getTargetName = () => {
     if (!actionTarget) return "Pilih Target...";
     if (actionTarget === playerData?.id) return "Diri Sendiri";
@@ -680,7 +744,114 @@ const ViewRole = ({ onNext }) => {
       <style>{`
         .animate-shimmer { animation: shimmer 1s ease-out; }
         .view-role-scroll { scrollbar-width: thin; scrollbar-color: rgba(100,116,139,0.3) transparent; }
+
+        @keyframes sweepDown {
+          0% {
+            transform: translateY(-20%);
+            opacity: 0;
+          }
+          15% {
+            opacity: 0.85;
+          }
+          85% {
+            opacity: 0.85;
+          }
+          100% {
+            transform: translateY(120%);
+            opacity: 0;
+          }
+        }
+        .faction-wave {
+          animation: sweepDown 4.5s ease-in-out infinite;
+        }
+        .faction-wave-warga {
+          stroke: #3b82f6;
+          filter: url(#glow-blue);
+        }
+        .faction-wave-serigala {
+          stroke: #ef4444;
+          filter: url(#glow-red);
+        }
+        .faction-wave-joker {
+          stroke: url(#jokerGradient);
+          filter: url(#glow-green);
+        }
+        .faction-wave-lovers {
+          stroke: #ec4899;
+          filter: url(#glow-pink);
+        }
       `}</style>
+
+      {/* Faction Wave Overlay */}
+      {faksi !== 'DEAD' && !showIntro && (
+        <svg className="fixed inset-0 w-full h-full pointer-events-none z-[9999]" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="jokerGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#a3e635" stopOpacity="0.85" />
+              <stop offset="100%" stopColor="#22c55e" stopOpacity="0.85" />
+            </linearGradient>
+            <filter id="glow-blue" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="1.5" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <filter id="glow-red" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="1.5" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <filter id="glow-green" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="1.5" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <filter id="glow-pink" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="1.5" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+
+          {/* Horizontal U-shaped wave front sweeping down */}
+          <path
+            d="M 0,0 Q 50,20 100,0"
+            fill="none"
+            strokeWidth="6"
+            vectorEffect="non-scaling-stroke"
+            className={`faction-wave ${
+              faksi === 'WARGA' ? 'faction-wave-warga' :
+              faksi === 'SERIGALA' ? 'faction-wave-serigala' :
+              faksi === 'JOKER' ? 'faction-wave-joker' :
+              'faction-wave-lovers'
+            }`}
+          />
+
+          {/* Double wave for Lovers (2x) */}
+          {role.includes('lovers') && (
+            <path
+              d="M 0,0 Q 50,20 100,0"
+              fill="none"
+              strokeWidth="6"
+              vectorEffect="non-scaling-stroke"
+              className={`faction-wave ${
+                faksi === 'WARGA' ? 'faction-wave-warga' :
+                faksi === 'SERIGALA' ? 'faction-wave-serigala' :
+                faksi === 'JOKER' ? 'faction-wave-joker' :
+                'faction-wave-lovers'
+              }`}
+              style={{ animationDelay: '-2.25s' }}
+            />
+          )}
+        </svg>
+      )}
 
       {/* Ambient Glow Transition Layer */}
       {!isDead && (
@@ -706,6 +877,11 @@ const ViewRole = ({ onNext }) => {
           <div className="space-y-1">
             <p className="text-slate-300 text-[8px] md:text-[10px] uppercase tracking-[0.3em]">{isNight ? 'Malam' : 'Hari'} ke-{day} • Waranasura</p>
             <h2 className={`text-base sm:text-lg md:text-xl font-bold italic transition-colors ${isDead ? 'text-slate-600' : 'text-blue-400'}`}>{playerData?.name} {playerData?.underTruth && "🔍"}</h2>
+            {playerData?.partnerId && (
+              <p className="text-pink-500 font-black uppercase tracking-widest text-[9px] sm:text-[10px] animate-pulse">
+                💖 Terikat dengan: {playerData.partnerName}
+              </p>
+            )}
           </div>
 
             <div
@@ -720,7 +896,7 @@ const ViewRole = ({ onNext }) => {
                     ? 'bg-slate-900/30 border-slate-700/60 border-dashed'
                     : 'bg-slate-950/40 border-slate-800/80 border-dashed active:border-slate-700')
                 : (isRevealed
-                    ? 'bg-blue-950/20 border-blue-600'
+                    ? `${theme.bg} ${theme.border}`
                     : 'bg-slate-900 border-slate-800 active:border-slate-600')
             }`}
           >
@@ -745,18 +921,18 @@ const ViewRole = ({ onNext }) => {
               </div>
             ) : (
               <div className={`absolute inset-0 flex flex-col items-center justify-center animate-in fade-in duration-500 ${
-                isDead ? 'bg-slate-950/40' : 'bg-blue-950/20'
+                theme.bgInner
               }`}>
                 <div className={`p-4 sm:p-6 md:p-8 rounded-full mb-4 transition-colors duration-500 ${
-                  isDead ? 'text-slate-500 bg-slate-900/40' : 'text-blue-500 bg-blue-950/30'
+                  theme.bgIcon
                 }`}>
                   <RoleIcon className={`w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40 ${
-                    isDead ? 'text-slate-500' : 'text-blue-500'
+                    theme.color
                   }`} />
                 </div>
                 <div className="space-y-2 text-center">
                   <h3 className={`text-3xl sm:text-4xl md:text-5xl font-black uppercase italic tracking-tighter transition-colors duration-500 ${
-                    isDead ? 'text-slate-500' : 'text-blue-500'
+                    theme.color
                   }`}>
                     {playerData?.role}
                   </h3>

@@ -1,8 +1,8 @@
 import React, { useEffect, useRef } from 'react';
-import { ShieldCheck, User, X } from 'lucide-react';
+import { ShieldCheck, User, X, Bomb, Flame } from 'lucide-react';
 import { Z_LAYER } from '../constants/zIndex';
 import { lockScroll, unlockScroll } from '../utils/scrollLock';
-import { playGallowsExecutionSound } from '../utils/audio';
+import { playGallowsExecutionSound, playExplosionSound } from '../utils/audio';
 
 const GallowsOverlay = () => (
   <svg className="absolute inset-0 w-full h-full pointer-events-none z-30 animate-pulse duration-[3000ms]" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -62,7 +62,22 @@ const HangedCharacter = ({ name }) => (
   </div>
 );
 
-const VoteAnnouncement = ({ names, day, onClose }) => {
+const JokerExplosion = ({ name }) => (
+  <div className="flex flex-col items-center justify-center relative w-full pt-4 pb-2 z-10 h-72">
+    <div className="absolute inset-0 bg-yellow-600/5 rounded-full blur-3xl animate-pulse" />
+    <div className="flex flex-col items-center justify-center animate-bounce relative z-10">
+      <div className="absolute inset-0 blur-3xl rounded-full scale-150 animate-pulse bg-yellow-600/25" />
+      <div className="w-20 h-20 rounded-full bg-slate-900 border-2 border-yellow-500 shadow-[0_0_30px_rgba(234,179,8,0.5)] flex items-center justify-center relative z-10">
+        <Bomb size={36} className="text-yellow-500 animate-pulse" />
+      </div>
+      <div className="mt-6 bg-yellow-950/40 border border-yellow-500/20 px-6 py-2 rounded-full shadow-lg backdrop-blur-sm relative z-10">
+        <span className="text-yellow-400 font-black text-sm tracking-tight uppercase whitespace-nowrap">{name}</span>
+      </div>
+    </div>
+  </div>
+);
+
+const VoteAnnouncement = ({ names, day, isJoker, onClose }) => {
   const isPeaceful = names?.length === 1 && names[0] === "TIDAK ADA";
   const closeRef = useRef(onClose);
   const hasClosed = useRef(false);
@@ -79,9 +94,13 @@ const VoteAnnouncement = ({ names, day, onClose }) => {
 
   useEffect(() => {
     if (!isPeaceful) {
-      playGallowsExecutionSound();
+      if (isJoker) {
+        playExplosionSound();
+      } else {
+        playGallowsExecutionSound();
+      }
     }
-  }, [isPeaceful]);
+  }, [isPeaceful, isJoker]);
 
   useEffect(() => {
     lockScroll();
@@ -96,12 +115,14 @@ const VoteAnnouncement = ({ names, day, onClose }) => {
 
   if (!names || names.length === 0) return null;
 
-  const glowBg = isPeaceful ? 'bg-emerald-600' : 'bg-red-700';
-  const accentText = isPeaceful ? 'text-emerald-400' : 'text-red-500';
+  const glowBg = isPeaceful ? 'bg-emerald-600' : (isJoker ? 'bg-yellow-600' : 'bg-red-700');
+  const accentText = isPeaceful ? 'text-emerald-400' : (isJoker ? 'text-yellow-400' : 'text-red-500');
 
   const gradientBg = isPeaceful
     ? 'linear-gradient(to bottom, rgba(2, 6, 23, 1) 0%, rgba(2, 6, 23, 0.7) 70%, rgba(6, 95, 70, 1) 100%)'
-    : 'linear-gradient(to bottom, rgba(2, 6, 23, 1) 0%, rgba(2, 6, 23, 0.7) 70%, rgba(153, 27, 27, 1) 100%)';
+    : isJoker
+      ? 'linear-gradient(to bottom, rgba(2, 6, 23, 1) 0%, rgba(2, 6, 23, 0.7) 70%, rgba(146, 64, 14, 1) 100%)'
+      : 'linear-gradient(to bottom, rgba(2, 6, 23, 1) 0%, rgba(2, 6, 23, 0.7) 70%, rgba(153, 27, 27, 1) 100%)';
 
   return (
     <div
@@ -146,12 +167,14 @@ const VoteAnnouncement = ({ names, day, onClose }) => {
           }
         `}</style>
 
-        {!isPeaceful && <GallowsOverlay />}
+        {!isPeaceful && !isJoker && <GallowsOverlay />}
 
         <div className="relative mb-4">
           <div className={`absolute inset-0 blur-2xl rounded-full scale-150 animate-pulse ${glowBg}/20`} />
           {isPeaceful ? (
             <ShieldCheck size={72} className="text-slate-500 mx-auto relative z-10 animate-bounce" />
+          ) : isJoker ? (
+            <JokerExplosion name={names[0]} />
           ) : (
             <HangedCharacter name={names[0]} />
           )}
@@ -162,7 +185,7 @@ const VoteAnnouncement = ({ names, day, onClose }) => {
             Laporan Forensik • Hari {day}
           </h2>
           <h1 className="text-white text-2xl font-black italic uppercase leading-none tracking-tighter">
-            {isPeaceful ? 'Tidak Ada Hukuman' : 'DIGANTUNG OLEH WARGA'}
+            {isPeaceful ? 'Tidak Ada Hukuman' : isJoker ? 'DIKELUARKAN DARI FORUM' : 'DIGANTUNG OLEH WARGA'}
           </h1>
         </div>
 
@@ -171,9 +194,18 @@ const VoteAnnouncement = ({ names, day, onClose }) => {
             <div className="bg-slate-800/40 border border-slate-700/30 py-6 rounded-2xl">
               <p className="text-slate-400 text-xs font-black uppercase tracking-widest">Suara tidak mencapai threshold</p>
             </div>
+          ) : isJoker ? (
+            <div className="bg-yellow-950/20 border border-yellow-500/20 py-2.5 rounded-2xl">
+              <p className="text-yellow-400 text-[10px] font-black uppercase tracking-[0.2em]">Status: Ledakan Bom Forum</p>
+            </div>
           ) : (
             <div className="bg-red-950/20 border border-red-500/20 py-2.5 rounded-2xl">
               <p className="text-red-400 text-[10px] font-black uppercase tracking-[0.2em]">Status: Tereliminasi</p>
+            </div>
+          )}
+          {!isPeaceful && names.length > 1 && (
+            <div className="text-[10px] text-red-400 font-bold uppercase tracking-wider mt-2 animate-pulse">
+              💔 Pasangan cinta {names[1]} juga gugur patah hati!
             </div>
           )}
         </div>
@@ -181,7 +213,9 @@ const VoteAnnouncement = ({ names, day, onClose }) => {
         <p className="text-slate-300 text-[10px] leading-relaxed italic px-4 uppercase font-bold tracking-tight relative z-10">
           {isPeaceful
             ? '"Keadilan membutuhkan bukti. Tidak ada yang dihukum hari ini."'
-            : '"Keputusan telah diambil. Semoga Waranasura beristirahat dalam damai."'}
+            : isJoker
+              ? '"Joker tertawa puas... Bom meledak di dalam forum! Dia menang!"'
+              : '"Keputusan telah diambil. Semoga Waranasura beristirahat dalam damai."'}
         </p>
       </div>
     </div>
