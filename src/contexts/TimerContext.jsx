@@ -5,6 +5,7 @@ import { db } from "../lib/firebase";
 import { useGameContext } from './GameContext';
 import { checkWinCondition } from '../utils/winCondition';
 import { isSiang, isMalam, isPagi, PHASE } from '../constants/phases';
+import { getPlayerTeam } from '../utils/roleActions';
 
 const TimerContext = createContext(null);
 
@@ -404,6 +405,43 @@ export function TimerProvider({ children }) {
       logs.push(`Hakim ${truth.name} menggunakan Truth pada ${truth.targetName}`);
     }
 
+    // ── STAGE 7: Lovers — ikat pasangan (Malam 2) ──
+    for (const bind of nightActions.filter(a => a.role === 'Lovers' && a.actionType === 'bind')) {
+      if (!bind.targetId) continue;
+      const target = players.find(p => p.id === bind.targetId);
+      if (target) {
+        updates[`rooms/${roomCode}/players/${bind.playerId}/partnerId`] = bind.targetId;
+        updates[`rooms/${roomCode}/players/${bind.playerId}/partnerName`] = target.name;
+        updates[`rooms/${roomCode}/players/${bind.targetId}/partnerId`] = bind.playerId;
+        updates[`rooms/${roomCode}/players/${bind.targetId}/partnerName`] = bind.name;
+
+        // Determine Lovers faksi/team
+        const targetTeam = getPlayerTeam(target.role);
+        updates[`rooms/${roomCode}/players/${bind.playerId}/loversTeam`] = targetTeam;
+
+        logs.push(`Lovers ${bind.name} telah mengikat takdir cintanya dengan ${target.name}!`);
+      }
+    }
+
+    // Lovers broken heart chain deaths
+    let loverDied = true;
+    while (loverDied) {
+      loverDied = false;
+      players.forEach(p => {
+        if (p.partnerId && (p.status === 'dead' || deadIds.has(p.id))) {
+          if (!deadIds.has(p.partnerId)) {
+            const partner = players.find(pl => pl.id === p.partnerId);
+            if (partner && partner.status !== 'dead') {
+              deadIds.add(p.partnerId);
+              deathCauses[p.partnerId] = "lovers";
+              logs.push(`Lovers: ${partner.name} gugur patah hati karena pasangannya (${p.name}) tewas.`);
+              loverDied = true;
+            }
+          }
+        }
+      });
+    }
+
     // ======================================================
     // BUILD FIREBASE UPDATES
     // ======================================================
@@ -482,17 +520,46 @@ export function TimerProvider({ children }) {
     } else {
       const executedId = topTargets[0][0];
       const executedPlayer = players.find(p => p.id === executedId);
-      await update(ref(db), {
-        [`rooms/${roomCode}/players/${executedId}/status`]: 'dead',
-        [`rooms/${roomCode}/voteResult`]: {
-          day: dayRef.current,
-          names: [executedPlayer?.name || "Unknown"],
-          executedId,
-          timestamp: Date.now()
+
+      if (executedPlayer && executedPlayer.role === 'Joker') {
+        await update(ref(db), {
+          [`rooms/${roomCode}/players/${executedId}/status`]: 'dead',
+          [`rooms/${roomCode}/voteResult`]: {
+            day: dayRef.current,
+            names: [executedPlayer.name],
+            executedId,
+            timestamp: Date.now()
+          },
+          [`rooms/${roomCode}/status`]: 'ended',
+          [`rooms/${roomCode}/winner`]: 'JOKER',
+          [`rooms/${roomCode}/endedAt`]: Date.now()
+        });
+      } else {
+        const voteUpdates = {
+          [`rooms/${roomCode}/players/${executedId}/status`]: 'dead'
+        };
+        const voteDeadNames = [executedPlayer?.name || "Unknown"];
+
+        if (executedPlayer && executedPlayer.partnerId) {
+          const partner = players.find(p => p.id === executedPlayer.partnerId && p.status !== 'dead');
+          if (partner) {
+            voteUpdates[`rooms/${roomCode}/players/${executedPlayer.partnerId}/status`] = 'dead';
+            voteDeadNames.push(partner.name);
+          }
         }
-      });
-      // Auto check win condition setelah eksekusi voting
-      await checkWinCondition(roomCode);
+
+        await update(ref(db), {
+          ...voteUpdates,
+          [`rooms/${roomCode}/voteResult`]: {
+            day: dayRef.current,
+            names: voteDeadNames,
+            executedId,
+            timestamp: Date.now()
+          }
+        });
+        // Auto check win condition setelah eksekusi voting
+        await checkWinCondition(roomCode);
+      }
     }
 
     // Cleanup votes

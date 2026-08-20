@@ -82,3 +82,37 @@ export const playGallowsExecutionSound = () => {
     osc2.stop(c.currentTime + 0.4);
   } catch (e) { /* fallback silently */ }
 };
+
+export const playExplosionSound = () => {
+  try {
+    const c = getCtx();
+    if (c.state === 'suspended') c.resume();
+
+    // Noise buffer generation for explosion crackle
+    const bufferSize = c.sampleRate * 1.5;
+    const buffer = c.createBuffer(1, bufferSize, c.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+
+    const noise = c.createBufferSource();
+    noise.buffer = buffer;
+
+    const filter = c.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(800, c.currentTime);
+    filter.frequency.exponentialRampToValueAtTime(10, c.currentTime + 1.2);
+
+    const gain = c.createGain();
+    gain.gain.setValueAtTime(0.4, c.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 1.5);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(c.destination);
+
+    noise.start();
+    noise.stop(c.currentTime + 1.5);
+  } catch (e) { /* fallback silently */ }
+};

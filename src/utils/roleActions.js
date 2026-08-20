@@ -9,6 +9,7 @@ import { isPagi, isSiang } from '../constants/phases';
 export const getPlayerTeam = (role) => {
   const SERIGALA = ['Werewolf', 'Warlock'];
   const WARGA = ['Seer', 'Guard', 'Hakim', 'Hunter', 'Pedagang'];
+  const INDEPENDEN = ['Joker', 'Lovers'];
 
   if (SERIGALA.includes(role)) return 'SERIGALA';
   if (WARGA.includes(role)) return 'WARGA';
@@ -223,6 +224,27 @@ export const getRoleActionConfig = (role, currentDay, totalPlayers, roleState = 
       break;
     }
 
+    case 'Lovers':
+      if (currentDay === 2) {
+        config.canAct = !hasActed && !roleState.partnerId;
+        config.actionType = 'lovers-bind';
+        config.reason = hasActed ? "Kamu sudah memilih pasangan." : "MALAM KE-2: Pilih 1 pemain untuk menjadi pasangan hidupmu.";
+        config.maxUses = 1;
+        config.skillName = 'Bind';
+      } else {
+        config.canAct = false;
+        config.actionType = null;
+        config.reason = currentDay < 2 ? "Kemampuan mencari pasangan aktif pada Malam ke-2." : "Kamu sudah terikat dengan pasanganmu.";
+      }
+      break;
+
+    case 'Joker':
+      config.canAct = false;
+      config.actionType = null;
+      config.reason = "Joker tidak memiliki aksi malam hari.";
+      config.maxUses = 0;
+      break;
+
     case 'Moderator':
       config.canAct = false;
       config.actionType = null;
@@ -289,6 +311,10 @@ export const canRoleActTonight = (role, currentDay, playerState = {}) => {
     case 'Warlock':
       if (playerState.warlockSkipped) return false;
       return !hasActed;
+    case 'Lovers':
+      return currentDay === 2 && !playerState.partnerId && !hasActed;
+    case 'Joker':
+      return false;
     default:
       return false;
   }

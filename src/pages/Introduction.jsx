@@ -1,6 +1,6 @@
 import React from 'react';
-import { TEAM_SERIGALA, TEAM_WARGA, ROLE_MODERATOR } from '../constants/roles';
-import { Skull, Users, ChevronRight, ChevronLeft, Crown } from 'lucide-react';
+import { TEAM_SERIGALA, TEAM_WARGA, ROLE_MODERATOR, TEAM_JOKER, TEAM_LAINNYA } from '../constants/roles';
+import { Skull, Users, ChevronRight, ChevronLeft, Crown, Smile, Heart } from 'lucide-react';
 
 const RoleCard = ({ role, color }) => (
   <div className={`p-4 rounded-lg bg-slate-900 border-l-4 ${color} hover:bg-slate-800 transition-all duration-300 shadow-xl`}>
@@ -44,37 +44,69 @@ const Introduction = ({ onNext, onBack }) => {
         </section>
 
         <div className="grid md:grid-cols-2 gap-6 sm:gap-12">
-          
-          {/* Tim Serigala */}
-          <section className="space-y-6 animate-in fade-in slide-in-from-left-4 duration-700">
-            <div className="flex items-center gap-3 border-b border-red-900/50 pb-4">
-              <Skull className="text-red-600 w-6 h-6" />
-              <h3 className="text-2xl font-bold tracking-tighter uppercase text-red-500">Tim Serigala</h3>
-            </div>
-            <div className="grid gap-4">
-              {TEAM_SERIGALA.map((role) => (
-                <RoleCard key={role.name} role={role} color="border-red-600" />
-              ))}
-            </div>
-            <div className="p-4 bg-red-950/20 border border-red-900/30 rounded-md">
-                <p className="text-[10px] text-red-400 italic font-bold uppercase tracking-wider">
-                  *Warlock dan Werewolf tidak mengetahui identitas satu sama lain.
-                </p>
-            </div>
-          </section>
 
-          {/* Tim Warga */}
-          <section className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-700">
-            <div className="flex items-center gap-3 border-b border-blue-900/50 pb-4">
-              <Users className="text-blue-500 w-6 h-6" />
-              <h3 className="text-2xl font-bold tracking-tighter uppercase text-blue-400">Tim Warga</h3>
-            </div>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-2 gap-3 text-left">
-              {TEAM_WARGA.map((role) => (
-                <RoleCard key={role.name} role={role} color={role.type === "Special" ? "border-blue-500" : "border-slate-500"} />
-              ))}
-            </div>
-          </section>
+          {/* Left Column: Serigala, Joker, Lainnya */}
+          <div className="space-y-12 text-left">
+            {/* Tim Serigala */}
+            <section className="space-y-6 animate-in fade-in slide-in-from-left-4 duration-700">
+              <div className="flex items-center gap-3 border-b border-red-900/50 pb-4">
+                <Skull className="text-red-600 w-6 h-6" />
+                <h3 className="text-2xl font-bold tracking-tighter uppercase text-red-500">Tim Serigala</h3>
+              </div>
+              <div className="grid gap-4">
+                {TEAM_SERIGALA.map((role) => (
+                  <RoleCard key={role.name} role={role} color="border-red-600" />
+                ))}
+              </div>
+              <div className="p-4 bg-red-950/20 border border-red-900/30 rounded-md">
+                  <p className="text-[10px] text-red-400 italic font-bold uppercase tracking-wider">
+                    *Warlock dan Werewolf tidak mengetahui identitas satu sama lain.
+                  </p>
+              </div>
+            </section>
+
+            {/* Tim Joker */}
+            <section className="space-y-6 animate-in fade-in duration-700">
+              <div className="flex items-center gap-3 border-b border-yellow-900/50 pb-4">
+                <Smile className="text-yellow-500 w-6 h-6" />
+                <h3 className="text-2xl font-bold tracking-tighter uppercase text-yellow-500">Tim Joker</h3>
+              </div>
+              <div className="grid gap-4">
+                {TEAM_JOKER.map((role) => (
+                  <RoleCard key={role.name} role={role} color="border-yellow-500" />
+                ))}
+              </div>
+            </section>
+
+            {/* Lainnya */}
+            <section className="space-y-6 animate-in fade-in duration-700">
+              <div className="flex items-center gap-3 border-b border-pink-900/50 pb-4">
+                <Heart className="text-pink-500 w-6 h-6" />
+                <h3 className="text-2xl font-bold tracking-tighter uppercase text-pink-500">Lainnya</h3>
+              </div>
+              <div className="grid gap-4">
+                {TEAM_LAINNYA.map((role) => (
+                  <RoleCard key={role.name} role={role} color="border-pink-500" />
+                ))}
+              </div>
+            </section>
+          </div>
+
+          {/* Right Column: Warga */}
+          <div className="space-y-12 text-left">
+            {/* Tim Warga */}
+            <section className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-700">
+              <div className="flex items-center gap-3 border-b border-blue-900/50 pb-4">
+                <Users className="text-blue-500 w-6 h-6" />
+                <h3 className="text-2xl font-bold tracking-tighter uppercase text-blue-400">Tim Warga</h3>
+              </div>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-2 gap-3 text-left">
+                {TEAM_WARGA.map((role) => (
+                  <RoleCard key={role.name} role={role} color={role.type === "Special" ? "border-blue-500" : "border-slate-500"} />
+                ))}
+              </div>
+            </section>
+          </div>
 
         </div>
       </div>

@@ -221,6 +221,7 @@ function AppContent() {
         <VoteAnnouncement
           names={voteResult.names}
           day={voteResult.day}
+          isJoker={voteResult.isJoker}
           onClose={() => setShowVoteResult(false)}
         />
       )}

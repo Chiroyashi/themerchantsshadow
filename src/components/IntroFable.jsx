@@ -3,7 +3,8 @@ import { ref, update } from "firebase/database";
 import { db } from "../lib/firebase";
 import { Z_LAYER } from '../constants/zIndex';
 import { lockScroll, unlockScroll } from '../utils/scrollLock';
-import { Scroll, Gavel, Users, Sparkles, Sun, Wallet, Eye, Shield, Crosshair, Wand2 } from 'lucide-react';
+import { Scroll, Gavel, Users, Sparkles, Sun, Wallet, Eye, Shield, Crosshair, Wand2, Heart } from 'lucide-react';
+import ClownIcon from './ClownIcon';
 
 const Wolf = ({ size = 24, className, ...props }) => (
   <svg
@@ -39,7 +40,9 @@ const roleIcons = {
   Guard: { icon: Shield, color: "text-blue-400" },
   Hakim: { icon: Gavel, color: "text-amber-500" },
   Hunter: { icon: Crosshair, color: "text-orange-500" },
-  Warlock: { icon: Wand2, color: "text-purple-600" }
+  Warlock: { icon: Wand2, color: "text-purple-600" },
+  Lovers: { icon: Heart, color: "text-pink-500" },
+  Joker: { icon: ClownIcon, color: "text-green-500" }
 };
 
 const IntroFable = ({ players, roomCode, onFinish, playerData }) => {

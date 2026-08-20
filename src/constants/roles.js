@@ -16,3 +16,11 @@ export const ROLE_MODERATOR = {
   name: "Moderator",
   desc: "Tuhan dalam permainan. Mengatur siklus hari, memproses transaksi Warlock, memberikan petunjuk, memimpin eksekusi publik, dan narator."
 };
+
+export const TEAM_JOKER = [
+  { name: "Joker", desc: "Badut pembawa bom yang menang jika berhasil membuat dirinya dieksekusi pada voting siang hari.", type: "Independent" }
+];
+
+export const TEAM_LAINNYA = [
+  { name: "Lovers", desc: "Mencari pasangan di malam ke-2. Tim dan nasibnya akan terikat dengan pasangannya.", type: "Independent" }
+];
