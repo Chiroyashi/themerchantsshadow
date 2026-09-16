@@ -23,24 +23,62 @@ const getRoleVisuals = (roleName) => {
   if (r.includes('hunter')) {
     return { emoji: "🎯", textColor: "text-orange-400", bgColor: "bg-orange-950/30", borderColor: "border-orange-500/20" };
   }
+  if (r.includes('joker')) {
+    return { emoji: "🤡", textColor: "text-green-400", bgColor: "bg-green-950/30", borderColor: "border-green-500/20" };
+  }
+  if (r.includes('lovers')) {
+    return { emoji: "💖", textColor: "text-pink-400", bgColor: "bg-pink-950/30", borderColor: "border-pink-500/20" };
+  }
   return { emoji: "💼", textColor: "text-blue-400", bgColor: "bg-blue-950/30", borderColor: "border-blue-500/20" };
 };
 
-const getPlayerAchievement = (player, allPlayers, winner) => {
-  const isWargaWinner = winner === 'WARGA';
+export const isPlayerWinner = (player, winner) => {
+  if (!player || !winner) return false;
   const roleLower = player.role?.toLowerCase() || "";
+
+  if (winner === 'JOKER') {
+    return roleLower === 'joker';
+  }
+  if (roleLower === 'joker') {
+    return false;
+  }
+  if (roleLower === 'lovers') {
+    const loversTeam = player.loversTeam;
+    if (!loversTeam) return false;
+    return winner === loversTeam;
+  }
+
   const isAntagonist = roleLower.includes('werewolf') || roleLower.includes('warlock');
-  const isTeamWinner = isWargaWinner ? !isAntagonist : isAntagonist;
+  return winner === 'WARGA' ? !isAntagonist : (winner === 'SERIGALA' ? isAntagonist : false);
+};
+
+const getPlayerAchievement = (player, allPlayers, winner) => {
+  const roleLower = player.role?.toLowerCase() || "";
+  const isTeamWinner = isPlayerWinner(player, winner);
   const isAlive = player.status === 'alive';
+  const isAntagonist = roleLower.includes('werewolf') || roleLower.includes('warlock');
 
   if (player.role === 'Moderator') return null;
 
+  // Khusus Joker
+  if (roleLower === 'joker') {
+    if (winner === 'JOKER') {
+      return { title: "Master of Chaos 🤡", desc: "Berhasil memanipulasi warga ke tiang gantungan" };
+    }
+    return { title: "Failed Prank 🃏", desc: "Gagal dieksekusi di tiang gantungan" };
+  }
+
+  // Khusus Lovers
+  if (roleLower === 'lovers') {
+    if (isTeamWinner) {
+      return { title: "Endless Love 💖", desc: "Cinta abadi yang menang bersama pasangannya" };
+    }
+    return { title: "Broken Heart 💔", desc: "Kisah cinta tragis di Waranasura" };
+  }
+
   // 1. Last Stand: Only survivor of the winning team
   const aliveWinningTeam = allPlayers.filter(p => {
-    const pRole = p.role?.toLowerCase() || "";
-    const pAntagonist = pRole.includes('werewolf') || pRole.includes('warlock');
-    const pWinner = isWargaWinner ? !pAntagonist : pAntagonist;
-    return pWinner && p.status === 'alive' && p.role !== 'Moderator';
+    return isPlayerWinner(p, winner) && p.status === 'alive' && p.role !== 'Moderator';
   });
 
   if (isTeamWinner && isAlive && aliveWinningTeam.length === 1) {
@@ -73,12 +111,12 @@ const getPlayerAchievement = (player, allPlayers, winner) => {
 const GameOverScreen = ({ winner, players, playerData, onLeave }) => {
   useEffect(() => { lockScroll(); return () => unlockScroll(); }, []);
   const [step, setStep] = useState(2);
+  const isJokerWinner = winner === 'JOKER';
   const isWargaWinner = winner === 'WARGA';
 
   // Logika Menang/Kalah Personal
   const myRole = playerData?.role?.toLowerCase() || "";
-  const isAntagonist = myRole.includes('werewolf') || myRole.includes('warlock');
-  const isIWinner = isWargaWinner ? !isAntagonist : isAntagonist;
+  const isIWinner = isPlayerWinner(playerData, winner);
 
   const nextStep = () => setStep(s => s + 1);
 
@@ -86,8 +124,8 @@ const GameOverScreen = ({ winner, players, playerData, onLeave }) => {
     <div className="fixed inset-0 bg-slate-950 flex items-center justify-center p-6 text-center font-sans overflow-hidden" style={{ zIndex: Z_LAYER.GAME_OVER }}>
       {/* Dynamic Background Ambience */}
       <div className="absolute inset-0 opacity-30 pointer-events-none">
-        <div className={`absolute top-[-10%] left-[-10%] w-[60%] h-[60%] rounded-full blur-[120px] ${isWargaWinner ? 'bg-blue-600' : 'bg-red-900'}`} />
-        <div className={`absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] rounded-full blur-[120px] ${isWargaWinner ? 'bg-amber-500' : 'bg-purple-900'}`} />
+        <div className={`absolute top-[-10%] left-[-10%] w-[60%] h-[60%] rounded-full blur-[120px] ${isJokerWinner ? 'bg-green-600' : isWargaWinner ? 'bg-blue-600' : 'bg-red-900'}`} />
+        <div className={`absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] rounded-full blur-[120px] ${isJokerWinner ? 'bg-emerald-500' : isWargaWinner ? 'bg-amber-500' : 'bg-purple-900'}`} />
       </div>
 
       <div className="max-w-md w-full relative">
@@ -96,11 +134,13 @@ const GameOverScreen = ({ winner, players, playerData, onLeave }) => {
           <div className="space-y-8 animate-in slide-in-from-bottom-8 duration-700">
             <div className="space-y-2">
               <div className={`text-[10px] font-black uppercase tracking-[0.4em] px-4 py-1.5 rounded-full inline-block mx-auto mb-3 ${
-                isWargaWinner
-                  ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20 shadow-[0_0_20px_rgba(59,130,246,0.2)]'
-                  : 'bg-red-600/10 text-red-500 border border-red-500/20 shadow-[0_0_20px_rgba(239,68,68,0.2)]'
+                isJokerWinner
+                  ? 'bg-green-600/10 text-green-400 border border-green-500/20 shadow-[0_0_20px_rgba(34,197,94,0.2)]'
+                  : isWargaWinner
+                    ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20 shadow-[0_0_20px_rgba(59,130,246,0.2)]'
+                    : 'bg-red-600/10 text-red-500 border border-red-500/20 shadow-[0_0_20px_rgba(239,68,68,0.2)]'
               }`}>
-                {isWargaWinner ? "Tim Penduduk Menang" : "Tim Werewolf Menang"}
+                {isJokerWinner ? "Joker Menang (Solo Victory)" : isWargaWinner ? "Tim Penduduk Menang" : "Tim Werewolf Menang"}
               </div>
             </div>
             <div className="relative inline-block">
@@ -117,7 +157,7 @@ const GameOverScreen = ({ winner, players, playerData, onLeave }) => {
             <div className="space-y-1">
               <h1 className={`text-6xl font-black italic tracking-tighter leading-none ${
                 isIWinner
-                  ? (isWargaWinner ? 'text-blue-400 drop-shadow-[0_0_20px_rgba(59,130,246,0.3)]' : 'text-red-500 drop-shadow-[0_0_20px_rgba(239,68,68,0.3)]')
+                  ? (isJokerWinner ? 'text-green-400 drop-shadow-[0_0_20px_rgba(34,197,94,0.3)]' : isWargaWinner ? 'text-blue-400 drop-shadow-[0_0_20px_rgba(59,130,246,0.3)]' : 'text-red-500 drop-shadow-[0_0_20px_rgba(239,68,68,0.3)]')
                   : 'text-slate-600'
               }`}>
                 {isIWinner ? "VICTORY" : "DEFEAT"}
@@ -129,8 +169,12 @@ const GameOverScreen = ({ winner, players, playerData, onLeave }) => {
               <div className="bg-slate-900 rounded-xl p-6 rotate-[-1deg]">
                 <p className="text-slate-400 text-xs italic leading-relaxed">
                   {isIWinner
-                    ? "Namamu akan terukir dalam sejarah Waranasura sebagai pahlawan yang membawa cahaya kembali to kota ini."
-                    : "Bayanganmu kini hanya menjadi bagian dari kabut abadi yang menyelimuti sisa-sisa reruntuhan kota terkutuk ini."}
+                    ? (isJokerWinner
+                        ? "Tawa terbahak-bahakmu menggema di tiang gantungan. Seluruh warga dan serigala telah kau perdaya dalam lelucon abadimu!"
+                        : "Namamu akan terukir dalam sejarah Waranasura sebagai pahlawan yang membawa cahaya kembali ke kota ini.")
+                    : (myRole === 'joker'
+                        ? "Leluconmu gagal memikat panggung tiang gantungan. Kamu gugur tanpa mencapai tawa terakhirmu."
+                        : "Bayanganmu kini hanya menjadi bagian dari kabut abadi yang menyelimuti sisa-sisa reruntuhan kota terkutuk ini.")}
                 </p>
               </div>
             </div>
@@ -146,12 +190,10 @@ const GameOverScreen = ({ winner, players, playerData, onLeave }) => {
               <Users size={20} />
               <h2 className="text-[10px] font-black uppercase tracking-[0.3em]">Arsip Penduduk Waranasura</h2>
             </div>
-            
+
             <div className="grid gap-2 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
               {players.filter(p => p.role !== 'Moderator').map((p) => {
-                const pRole = p.role?.toLowerCase() || "";
-                const pIsAntagonist = pRole.includes('werewolf') || pRole.includes('warlock');
-                const pIsWinner = isWargaWinner ? !pIsAntagonist : pIsAntagonist;
+                const pIsWinner = isPlayerWinner(p, winner);
                 const isDead = p.status === 'dead';
                 const rVisuals = getRoleVisuals(p.role);
 

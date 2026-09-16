@@ -116,3 +116,27 @@ export const playExplosionSound = () => {
     noise.stop(c.currentTime + 1.5);
   } catch (e) { /* fallback silently */ }
 };
+
+export const playLoversChimeSound = () => {
+  try {
+    const c = getCtx();
+    if (c.state === 'suspended') c.resume();
+
+    const freqs = [523.25, 659.25, 783.99, 1046.5];
+    freqs.forEach((f, idx) => {
+      const osc = c.createOscillator();
+      const gain = c.createGain();
+      osc.connect(gain);
+      gain.connect(c.destination);
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f, c.currentTime + idx * 0.12);
+
+      gain.gain.setValueAtTime(0.08, c.currentTime + idx * 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + idx * 0.12 + 1.2);
+
+      osc.start(c.currentTime + idx * 0.12);
+      osc.stop(c.currentTime + idx * 0.12 + 1.2);
+    });
+  } catch (e) { /* fallback silently */ }
+};

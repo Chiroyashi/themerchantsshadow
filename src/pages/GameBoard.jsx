@@ -190,6 +190,7 @@ const GameBoard = ({ onBack }) => {
                   )}
                 </div>
                 {isMe && <span className="absolute top-3 right-3 text-[7px] font-black bg-blue-600 px-2 py-1 rounded-full uppercase tracking-wide">Anda</span>}
+                {me?.partnerId === player.id && <span className="absolute top-3 right-3 text-[7px] font-black bg-pink-600 text-white px-2 py-1 rounded-full uppercase tracking-wide animate-pulse">💖 Pasangan</span>}
               </div>
 
               <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mb-1">Username</p>

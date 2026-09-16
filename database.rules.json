@@ -9,7 +9,7 @@
           "$playerId": {
             ".validate": "newData.hasChildren(['name'])",
             "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 30" },
-            "role": { ".validate": "newData.isString() && (!newData.exists() || newData.val().matches(/^(Pending|Moderator|Werewolf|Warlock|Seer|Guard|Hakim|Hunter|Pedagang)$/))" },
+            "role": { ".validate": "newData.isString() && (!newData.exists() || newData.val().matches(/^(Pending|Moderator|Werewolf|Warlock|Seer|Guard|Hakim|Hunter|Pedagang|Joker|Lovers)$/))" },
             "status": { ".validate": "newData.isString() && (!newData.exists() || newData.val().matches(/^(alive|dead)$/))" },
             "$other": { ".validate": true }
           }
@@ -19,6 +19,10 @@
         "createdAt": { ".validate": "newData.isNumber()" },
         "endedAt": { ".validate": "newData.isNumber()" },
         "winner": { ".validate": "newData.isString()" },
+        "gameMatchId": { ".validate": "newData.isString()" },
+        "roleSettings": { ".validate": true },
+        "gunshotEvent": { ".validate": true },
+        "loversBindEvent": { ".validate": true },
         "timer": {
           "phase": { ".validate": "newData.isString()" },
           "seconds": { ".validate": "newData.isNumber()" },

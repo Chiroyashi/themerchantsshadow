@@ -23,6 +23,7 @@ import DeathAnnouncement from './components/DeathAnnouncement';
 import VoteAnnouncement from './components/VoteAnnouncement';
 import GameOverScreen from './components/GameOverScreen';
 import PersonalDeathAnimation from './components/PersonalDeathAnimation';
+import LoversWaveOverlay from './components/LoversWaveOverlay';
 import { playClickSound } from './utils/audio';
 
 function AppContent() {
@@ -39,6 +40,7 @@ function AppContent() {
   const [deadToday, setDeadToday] = useState({ names: [], day: 1, details: {} });
   const [showDeathPopUp, setShowDeathPopUp] = useState(false);
   const [showGunshotEffect, setShowGunshotEffect] = useState(false);
+  const [activeLoversBind, setActiveLoversBind] = useState(null);
 
   // Reset overlay tiap room ganti atau game mulai (menggunakan render phase state adjustment untuk efisiensi & kepatuhan React 19)
   const [prevRoomCode, setPrevRoomCode] = useState(roomCode);
@@ -48,6 +50,7 @@ function AppContent() {
     setShowDeathPopUp(false);
     setDeadToday({ names: [], day: 1, details: {} });
     setVoteResult(null);
+    setActiveLoversBind(null);
   }
 
   // Update refs di useEffect saat roomCode berubah (kepatuhan React 19: ref hanya boleh dimodifikasi di effect/handler)
@@ -128,6 +131,23 @@ function AppContent() {
     });
     return () => unsub();
   }, [roomCode, currentPage]);
+
+  // Listen loversBindEvent untuk gelombang ganda U saat action Lovers dipilih
+  useEffect(() => {
+    if (!roomCode || currentPage === 'landing') return;
+    const loversRef = ref(db, `rooms/${roomCode}/loversBindEvent`);
+    const unsub = onValue(loversRef, snap => {
+      const data = snap.val();
+      if (data && data.timestamp && data.timestamp > (Date.now() - 6000)) {
+        const myId = myData?.id;
+        if (myId && (myId === data.loverId || myId === data.partnerId)) {
+          const partnerName = myId === data.loverId ? data.partnerName : data.loverName;
+          setActiveLoversBind({ partnerName, timestamp: data.timestamp });
+        }
+      }
+    });
+    return () => unsub();
+  }, [roomCode, currentPage, myData?.id]);
 
   const isGamePage = ['intro-fable', 'view-role', 'view-mod'].includes(currentPage);
 
@@ -236,6 +256,14 @@ function AppContent() {
             dismissedDayRef.current = deadToday.day;
             setShowDeathPopUp(false);
           }}
+        />
+      )}
+
+      {/* GLOBAL: Lovers Double Wave Overlay saat aksi Lovers dipilih */}
+      {activeLoversBind && isGamePage && (
+        <LoversWaveOverlay
+          partnerName={activeLoversBind.partnerName}
+          onFinish={() => setActiveLoversBind(null)}
         />
       )}
 

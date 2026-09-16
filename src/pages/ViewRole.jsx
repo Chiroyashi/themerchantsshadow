@@ -68,10 +68,13 @@ const ViewRole = ({ onNext }) => {
   const [showTargetList, setShowTargetList] = useState(false);
   const [myClues, setMyClues] = useState(null);
   const [showIntro, setShowIntro] = useState(false);
+  const [showWave, setShowWave] = useState(false);
+  const [loveAnim, setLoveAnim] = useState(null); // null | 'heart' | 'wave'
   const [showCluePopup, setShowCluePopup] = useState(false);
   const [showActionPopup, setShowActionPopup] = useState(false);
   const [actionPopupData, setActionPopupData] = useState(null);
   const prevPhaseRef = useRef(phase);
+  const prevPartnerIdRef = useRef(playerData?.partnerId);
 
   const isDead = playerData?.status === 'dead';
   const isNight = isMalam(phase);
@@ -93,6 +96,19 @@ const ViewRole = ({ onNext }) => {
     setWarlockChoice(null);
     setWarlockItem(null);
   }
+
+  // Lovers bind moment: pasangan terikat → heart pop → wave pink (1x, baik Lovers maupun pasangannya)
+  useEffect(() => {
+    const pid = playerData?.partnerId;
+    if (pid && !prevPartnerIdRef.current) setLoveAnim('heart');
+    prevPartnerIdRef.current = pid || null;
+  }, [playerData?.partnerId]);
+
+  useEffect(() => {
+    if (loveAnim !== 'heart') return;
+    const t = setTimeout(() => setLoveAnim('wave'), 1800);
+    return () => clearTimeout(t);
+  }, [loveAnim]);
 
   // Derive acted status from Firebase data + local optimistic updates
   const actedFromDb = (() => {
@@ -245,11 +261,12 @@ const ViewRole = ({ onNext }) => {
       },
       {
         role: 'lovers',
+        forPartner: true,
         path: `rooms/${roomCode}/players/${playerData.id}/partnerName`,
-        validate: (d) => d,
+        validate: (d) => !!d,
         map: (d) => ({
           icon: '💖', title: 'Ikatan Cinta Abadi',
-          desc: `Kamu kini telah terikat dengan ${d}! Jika salah satu dari kalian mati, yang lain juga ikut mati.`,
+          desc: `Kamu kini telah terikat cinta abadi dengan ${d}! Jika salah satu dari kalian mati, yang lain juga ikut mati patah hati.`,
         }),
       },
       {
@@ -300,7 +317,7 @@ const ViewRole = ({ onNext }) => {
     ];
 
     const unsubs = POPUP_CONFIGS
-      .filter(cfg => role.includes(cfg.role))
+      .filter(cfg => role.includes(cfg.role) || (cfg.forPartner && !!playerData?.partnerId))
       .map(cfg => {
         const ref_ = ref(db, cfg.path);
         return onValue(ref_, (snap) => {
@@ -330,6 +347,7 @@ const ViewRole = ({ onNext }) => {
   const handleIntroFinish = () => {
     setShowIntro(false);
     localStorage.setItem(`intro_${roomCode}`, 'true');
+    setShowWave(true);
     if (!isHost && onNext) onNext();
   };
 
@@ -599,6 +617,13 @@ const ViewRole = ({ onNext }) => {
         targetName: targetPlayer?.name || "Unknown",
         timestamp: getTimestamp()
       };
+      updates[`rooms/${roomCode}/loversBindEvent`] = {
+        loverId: playerData.id,
+        loverName: playerData.name,
+        partnerId: actionTarget,
+        partnerName: targetPlayer?.name || "Unknown",
+        timestamp: getTimestamp()
+      };
     }
 
     // Hunter
@@ -762,95 +787,70 @@ const ViewRole = ({ onNext }) => {
           }
         }
         .faction-wave {
-          animation: sweepDown 4.5s ease-in-out infinite;
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          animation: sweepDown 4.5s ease-in-out;
         }
         .faction-wave-warga {
-          stroke: #3b82f6;
-          filter: url(#glow-blue);
+          background: linear-gradient(to top, rgba(59,130,246,0.45), transparent);
         }
         .faction-wave-serigala {
-          stroke: #ef4444;
-          filter: url(#glow-red);
+          background: linear-gradient(to top, rgba(239,68,68,0.45), transparent);
         }
         .faction-wave-joker {
-          stroke: url(#jokerGradient);
-          filter: url(#glow-green);
+          background: linear-gradient(to top, rgba(163,230,53,0.45), transparent);
         }
         .faction-wave-lovers {
-          stroke: #ec4899;
-          filter: url(#glow-pink);
+          background: linear-gradient(to top, rgba(236,72,153,0.45), transparent);
+        }
+        @keyframes heartPop {
+          0%   { transform: scale(0); opacity: 0; }
+          15%  { transform: scale(1.15); opacity: 1; }
+          35%  { transform: scale(1); }
+          75%  { transform: scale(1.05); opacity: 1; }
+          100% { transform: scale(1.1) translateY(-10px); opacity: 0; }
+        }
+        .heart-pop {
+          animation: heartPop 1.8s ease-in-out both;
+          filter: drop-shadow(0 0 25px rgba(236,72,153,0.95));
+          text-shadow: 0 0 40px rgba(236,72,153,0.9);
+        }
+        .heart-glow-bg {
+          animation: heartPop 1.8s ease-in-out both;
+          background: radial-gradient(circle, rgba(236,72,153,0.4), transparent 70%);
         }
       `}</style>
 
-      {/* Faction Wave Overlay */}
-      {faksi !== 'DEAD' && !showIntro && (
-        <svg className="fixed inset-0 w-full h-full pointer-events-none z-[9999]" viewBox="0 0 100 100" preserveAspectRatio="none">
-          <defs>
-            <linearGradient id="jokerGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#a3e635" stopOpacity="0.85" />
-              <stop offset="100%" stopColor="#22c55e" stopOpacity="0.85" />
-            </linearGradient>
-            <filter id="glow-blue" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="1.5" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-            <filter id="glow-red" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="1.5" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-            <filter id="glow-green" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="1.5" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-            <filter id="glow-pink" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="1.5" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
-
-          {/* Horizontal U-shaped wave front sweeping down */}
-          <path
-            d="M 0,0 Q 50,20 100,0"
-            fill="none"
-            strokeWidth="6"
-            vectorEffect="non-scaling-stroke"
-            className={`faction-wave ${
-              faksi === 'WARGA' ? 'faction-wave-warga' :
-              faksi === 'SERIGALA' ? 'faction-wave-serigala' :
-              faksi === 'JOKER' ? 'faction-wave-joker' :
-              'faction-wave-lovers'
-            }`}
+      {/* Faction Wave Overlay — 1x setelah IntroFable selesai */}
+      {showWave && faksi !== 'DEAD' && (
+        <div className="fixed inset-0 w-full h-full pointer-events-none overflow-hidden z-[9999]">
+          {/* Full-screen band sweeping top → bottom (solid color at bottom edge, fades to transparent upward) */}
+          <div
+            className={`faction-wave ${faksi === 'WARGA' ? 'faction-wave-warga' : faksi === 'SERIGALA' ? 'faction-wave-serigala' : faksi === 'JOKER' ? 'faction-wave-joker' : 'faction-wave-lovers'}`}
+            onAnimationEnd={() => setShowWave(false)}
           />
+        </div>
+      )}
 
-          {/* Double wave for Lovers (2x) */}
-          {role.includes('lovers') && (
-            <path
-              d="M 0,0 Q 50,20 100,0"
-              fill="none"
-              strokeWidth="6"
-              vectorEffect="non-scaling-stroke"
-              className={`faction-wave ${
-                faksi === 'WARGA' ? 'faction-wave-warga' :
-                faksi === 'SERIGALA' ? 'faction-wave-serigala' :
-                faksi === 'JOKER' ? 'faction-wave-joker' :
-                'faction-wave-lovers'
-              }`}
-              style={{ animationDelay: '-2.25s' }}
-            />
+      {/* Lovers bind moment — heart pop + nama pasangan → wave pink (1x, Lovers & pasangannya) */}
+      {loveAnim && faksi !== 'DEAD' && (
+        <div className="fixed inset-0 w-full h-full pointer-events-none overflow-hidden z-[9999]">
+          {loveAnim === 'heart' && (
+            <>
+              <div className="absolute inset-0 heart-glow-bg" />
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-5">
+                <span className="heart-pop text-[5rem] sm:text-[8rem]">💖</span>
+                <span className="text-pink-400 font-black uppercase tracking-widest text-lg sm:text-2xl drop-shadow-[0_0_20px_rgba(236,72,153,0.85)]">
+                  {playerData?.partnerName}
+                </span>
+              </div>
+            </>
           )}
-        </svg>
+          {loveAnim === 'wave' && (
+            <div className="faction-wave faction-wave-lovers" onAnimationEnd={() => setLoveAnim(null)} />
+          )}
+        </div>
       )}
 
       {/* Ambient Glow Transition Layer */}

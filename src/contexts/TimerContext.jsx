@@ -261,15 +261,15 @@ export function TimerProvider({ children }) {
       const target = players.find(p => p.id === hunt.targetId);
       if (!target) continue;
 
-      const wargaTeam = ['Seer', 'Guard', 'Hakim', 'Hunter', 'Pedagang'];
-      const isWarga = wargaTeam.includes(target.role);
+      const isSerigala = target.role === 'Werewolf' || target.role === 'Warlock' || (target.role === 'Lovers' && target.loversTeam === 'SERIGALA');
 
-      if (isWarga) {
+      if (!isSerigala) {
         deadIds.add(hunt.targetId);
         deathCauses[hunt.targetId] = "hunter";
         deadIds.add(hunt.playerId);
         deathCauses[hunt.playerId] = "hunter_backfire";
-        logs.push(`Hunter ${hunt.name} menembak Warga ${hunt.targetName} → Keduanya MATI!`);
+        const targetDesc = target.role === 'Joker' ? 'Joker' : 'Warga';
+        logs.push(`Hunter ${hunt.name} menembak ${targetDesc} ${hunt.targetName} → Keduanya MATI!`);
       } else {
         deadIds.add(hunt.targetId);
         deathCauses[hunt.targetId] = "hunter";
@@ -279,7 +279,7 @@ export function TimerProvider({ children }) {
       updates[`rooms/${roomCode}/hunterResult/${hunt.playerId}`] = {
         targetName: target.name,
         targetRole: target.role,
-        isCorrect: !isWarga,
+        isCorrect: isSerigala,
         isHost: false,
         timestamp: Date.now()
       };
@@ -406,6 +406,13 @@ export function TimerProvider({ children }) {
     }
 
     // ── STAGE 7: Lovers — ikat pasangan (Malam 2) ──
+    const partnerMap = {};
+    players.forEach(p => {
+      if (p.partnerId) {
+        partnerMap[p.id] = p.partnerId;
+      }
+    });
+
     for (const bind of nightActions.filter(a => a.role === 'Lovers' && a.actionType === 'bind')) {
       if (!bind.targetId) continue;
       const target = players.find(p => p.id === bind.targetId);
@@ -414,6 +421,9 @@ export function TimerProvider({ children }) {
         updates[`rooms/${roomCode}/players/${bind.playerId}/partnerName`] = target.name;
         updates[`rooms/${roomCode}/players/${bind.targetId}/partnerId`] = bind.playerId;
         updates[`rooms/${roomCode}/players/${bind.targetId}/partnerName`] = bind.name;
+
+        partnerMap[bind.playerId] = bind.targetId;
+        partnerMap[bind.targetId] = bind.playerId;
 
         // Determine Lovers faksi/team
         const targetTeam = getPlayerTeam(target.role);
@@ -428,12 +438,13 @@ export function TimerProvider({ children }) {
     while (loverDied) {
       loverDied = false;
       players.forEach(p => {
-        if (p.partnerId && (p.status === 'dead' || deadIds.has(p.id))) {
-          if (!deadIds.has(p.partnerId)) {
-            const partner = players.find(pl => pl.id === p.partnerId);
+        const partnerId = partnerMap[p.id];
+        if (partnerId && (p.status === 'dead' || deadIds.has(p.id))) {
+          if (!deadIds.has(partnerId)) {
+            const partner = players.find(pl => pl.id === partnerId);
             if (partner && partner.status !== 'dead') {
-              deadIds.add(p.partnerId);
-              deathCauses[p.partnerId] = "lovers";
+              deadIds.add(partnerId);
+              deathCauses[partnerId] = "lovers";
               logs.push(`Lovers: ${partner.name} gugur patah hati karena pasangannya (${p.name}) tewas.`);
               loverDied = true;
             }

@@ -4,6 +4,7 @@ import { ref, onValue, push, set, update, get } from "firebase/database";
 import { db } from "../lib/firebase";
 import { distributeRoles } from '../utils/gameLogic';
 import { cleanupOldRooms, deleteRoom } from '../utils/dbCleanup';
+import { checkWinCondition } from '../utils/winCondition';
 import { useNotification } from './NotificationContext';
 
 const GameContext = createContext(null);
@@ -261,6 +262,7 @@ export function GameProvider({ children }) {
         await update(ref(db, "rooms/" + roomCode + "/players/" + id), {
           status: status === 'dead' ? 'alive' : 'dead'
         });
+        await checkWinCondition(roomCode);
       } catch (e) {
         console.error("Gagal toggle status player:", e);
       }
