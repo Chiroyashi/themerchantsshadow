@@ -1,7 +1,8 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { ref, onValue, push, set, update, get } from "firebase/database";
-import { db } from "../lib/firebase";
+import { db, auth } from "../lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
 import { distributeRoles } from '../utils/gameLogic';
 import { cleanupOldRooms, deleteRoom } from '../utils/dbCleanup';
 import { checkWinCondition } from '../utils/winCondition';
@@ -30,14 +31,14 @@ export function GameProvider({ children }) {
   const [players, setPlayers] = useState([]);
   const [isJoining, setIsJoining] = useState(false);
 
-  // Sync isHost dengan format myPlayerId
+  // --- Auth UID (from anonymous auth) ---
+  const [authUid, setAuthUid] = useState(null);
+
   useEffect(() => {
-    if (myPlayerId) {
-      const isHostId = myPlayerId.startsWith("host_");
-      setIsHost(isHostId);
-      localStorage.setItem('is_host', isHostId ? 'true' : 'false');
-    }
-  }, [myPlayerId]);
+    return onAuthStateChanged(auth, (user) => {
+      if (user) setAuthUid(user.uid);
+    });
+  }, []);
 
   // --- Game State ---
   const [gameWinner, setGameWinner] = useState(null);
@@ -60,6 +61,8 @@ export function GameProvider({ children }) {
   myPlayerIdRef.current = myPlayerId;
   const roomStatusRef = useRef(roomStatus);
   roomStatusRef.current = roomStatus;
+  const authUidRef = useRef(authUid);
+  authUidRef.current = authUid;
 
   const myData = players.find(p => p.id === myPlayerId);
 
@@ -147,6 +150,15 @@ export function GameProvider({ children }) {
         }
       }
 
+      // --- Host Detection (from room hostId) ---
+      if (data.hostId && authUidRef.current) {
+        const isHostNow = data.hostId === authUidRef.current;
+        if (isHostNow !== isHostRef.current) {
+          setIsHost(isHostNow);
+          localStorage.setItem('is_host', isHostNow ? 'true' : 'false');
+        }
+      }
+
       // --- Game Winner ---
       if (data.status === 'ended') setGameWinner(data.winner);
       else setGameWinner(null);
@@ -184,10 +196,15 @@ export function GameProvider({ children }) {
     await cleanupOldRooms();
     const finalName = name || "Moderator";
     const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const hostId = "host_" + Date.now();
+    const hostId = authUidRef.current;
+    if (!hostId) {
+      showNotif("Error", "Auth belum siap. Coba lagi.", "error");
+      return;
+    }
     const newMatchId = "match_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
     const roomData = {
       gameMatchId: newMatchId,
+      hostId: hostId,
       status: "waiting",
       host: finalName,
       createdAt: Date.now(),
@@ -203,12 +220,11 @@ export function GameProvider({ children }) {
     setIsHost(true);
     setPlayerName(finalName);
     setCurrentPage('room-lobby');
-  }, []);
+  }, [showNotif]);
 
   const handleJoinRoom = useCallback(async (code, inputName) => {
     if (isJoining) return;
     setIsJoining(true);
-    await cleanupOldRooms();
     const finalName = inputName || "Player";
     try {
       const snapshot = await get(ref(db, `rooms/${code}`));
@@ -224,7 +240,13 @@ export function GameProvider({ children }) {
         return;
       }
       const newPlayerRef = push(ref(db, `rooms/${code}/players`));
-      await set(newPlayerRef, { name: finalName, role: "Pending", status: "alive", joinedAt: Date.now() });
+      await set(newPlayerRef, {
+        name: finalName,
+        role: "Pending",
+        status: "alive",
+        joinedAt: Date.now(),
+        authUid: authUidRef.current
+      });
       setRoomCode(code);
       setMyPlayerId(newPlayerRef.key);
       setGameMatchId(roomVal.gameMatchId || '');
@@ -311,7 +333,7 @@ export function GameProvider({ children }) {
   const value = {
     // State
     roomCode, myPlayerId, isHost, playerName, players, myData,
-    gameWinner, roomStatus, isJoining, roleSettings,
+    gameWinner, roomStatus, isJoining, roleSettings, authUid,
     currentPage, setHasShownDestroyed: () => { hasShownDestroyedRef.current = true; },
     // Actions
     navigate, handleCreateRoom, handleJoinRoom, handleKickPlayer,

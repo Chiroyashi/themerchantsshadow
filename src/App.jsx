@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { update, set, ref, onValue } from "firebase/database";
-import { db } from "./lib/firebase";
+import { db, authReady } from "./lib/firebase";
 import { NotificationProvider } from './contexts/NotificationContext';
 import { GameProvider, useGameContext } from './contexts/GameContext';
 import { TimerProvider, useTimerContext } from './contexts/TimerContext';
@@ -320,6 +320,22 @@ function AppContent() {
 }
 
 function App() {
+  const [authLoaded, setAuthLoaded] = useState(false);
+
+  useEffect(() => {
+    authReady.then(() => setAuthLoaded(true));
+  }, []);
+
+  if (!authLoaded) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="text-slate-500 text-[10px] font-black uppercase tracking-[0.4em] animate-pulse">
+          Menyambungkan...
+        </div>
+      </div>
+    );
+  }
+
   return (
     <NotificationProvider>
       <GameProvider>

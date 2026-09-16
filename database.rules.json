@@ -1,49 +1,147 @@
 {
   "rules": {
     "rooms": {
-      ".read": true,
-      ".write": true,
       "$roomCode": {
-        ".validate": "newData.hasChildren(['createdAt', 'status'])",
-        "players": {
-          "$playerId": {
-            ".validate": "newData.hasChildren(['name'])",
-            "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 30" },
-            "role": { ".validate": "newData.isString() && (!newData.exists() || newData.val().matches(/^(Pending|Moderator|Werewolf|Warlock|Seer|Guard|Hakim|Hunter|Pedagang|Joker|Lovers)$/))" },
-            "status": { ".validate": "newData.isString() && (!newData.exists() || newData.val().matches(/^(alive|dead)$/))" },
-            "$other": { ".validate": true }
-          }
+        ".read": "auth != null",
+        ".write": "!data.exists() || (newData.val() === null && auth.uid === root.child('rooms').child($roomCode).child('hostId').val())",
+        ".validate": "newData.val() === null || newData.hasChildren(['createdAt', 'status'])",
+
+        "hostId": {
+          ".write": "auth != null && !data.exists()",
+          ".validate": "newData.isString()"
         },
-        "status": { ".validate": "newData.isString() && newData.val().matches(/^(waiting|intro|playing|ended|destroyed)$/)" },
-        "host": { ".validate": "newData.isString()" },
-        "createdAt": { ".validate": "newData.isNumber()" },
-        "endedAt": { ".validate": "newData.isNumber()" },
-        "winner": { ".validate": "newData.isString()" },
-        "gameMatchId": { ".validate": "newData.isString()" },
-        "roleSettings": { ".validate": true },
-        "gunshotEvent": { ".validate": true },
-        "loversBindEvent": { ".validate": true },
+
+        "host": {
+          ".validate": "newData.isString()",
+          ".write": "auth != null && auth.uid === root.child('rooms').child($roomCode).child('hostId').val()"
+        },
+
+        "status": {
+          ".validate": "newData.isString() && newData.val().matches(/^(waiting|intro|playing|ended|destroyed)$/)",
+          ".write": "auth != null"
+        },
+
+        "createdAt": {
+          ".validate": "newData.isNumber()",
+          ".write": "auth != null && !data.exists()"
+        },
+
+        "gameMatchId": {
+          ".validate": "newData.isString()",
+          ".write": "auth != null && auth.uid === root.child('rooms').child($roomCode).child('hostId').val()"
+        },
+
+        "endedAt": {
+          ".validate": "newData.isNumber()",
+          ".write": "auth != null"
+        },
+
+        "winner": {
+          ".validate": "newData.isString()",
+          ".write": "auth != null"
+        },
+
         "timer": {
+          ".write": "auth != null && auth.uid === root.child('rooms').child($roomCode).child('hostId').val()",
           "phase": { ".validate": "newData.isString()" },
           "seconds": { ".validate": "newData.isNumber()" },
           "isActive": { ".validate": "newData.isBoolean()" },
           "day": { ".validate": "newData.isNumber()" }
         },
-        "votes": { ".validate": true },
-        "voteResult": { ".validate": true },
-        "chats": { ".validate": true },
-        "nightHistory": { ".validate": true },
-        "deadToday": { ".validate": true },
-        "seerReveal": { ".validate": true },
-        "seerResult": { ".validate": true },
-        "werewolfResult": { ".validate": true },
-        "hunterResult": { ".validate": true },
-        "warlockResult": { ".validate": true },
-        "merchantTransaksi": { ".validate": true },
-        "merchantClues": { ".validate": true },
-        "truthActivity": { ".validate": true },
-        "introFinished": { ".validate": true },
-        "introStartedAt": { ".validate": true },
+
+        "roleSettings": {
+          ".write": "auth != null && auth.uid === root.child('rooms').child($roomCode).child('hostId').val()"
+        },
+
+        "introStartedAt": {
+          ".write": "auth != null && auth.uid === root.child('rooms').child($roomCode).child('hostId').val()"
+        },
+
+        "players": {
+          "$playerId": {
+            ".read": "auth != null",
+            ".write": "auth != null && (auth.uid === $playerId || auth.uid === newData.child('authUid').val() || auth.uid === root.child('rooms').child($roomCode).child('hostId').val())",
+            "name": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 30"
+            },
+            "role": {
+              ".validate": "newData.isString() && (!newData.exists() || newData.val().matches(/^(Pending|Moderator|Werewolf|Warlock|Seer|Guard|Hakim|Hunter|Pedagang|Joker|Lovers)$/))"
+            },
+            "status": {
+              ".write": "auth != null",
+              ".validate": "newData.isString() && (!newData.exists() || newData.val().matches(/^(alive|dead)$/))"
+            },
+            "authUid": {
+              ".validate": "newData.isString()"
+            },
+            "$other": { ".validate": true }
+          }
+        },
+
+        "votes": {
+          ".write": "auth != null"
+        },
+
+        "voteResult": {
+          ".write": "auth != null && auth.uid === root.child('rooms').child($roomCode).child('hostId').val()"
+        },
+
+        "chats": {
+          ".write": "auth != null"
+        },
+
+        "nightHistory": {
+          ".write": "auth != null"
+        },
+
+        "deadToday": {
+          ".write": "auth != null"
+        },
+
+        "seerReveal": {
+          ".write": "auth != null"
+        },
+
+        "seerResult": {
+          ".write": "auth != null"
+        },
+
+        "werewolfResult": {
+          ".write": "auth != null"
+        },
+
+        "hunterResult": {
+          ".write": "auth != null"
+        },
+
+        "warlockResult": {
+          ".write": "auth != null"
+        },
+
+        "merchantTransaksi": {
+          ".write": "auth != null"
+        },
+
+        "merchantClues": {
+          ".write": "auth != null && auth.uid === root.child('rooms').child($roomCode).child('hostId').val()"
+        },
+
+        "truthActivity": {
+          ".write": "auth != null"
+        },
+
+        "gunshotEvent": {
+          ".write": "auth != null"
+        },
+
+        "loversBindEvent": {
+          ".write": "auth != null"
+        },
+
+        "introFinished": {
+          ".write": "auth != null"
+        },
+
         "$other": { ".validate": false }
       }
     }
