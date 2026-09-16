@@ -5,7 +5,7 @@ import { useGameContext } from '../contexts/GameContext';
 const Room = ({ onBack }) => {
   const { handleCreateRoom, handleJoinRoom, isJoining } = useGameContext();
   const [inputCode, setInputCode] = useState('');
-  const [tempName, setTempName] = useState("");
+  const [tempName, setTempName] = useState(() => localStorage.getItem('player_name') || '');
 
   const handlePaste = async () => {
     try {

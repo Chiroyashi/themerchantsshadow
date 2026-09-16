@@ -9,6 +9,11 @@ import { useNotification } from './NotificationContext';
 
 const GameContext = createContext(null);
 
+const SESSION_KEYS = ['room_code', 'my_player_id', 'is_host', 'game_match_id', 'last_page'];
+const clearSession = () => {
+  SESSION_KEYS.forEach(k => localStorage.removeItem(k));
+};
+
 export function GameProvider({ children }) {
   const { showNotif } = useNotification();
 
@@ -106,7 +111,7 @@ export function GameProvider({ children }) {
             }
           }
           setTimeout(() => {
-            localStorage.clear();
+            clearSession();
             setRoomCode('');
             setMyPlayerId(null);
             setGameMatchId('');
@@ -120,7 +125,7 @@ export function GameProvider({ children }) {
       if (data.gameMatchId) {
         const localMatchId = localStorage.getItem('game_match_id');
         if (localMatchId && data.gameMatchId !== localMatchId) {
-          localStorage.clear();
+          clearSession();
           setRoomCode('');
           setMyPlayerId(null);
           setGameMatchId('');
@@ -134,7 +139,7 @@ export function GameProvider({ children }) {
       if (!curIsHost && curMyId && data.players && !data.players[curMyId]) {
         if (curPage !== 'landing') {
           showNotif("Dikeluarkan", "Kamu telah dikeluarkan oleh Host.", "error");
-          localStorage.clear();
+          clearSession();
           setRoomCode('');
           setMyPlayerId(null);
           setCurrentPage('landing');
@@ -278,7 +283,7 @@ export function GameProvider({ children }) {
   const handleDestroyRoom = useCallback(async () => {
     if (!isHost) return;
     await deleteRoom(roomCode);
-    localStorage.clear();
+    clearSession();
     setRoomCode('');
     setMyPlayerId(null);
     setGameMatchId('');
@@ -291,7 +296,7 @@ export function GameProvider({ children }) {
     } else if (!hasWinner) {
       update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), { status: "dead" });
     }
-    localStorage.clear();
+    clearSession();
     setRoomCode('');
     setMyPlayerId(null);
     setGameMatchId('');
