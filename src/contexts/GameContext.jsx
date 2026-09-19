@@ -234,6 +234,28 @@ export function GameProvider({ children }) {
         return;
       }
       const roomVal = snapshot.val();
+
+      // Restore session jika sudah jadi anggota (host via hostId, player via authUid) — hindari duplikat
+      const existing = (() => {
+        const uid = authUidRef.current;
+        if (!uid) return null;
+        if (roomVal.hostId === uid) return { id: roomVal.hostId, isHost: true, name: roomVal.host || finalName };
+        for (const [id, p] of Object.entries(roomVal.players || {})) {
+          if (p && p.authUid === uid) return { id, isHost: false, name: p.name || finalName };
+        }
+        return null;
+      })();
+      if (existing) {
+        setRoomCode(code);
+        setMyPlayerId(existing.id);
+        setGameMatchId(roomVal.gameMatchId || '');
+        setIsHost(existing.isHost);
+        setPlayerName(existing.name);
+        setCurrentPage('room-lobby');
+        setIsJoining(false);
+        return;
+      }
+
       if (roomVal.status !== "waiting") {
         setIsJoining(false);
         const msg = roomVal.status === "ended"
