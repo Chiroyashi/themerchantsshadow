@@ -5,7 +5,7 @@ import { Plus, Users, ArrowRight, ChevronLeft, UserCircle, ScrollText, BadgeChec
 import { useGameContext } from '../contexts/GameContext';
 
 const Room = ({ onBack }) => {
-  const { handleCreateRoom, handleJoinRoom, isJoining } = useGameContext();
+  const { handleCreateRoom, handleJoinRoom, isJoining, navigate, authUid } = useGameContext();
   const [inputCode, setInputCode] = useState(() => {
     const invite = new URLSearchParams(window.location.hash.split('?')[1] || '').get('invite');
     return invite ? invite.toUpperCase().substring(0, 6) : '';
@@ -18,7 +18,15 @@ const Room = ({ onBack }) => {
     if (!inputCode) return;
     get(ref(db, `rooms/${inputCode}`)).then(snap => {
       if (!snap.exists()) return;
-      const status = snap.val().status;
+      const roomVal = snap.val();
+      const uid = authUid;
+      const isMember = (roomVal.hostId && roomVal.hostId === uid) ||
+        Object.values(roomVal.players || {}).some(p => p && p.authUid === uid);
+      if (isMember && roomVal.status !== 'ended') {
+        navigate('room-lobby');
+        return;
+      }
+      const status = roomVal.status;
       if (status !== 'waiting') {
         setRoomLocked(true);
         setLockReason(status === 'ended'
@@ -26,7 +34,7 @@ const Room = ({ onBack }) => {
           : 'Game sedang berlangsung. Tunggu room baru dari moderator.');
       }
     }).catch(() => {});
-  }, [inputCode]);
+  }, [inputCode, authUid, navigate]);
 
   const handlePaste = async () => {
     try {
