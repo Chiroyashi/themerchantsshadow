@@ -47,7 +47,7 @@ export function GameProvider({ children }) {
 
   // --- Navigation State ---
   const [currentPage, setCurrentPage] = useState(() => {
-    const hash = window.location.hash.replace('#', '');
+    const hash = window.location.hash.replace('#', '').split('?')[0];
     return hash || localStorage.getItem('last_page') || 'landing';
   });
 
@@ -84,7 +84,7 @@ export function GameProvider({ children }) {
   // --- Popstate Handler ---
   useEffect(() => {
     const handlePopState = () => {
-      const hash = window.location.hash.replace('#', '') || 'landing';
+      const hash = window.location.hash.replace('#', '').split('?')[0] || 'landing';
       setCurrentPage(hash);
     };
     window.addEventListener('popstate', handlePopState);
@@ -236,7 +236,10 @@ export function GameProvider({ children }) {
       const roomVal = snapshot.val();
       if (roomVal.status !== "waiting") {
         setIsJoining(false);
-        showNotif("Ditolak", "Game sedang berjalan.", "error");
+        const msg = roomVal.status === "ended"
+          ? "Permainan telah selesai. Minta link room baru dari moderator."
+          : "Game sedang berlangsung. Tunggu room baru dari moderator.";
+        showNotif("Ditolak", msg, "error");
         return;
       }
       const newPlayerRef = push(ref(db, `rooms/${code}/players`));
@@ -267,12 +270,13 @@ export function GameProvider({ children }) {
   }, [isHost, roomCode]);
 
   const handleStartGame = useCallback(async () => {
-    const participants = players.filter(p => p.role !== 'Moderator');
+    const activePlayers = players.filter(p => p.status !== 'dead');
+    const participants = activePlayers.filter(p => p.role !== 'Moderator');
     if (participants.length < 5) {
       showNotif("Gagal", "Minimal 5 pemain (di luar Moderator)!", "error");
       return;
     }
-    const playersWithRoles = distributeRoles(players, roleSettings);
+    const playersWithRoles = distributeRoles(activePlayers, roleSettings);
     const updates = {};
     playersWithRoles.forEach(p => {
       updates["players/" + p.id + "/role"] = p.role;
@@ -325,6 +329,19 @@ export function GameProvider({ children }) {
     setCurrentPage(redirectPage);
   }, [roomCode, myPlayerId, isHost]);
 
+  const handleLeaveLobby = useCallback(async () => {
+    if (isHost) {
+      await deleteRoom(roomCode);
+    } else if (myPlayerId) {
+      await update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), { status: "dead" });
+    }
+    clearSession();
+    setRoomCode('');
+    setMyPlayerId(null);
+    setGameMatchId('');
+    setCurrentPage('room-setup');
+  }, [isHost, roomCode, myPlayerId]);
+
   const handleToggleRole = useCallback(async (roleName, isEnabled) => {
     if (!isHost || !roomCode) return;
     await set(ref(db, `rooms/${roomCode}/roleSettings/${roleName}`), isEnabled);
@@ -338,7 +355,7 @@ export function GameProvider({ children }) {
     // Actions
     navigate, handleCreateRoom, handleJoinRoom, handleKickPlayer,
     handleStartGame, handleKillPlayer, handleEndGame,
-    handleDestroyRoom, handleLeaveGame, handleToggleRole,
+    handleDestroyRoom, handleLeaveGame, handleToggleRole, handleLeaveLobby,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

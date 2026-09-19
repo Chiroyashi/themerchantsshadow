@@ -1,44 +1,75 @@
 import React, { useState } from 'react';
 import { Users, Play, Copy, Check, AlertTriangle, ShieldCheck, XCircle, UserMinus, ChevronLeft, Eye, Shield, Crosshair, Wand2, Settings, Heart } from 'lucide-react';
 import ClownIcon from '../components/ClownIcon';
+import InviteLink from '../components/InviteLink';
 import { useGameContext } from '../contexts/GameContext';
+import { useNotification } from '../contexts/NotificationContext';
 import { calculateRoles } from '../utils/roleBalancer';
 import { isRoleActive } from '../utils/gameLogic';
 
-const Lobby = ({ onBack }) => {
-  const { roomCode, players, myPlayerId, isHost, handleStartGame, handleKickPlayer, roleSettings, handleToggleRole } = useGameContext();
+const Lobby = () => {
+  const { roomCode, players, myPlayerId, isHost, handleStartGame, handleKickPlayer, roleSettings, handleToggleRole, handleLeaveLobby } = useGameContext();
+  const { showNotif } = useNotification();
   const [isCopied, setIsCopied] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   // --- LOGIKA PEMBATASAN MINIMAL PEMAIN ---
   const minPlayers = 5;
-  const participantsCount = players.filter(p => p.role !== 'Moderator').length;
+  const participantsCount = players.filter(p => p.role !== 'Moderator' && p.status !== 'dead').length;
   const isReady = participantsCount >= minPlayers;
   const roleConfig = calculateRoles(participantsCount, roleSettings);
 
-  const handleCopyCode = () => {
+  const copyText = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    }
+  };
+
+  const handleCopyCode = async () => {
     if (!roomCode) return;
-    navigator.clipboard.writeText(roomCode)
-      .then(() => {
-        setIsCopied(true);
-        setTimeout(() => setIsCopied(false), 2000);
-      })
-      .catch((err) => {
-        console.error('Gagal menyalin kode: ', err);
-      });
+    const ok = await copyText(roomCode);
+    if (ok) {
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    } else {
+      showNotif("Gagal", "Tidak bisa menyalin kode room.", "error");
+    }
+  };
+
+  const handleLeave = () => {
+    if (isHost) {
+      showNotif("Keluar Room", "Hapus room ini? Semua pemain akan dikeluarkan.", "confirm", handleLeaveLobby);
+    } else {
+      handleLeaveLobby();
+    }
+  };
+
+  const confirmKick = (playerId, playerName) => {
+    showNotif("Kick Pemain", `Keluarkan ${playerName} dari room?`, "confirm", () => handleKickPlayer(playerId));
   };
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-6 md:p-8 flex flex-col items-center font-sans selection:bg-red-600/30">
       <div className="max-w-md w-full space-y-8 text-center mt-6">
         
-        {/* BACK BUTTON */}
+        {/* BACK / LEAVE BUTTON */}
         <div className="flex justify-start">
           <button 
-            onClick={onBack} 
-            className="flex items-center gap-1 text-slate-500 hover:text-white transition-colors text-[10px] uppercase font-black tracking-widest"
+            onClick={handleLeave}
+            className="flex items-center gap-1 text-slate-500 hover:text-red-500 transition-colors text-[10px] uppercase font-black tracking-widest"
           >
-            <ChevronLeft size={14} /> Kembali
+            <ChevronLeft size={14} /> Keluar Room
           </button>
         </div>
 
@@ -70,6 +101,9 @@ const Lobby = ({ onBack }) => {
             )}
           </div>
         </div>
+
+        {/* --- INVITE LINK --- */}
+        <InviteLink roomCode={roomCode} />
 
         {/* --- ALERT AREA --- */}
         {!isReady && (
@@ -172,19 +206,19 @@ const Lobby = ({ onBack }) => {
           <ul className="space-y-2 max-h-80 overflow-y-auto pr-2 custom-scrollbar relative z-10">
             {[...players]
               .sort((a, b) => {
-                if (a.id === myPlayerId) return -1;
-                if (b.id === myPlayerId) return 1;
-
                 const aIsMod = a.role === 'Moderator';
                 const bIsMod = b.role === 'Moderator';
                 if (aIsMod && !bIsMod) return -1;
                 if (bIsMod && !aIsMod) return 1;
+                if (a.id === myPlayerId) return -1;
+                if (b.id === myPlayerId) return 1;
 
                 const aTime = a.joinedAt || 0;
                 const bTime = b.joinedAt || 0;
                 if (aTime !== bTime) return aTime - bTime;
                 return a.id.localeCompare(b.id);
               })
+              .filter(p => p.status !== 'dead')
               .map((p) => {
                 const isMe = p.id === myPlayerId;
                 const isModerator = p.role === 'Moderator';
@@ -229,7 +263,7 @@ const Lobby = ({ onBack }) => {
                       )}
                       {isHost && !isModerator ? (
                         <button
-                          onClick={() => handleKickPlayer(p.id)}
+                          onClick={() => confirmKick(p.id, p.name)}
                           className="p-3 hover:bg-red-600 text-slate-600 hover:text-white rounded-xl transition-all active:scale-90 group/kick"
                           title="Kick"
                         >

@@ -59,19 +59,27 @@ export const distributeRoles = (players, roleSettings) => {
     rolePool.push('Joker');
   }
 
-  // 5. Penuhi Sisa Slot dengan Pedagang (Pedagang adalah mayoritas dalam game ini)
+  // 5. Sisakan minimal 1 slot Pedagang — saat slot penuh, drop role opsional (Joker → Lovers → Hunter)
+  let excess = rolePool.length - (numPlayers - 1);
+  for (const r of ['Joker', 'Lovers', 'Hunter']) {
+    if (excess <= 0) break;
+    const idx = rolePool.indexOf(r);
+    if (idx >= 0) { rolePool.splice(idx, 1); excess--; }
+  }
+
+  // 6. Penuhi Sisa Slot dengan Pedagang (Pedagang adalah mayoritas dalam game ini)
   while (rolePool.length < numPlayers) {
     rolePool.push('Pedagang');
   }
 
-  // 6. Acak Daftar Peran (Fisher-Yates Shuffle)
+  // 7. Acak Daftar Peran (Fisher-Yates Shuffle)
   const shuffledRoles = [...rolePool];
   for (let i = shuffledRoles.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [shuffledRoles[i], shuffledRoles[j]] = [shuffledRoles[j], shuffledRoles[i]];
   }
 
-  // 7. Mapping Peran ke Pemain & Inisialisasi State Awal
+  // 8. Mapping Peran ke Pemain & Inisialisasi State Awal
   return participants.map((player, index) => ({
     ...player,
     role: shuffledRoles[index],

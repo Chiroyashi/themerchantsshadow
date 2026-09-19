@@ -173,7 +173,7 @@ function AppContent() {
       case 'room-setup':
         return <Room onBack={() => navigate('introduction')} />;
       case 'room-lobby':
-        return <Lobby onBack={() => navigate('room-setup')} />;
+        return <Lobby />;
       case 'intro-fable':
         return (
           <IntroFable

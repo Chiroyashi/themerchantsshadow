@@ -1,4 +1,4 @@
-import { isRoleActive } from './gameLogic';
+import { isRoleActive } from './gameLogic.js';
 
 export const calculateRoles = (playerCount, roleSettings) => {
   const count = parseInt(playerCount);
@@ -41,8 +41,17 @@ export const calculateRoles = (playerCount, roleSettings) => {
   const totalSpecial = Object.values(specialProtagonists).reduce((a, b) => a + b, 0);
   const protagonistsCount = count - antagonistsCount;
 
-  // 3. Sisanya adalah Pedagang (Mayoritas)
-  const pedagang = protagonistsCount - totalSpecial;
+  // 3. Sisanya adalah Pedagang (Mayoritas); pastikan minimal 1 Pedagang — drop role opsional jika perlu
+  let pedagang = protagonistsCount - totalSpecial;
+  if (pedagang < 1) {
+    for (const key of ['joker', 'lovers', 'hunter']) {
+      if (pedagang >= 1) break;
+      if (specialProtagonists[key] > 0) {
+        specialProtagonists[key] = 0;
+        pedagang++;
+      }
+    }
+  }
 
   return {
     antagonists: { werewolf, warlock },

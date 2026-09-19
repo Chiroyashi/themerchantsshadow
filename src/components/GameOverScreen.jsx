@@ -32,25 +32,7 @@ const getRoleVisuals = (roleName) => {
   return { emoji: "💼", textColor: "text-blue-400", bgColor: "bg-blue-950/30", borderColor: "border-blue-500/20" };
 };
 
-export const isPlayerWinner = (player, winner) => {
-  if (!player || !winner) return false;
-  const roleLower = player.role?.toLowerCase() || "";
-
-  if (winner === 'JOKER') {
-    return roleLower === 'joker';
-  }
-  if (roleLower === 'joker') {
-    return false;
-  }
-  if (roleLower === 'lovers') {
-    const loversTeam = player.loversTeam;
-    if (!loversTeam) return false;
-    return winner === loversTeam;
-  }
-
-  const isAntagonist = roleLower.includes('werewolf') || roleLower.includes('warlock');
-  return winner === 'WARGA' ? !isAntagonist : (winner === 'SERIGALA' ? isAntagonist : false);
-};
+import { isPlayerWinner } from '../utils/playerResult.js';
 
 const getPlayerAchievement = (player, allPlayers, winner) => {
   const roleLower = player.role?.toLowerCase() || "";

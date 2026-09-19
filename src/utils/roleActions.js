@@ -4,7 +4,7 @@
  * Mengatur availability dan logika action per role per malam
  */
 
-import { isPagi, isSiang } from '../constants/phases';
+import { isPagi, isSiang } from '../constants/phases.js';
 
 export const getPlayerTeam = (role) => {
   const SERIGALA = ['Werewolf', 'Warlock'];

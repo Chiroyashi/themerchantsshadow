@@ -1,5 +1,5 @@
 import { ref, get, update } from "firebase/database";
-import { db } from "../lib/firebase";
+import { db } from "../lib/firebase.js";
 
 /**
  * Kalkulasi kondisi kemenangan murni dari daftar pemain (pure function).

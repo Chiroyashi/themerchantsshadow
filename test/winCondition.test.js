@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert';
 import { calculateWinner } from '../src/utils/winCondition.js';
-import { isPlayerWinner } from '../src/components/GameOverScreen.jsx';
+import { isPlayerWinner } from '../src/utils/playerResult.js';
 
 test('isPlayerWinner evaluates Joker win/loss fate accurately', () => {
   const jokerPlayer = { id: 'j1', role: 'Joker' };

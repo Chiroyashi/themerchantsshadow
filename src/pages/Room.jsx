@@ -1,11 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { get, ref } from "firebase/database";
+import { db } from "../lib/firebase";
 import { Plus, Users, ArrowRight, ChevronLeft, UserCircle, ScrollText, BadgeCheck, GripVertical, Clipboard } from 'lucide-react';
 import { useGameContext } from '../contexts/GameContext';
 
 const Room = ({ onBack }) => {
   const { handleCreateRoom, handleJoinRoom, isJoining } = useGameContext();
-  const [inputCode, setInputCode] = useState('');
+  const [inputCode, setInputCode] = useState(() => {
+    const invite = new URLSearchParams(window.location.hash.split('?')[1] || '').get('invite');
+    return invite ? invite.toUpperCase().substring(0, 6) : '';
+  });
+  const [roomLocked, setRoomLocked] = useState(false);
+  const [lockReason, setLockReason] = useState('');
   const [tempName, setTempName] = useState(() => localStorage.getItem('player_name') || '');
+
+  useEffect(() => {
+    if (!inputCode) return;
+    get(ref(db, `rooms/${inputCode}`)).then(snap => {
+      if (!snap.exists()) return;
+      const status = snap.val().status;
+      if (status !== 'waiting') {
+        setRoomLocked(true);
+        setLockReason(status === 'ended'
+          ? 'Permainan telah selesai. Minta link baru dari moderator.'
+          : 'Game sedang berlangsung. Tunggu room baru dari moderator.');
+      }
+    }).catch(() => {});
+  }, [inputCode]);
 
   const handlePaste = async () => {
     try {
@@ -115,6 +136,12 @@ const Room = ({ onBack }) => {
                 <span className="text-sm">Gabung Room</span>
               </div>
 
+              {roomLocked && (
+                <p className="text-[10px] text-amber-500 font-bold uppercase tracking-wider bg-amber-600/10 border border-amber-500/20 px-4 py-3 rounded-2xl relative z-10">
+                  {lockReason}
+                </p>
+              )}
+
               <div className="flex gap-3 relative z-10">
                 <div className="relative flex-1">
                   <input
@@ -136,7 +163,7 @@ const Room = ({ onBack }) => {
                 </div>
                 <button
                   onClick={() => handleJoinRoom(inputCode, tempName)}
-                  disabled={inputCode.length < 4 || isJoining}
+                  disabled={inputCode.length < 4 || isJoining || roomLocked}
                   className="bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-600 px-6 rounded-2xl transition-all active:scale-95 shadow-lg shadow-blue-900/20 font-bold"
                 >
                   <ArrowRight size={22} />

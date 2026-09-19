@@ -195,7 +195,9 @@ test("distributeRoles assigns Lovers and Joker when enabled", () => {
     { id: "p5", name: "Player 5", role: "Pending" },
     { id: "p6", name: "Player 6", role: "Pending" },
     { id: "p7", name: "Player 7", role: "Pending" },
-    { id: "p8", name: "Player 8", role: "Pending" }
+    { id: "p8", name: "Player 8", role: "Pending" },
+    { id: "p9", name: "Player 9", role: "Pending" },
+    { id: "p10", name: "Player 10", role: "Pending" }
   ];
 
   const roleSettings = { Seer: true, Guard: true, Hunter: true, Warlock: true, Lovers: true, Joker: true };
