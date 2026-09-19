@@ -369,6 +369,19 @@ export function GameProvider({ children }) {
     await set(ref(db, `rooms/${roomCode}/roleSettings/${roleName}`), isEnabled);
   }, [isHost, roomCode]);
 
+  const handleRename = useCallback(async (name) => {
+    if (!roomCode || !myPlayerId || !name.trim()) return;
+    const clean = name.trim();
+    if (isHost) {
+      await update(ref(db, `rooms/${roomCode}`), { host: clean });
+      await update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`),
+        { name: clean + " (Moderator)" });
+    } else {
+      await update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), { name: clean });
+    }
+    setPlayerName(clean);
+  }, [roomCode, myPlayerId, isHost]);
+
   const value = {
     // State
     roomCode, myPlayerId, isHost, playerName, players, myData,
@@ -377,7 +390,7 @@ export function GameProvider({ children }) {
     // Actions
     navigate, handleCreateRoom, handleJoinRoom, handleKickPlayer,
     handleStartGame, handleKillPlayer, handleEndGame,
-    handleDestroyRoom, handleLeaveGame, handleToggleRole, handleLeaveLobby,
+    handleDestroyRoom, handleLeaveGame, handleToggleRole, handleLeaveLobby, handleRename,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

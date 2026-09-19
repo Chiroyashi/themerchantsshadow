@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Users, Play, Copy, Check, AlertTriangle, ShieldCheck, XCircle, UserMinus, ChevronLeft, Eye, Shield, Crosshair, Wand2, Settings, Heart } from 'lucide-react';
+import { Users, Play, Copy, Check, AlertTriangle, ShieldCheck, XCircle, UserMinus, ChevronLeft, Eye, Shield, Crosshair, Wand2, Settings, Heart, Pencil } from 'lucide-react';
 import ClownIcon from '../components/ClownIcon';
 import InviteLink from '../components/InviteLink';
 import { useGameContext } from '../contexts/GameContext';
@@ -8,10 +8,12 @@ import { calculateRoles } from '../utils/roleBalancer';
 import { isRoleActive } from '../utils/gameLogic';
 
 const Lobby = () => {
-  const { roomCode, players, myPlayerId, isHost, handleStartGame, handleKickPlayer, roleSettings, handleToggleRole, handleLeaveLobby } = useGameContext();
+  const { roomCode, players, myPlayerId, isHost, handleStartGame, handleKickPlayer, roleSettings, handleToggleRole, handleLeaveLobby, handleRename, playerName } = useGameContext();
   const { showNotif } = useNotification();
   const [isCopied, setIsCopied] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
 
   // --- LOGIKA PEMBATASAN MINIMAL PEMAIN ---
   const minPlayers = 5;
@@ -261,6 +263,15 @@ const Lobby = () => {
                           Anda
                         </span>
                       )}
+                      {isMe && (
+                        <button
+                          onClick={() => { setRenameValue(playerName); setShowRenameModal(true); }}
+                          className="p-3 hover:bg-amber-600 text-slate-600 hover:text-white rounded-xl transition-all active:scale-90 group/edit"
+                          title="Ganti Nama"
+                        >
+                          <Pencil size={16} className="group-hover/edit:animate-pulse" />
+                        </button>
+                      )}
                       {isHost && !isModerator ? (
                         <button
                           onClick={() => confirmKick(p.id, p.name)}
@@ -310,6 +321,47 @@ const Lobby = () => {
           Waranasura Chronicles • Secured Connection
         </p>
       </div>
+
+      {/* GANTI NAMA MODAL */}
+      {showRenameModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[9999]" onClick={() => setShowRenameModal(false)}>
+          <div className="bg-slate-900 border border-white/5 rounded-[2rem] p-6 max-w-sm w-full space-y-4 shadow-2xl animate-in zoom-in duration-300" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2 border-b border-white/5 pb-3">
+              <Pencil size={18} className="text-amber-500" />
+              <h2 className="text-sm font-black uppercase tracking-wider text-white">Ganti Nama</h2>
+            </div>
+            <p className="text-[9px] text-slate-500 uppercase font-bold tracking-tight text-left">
+              Nama akan berubah untuk semua pemain.
+            </p>
+            <input
+              type="text"
+              value={renameValue}
+              maxLength={20}
+              placeholder="Nama baru..."
+              onChange={(e) => setRenameValue(e.target.value)}
+              className="w-full bg-slate-950/80 border-2 border-slate-800 rounded-2xl px-4 py-4 font-bold text-base tracking-wide focus:outline-none focus:border-amber-600 transition-all placeholder:text-slate-700 text-center text-white"
+            />
+            <p className={`text-[9px] font-bold uppercase tracking-widest px-1 ${renameValue.trim().length >= 3 ? 'text-emerald-600' : 'text-slate-600'}`}>
+              {renameValue.trim().length < 3 ? `${renameValue.trim().length}/3 karakter` : '✓ Siap ganti nama'}
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowRenameModal(false)}
+                className="flex-1 py-4 bg-slate-800 text-slate-300 rounded-2xl font-bold uppercase text-[10px] tracking-widest active:scale-95 transition-all cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => { handleRename(renameValue); setShowRenameModal(false); }}
+                disabled={renameValue.trim().length < 3}
+                className="flex-1 py-4 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-2xl font-bold uppercase text-[10px] tracking-widest shadow-lg active:scale-95 transition-colors cursor-pointer"
+              >
+                Simpan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ROLE SETTINGS POPUP MODAL (HOST ONLY) */}
       {showSettingsModal && isHost && (
