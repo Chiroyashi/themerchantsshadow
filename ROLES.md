@@ -53,6 +53,8 @@ Malam 3: **Beli** item baru
 Malam 4: **Action** — pakai item lagi
 ...dan seterusnya bergantian.
 
+Skip hanya melewati **1 malam**; Warlock bisa bertindak lagi malam berikutnya.
+
 ```
 ✅  Beli → Action → Beli → Action → Beli → Action
 ❌  Beli → Beli → Action
@@ -185,6 +187,35 @@ Warlock beli item → Sistem pilih Pedagang acak
 
 ---
 
+## 💞 LOVERS — The Bound Hearts
+
+**Tim:** Independen → mengikuti faksi pasangan
+
+**Kemampuan — 💖 Bind:**
+- Aktif **Malam ke-2**
+- Pilih 1 pemain hidup sebagai pasangan
+- Kedua pemain mendapat faksi yang sama
+- Jika pasangan adalah Joker, faksi keduanya menjadi JOKER dan ikut menang saat Joker menang
+- Jika salah satu mati, yang lain ikut mati karena patah hati
+
+**Aturan Tambahan:**
+- Ikatan hanya bisa terjadi sekali
+- Tidak ada aksi pada malam lainnya
+
+---
+
+## 🃏 JOKER — The Chaos
+
+**Tim:** Independen
+
+**Cara Menang:**
+- Menang instan jika dieksekusi melalui voting publik di siang hari
+- Efek ledakan hanya visual/audio; pemain lain tidak ikut mati
+- Tidak memiliki aksi malam hari
+- Jika Lovers terikat dengannya, Lovers tersebut ikut menang
+
+---
+
 ## 🏛️ MODERATOR — Pemegang Permainan
 
 **Tim:** Independen (Bukan Pemain)
@@ -217,6 +248,8 @@ Warlock beli item → Sistem pilih Pedagang acak
 | **Seer** | Warga | 🔍 Reveal role target | Setiap malam | Unlimited |
 | **Guard** | Warga | 🛡️ Proteksi 1 target | Setiap **2 malam** | Proteksi 2 malam |
 | **Hunter** | Warga | 🎯 Tembak target | Malam 2+ | **1x seumur game** |
+| **Lovers** | Independen | 💖 Ikatan cinta | Malam 2 | Faksi mengikuti pasangan; mati bersama |
+| **Joker** | Independen | 🃏 Dimanipulasi voting | Siang | Menang jika dieksekusi voting |
 | **Pedagang** | Warga | 📩 Terima clue Warlock | Pasif | — |
 
 ---

@@ -4,17 +4,21 @@
  * Fokus: Hakim, Werewolf, dan Pedagang sebagai pilar utama.
  */
 
-export const isRoleActive = (roleName, settings, count) => {
-  const userSetting = settings?.[roleName];
-  if (userSetting !== undefined) return userSetting;
+export const MIN_PLAYERS_BY_ROLE = {
+  Seer: 5,
+  Guard: 6,
+  Hunter: 8,
+  Warlock: 7,
+  Lovers: 5,
+  Joker: 6
+};
 
-  if (roleName === 'Seer') return count >= 5;
-  if (roleName === 'Guard') return count >= 6;
-  if (roleName === 'Hunter') return count >= 8;
-  if (roleName === 'Warlock') return count >= 7;
-  if (roleName === 'Lovers') return count >= 5;
-  if (roleName === 'Joker') return count >= 6;
-  return true;
+export const isRoleActive = (roleName, settings, count) => {
+  const minPlayers = MIN_PLAYERS_BY_ROLE[roleName];
+  if (minPlayers !== undefined && count < minPlayers) return false;
+
+  const userSetting = settings?.[roleName];
+  return userSetting !== undefined ? userSetting : true;
 };
 
 export const distributeRoles = (players, roleSettings) => {
@@ -27,8 +31,7 @@ export const distributeRoles = (players, roleSettings) => {
 
   // 2. Tentukan Jumlah Antagonis (Rasio ~1/3.5 dari total pemain)
   const totalAntagonists = Math.max(1, Math.floor(numPlayers / 3.5));
-  const isWarlockEnabled = isRoleActive('Warlock', roleSettings, numPlayers);
-  const warlockCount = (numPlayers >= 7 && isWarlockEnabled) ? 1 : 0;
+  const warlockCount = isRoleActive('Warlock', roleSettings, numPlayers) ? 1 : 0;
   const werewolfCount = totalAntagonists - warlockCount;
 
   let rolePool = [];
@@ -46,16 +49,16 @@ export const distributeRoles = (players, roleSettings) => {
   if (isRoleActive('Seer', roleSettings, numPlayers)) {
     rolePool.push('Seer');
   }
-  if (numPlayers >= 6 && isRoleActive('Guard', roleSettings, numPlayers)) {
+  if (isRoleActive('Guard', roleSettings, numPlayers)) {
     rolePool.push('Guard');
   }
-  if (numPlayers >= 8 && isRoleActive('Hunter', roleSettings, numPlayers)) {
+  if (isRoleActive('Hunter', roleSettings, numPlayers)) {
     rolePool.push('Hunter');
   }
   if (isRoleActive('Lovers', roleSettings, numPlayers)) {
     rolePool.push('Lovers');
   }
-  if (numPlayers >= 6 && isRoleActive('Joker', roleSettings, numPlayers)) {
+  if (isRoleActive('Joker', roleSettings, numPlayers)) {
     rolePool.push('Joker');
   }
 

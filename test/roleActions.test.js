@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { getRoleActionConfig, getPlayerTeam } from '../src/utils/roleActions.js';
+import { getRoleActionConfig, getPlayerTeam, canRoleActTonight } from '../src/utils/roleActions.js';
 
 test('getPlayerTeam correctly categorizes all roles', () => {
   assert.strictEqual(getPlayerTeam('Werewolf'), 'SERIGALA');
@@ -74,4 +74,45 @@ test('Hakim Pistol (day) and Truth (night) restrictions', () => {
   // Night: Truth already used tonight
   const nightAlreadyUsed = getRoleActionConfig('Hakim', 2, 8, { currentPhase: 'Malam (Eksekusi)', truthActed: true });
   assert.strictEqual(nightAlreadyUsed.canAct, false);
+});
+
+test('Lovers bind hanya aktif malam ke-2', () => {
+  const night1 = getRoleActionConfig('Lovers', 1, 6, { currentPhase: 'Malam (Eksekusi)' });
+  assert.strictEqual(night1.canAct, false);
+
+  const night2 = getRoleActionConfig('Lovers', 2, 6, { currentPhase: 'Malam (Eksekusi)' });
+  assert.strictEqual(night2.canAct, true);
+  assert.strictEqual(night2.actionType, 'lovers-bind');
+
+  const alreadyBound = getRoleActionConfig('Lovers', 2, 6, { currentPhase: 'Malam (Eksekusi)', partnerId: 'p1' });
+  assert.strictEqual(alreadyBound.canAct, false);
+
+  const skipped = getRoleActionConfig('Lovers', 2, 6, { currentPhase: 'Malam (Eksekusi)', hasActed: true });
+  assert.strictEqual(skipped.canAct, false);
+});
+
+test('Warlock skip hanya berlaku satu malam', () => {
+  const skipped = getRoleActionConfig('Warlock', 1, 8, { currentPhase: 'Malam (Eksekusi)', warlockActed: true });
+  assert.strictEqual(skipped.canAct, false);
+
+  const nextNight = getRoleActionConfig('Warlock', 2, 8, { currentPhase: 'Malam (Eksekusi)' });
+  assert.strictEqual(nextNight.canAct, true);
+  assert.strictEqual(nextNight.actionType, 'warlock-buy');
+  assert.strictEqual(canRoleActTonight('Warlock', 2, {}), true);
+});
+
+test('Warlock tidak bisa beli saat semua Pedagang mati, tapi bisa pakai item', () => {
+  const noPedagang = getRoleActionConfig('Warlock', 1, 8, {
+    currentPhase: 'Malam (Eksekusi)',
+    alivePedagangCount: 0
+  });
+  assert.strictEqual(noPedagang.canAct, false);
+
+  const withItem = getRoleActionConfig('Warlock', 2, 8, {
+    currentPhase: 'Malam (Eksekusi)',
+    warlockInventory: 'poison',
+    alivePedagangCount: 0
+  });
+  assert.strictEqual(withItem.canAct, true);
+  assert.strictEqual(withItem.actionType, 'warlock-use');
 });

@@ -28,5 +28,6 @@ export const authReady = new Promise((resolve) => {
   });
   signInAnonymously(auth).catch((err) => {
     console.error("Anonymous auth failed:", err);
+    resolve(null);
   });
 });

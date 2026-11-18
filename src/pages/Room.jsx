@@ -5,14 +5,15 @@ import { Plus, Users, ArrowRight, ChevronLeft, UserCircle, ScrollText, BadgeChec
 import { useGameContext } from '../contexts/GameContext';
 
 const Room = ({ onBack }) => {
-  const { handleCreateRoom, handleJoinRoom, isJoining, navigate, authUid } = useGameContext();
-  const [inputCode, setInputCode] = useState(() => {
-    const invite = new URLSearchParams(window.location.hash.split('?')[1] || '').get('invite');
-    return invite ? invite.toUpperCase().substring(0, 6) : '';
-  });
+  const { handleCreateRoom, handleJoinRoom, isJoining, navigate, authUid, inviteCode, clearInviteCode } = useGameContext();
+  const [inputCode, setInputCode] = useState(() => inviteCode || '');
   const [roomLocked, setRoomLocked] = useState(false);
   const [lockReason, setLockReason] = useState('');
   const [tempName, setTempName] = useState(() => localStorage.getItem('player_name') || '');
+
+  useEffect(() => {
+    if (inviteCode) clearInviteCode();
+  }, [inviteCode, clearInviteCode]);
 
   useEffect(() => {
     if (!inputCode) return;
@@ -21,7 +22,9 @@ const Room = ({ onBack }) => {
       const roomVal = snap.val();
       const uid = authUid;
       const isMember = (roomVal.hostId && roomVal.hostId === uid) ||
-        Object.values(roomVal.players || {}).some(p => p && p.authUid === uid);
+        (roomVal.members
+          ? Boolean(roomVal.members[uid])
+          : Object.values(roomVal.players || {}).some(p => p && p.authUid === uid && !p.leftAt));
       if (isMember && roomVal.status !== 'ended') {
         navigate('room-lobby');
         return;

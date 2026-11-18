@@ -6,6 +6,7 @@ import { useGameContext } from './GameContext';
 import { checkWinCondition } from '../utils/winCondition';
 import { isSiang, isMalam, isPagi, PHASE } from '../constants/phases';
 import { getPlayerTeam } from '../utils/roleActions';
+import { getRemainingSeconds } from '../utils/timer';
 
 const TimerContext = createContext(null);
 
@@ -24,7 +25,7 @@ const getPhaseDuration = (phaseName, dayNum) => {
 };
 
 export function TimerProvider({ children }) {
-  const { roomCode, isHost, myPlayerId, players } = useGameContext();
+  const { roomCode, isHost, players } = useGameContext();
 
   // --- Timer State ---
   const [seconds, setSeconds] = useState(60);
@@ -65,13 +66,18 @@ export function TimerProvider({ children }) {
       setIsActive(data.isActive || false);
       setAllVoted(data.allVoted || false);
 
+      const fbRemaining = getRemainingSeconds(data.endsAt);
       const fbSecs = parseInt(data.seconds);
-      if (!isNaN(fbSecs)) {
-        const diff = Math.abs(secondsRef.current - fbSecs);
-        // Sync jika perbedaan besar (> 2 detik) atau timer pause
-        if (diff > 2 || !data.isActive) {
-          setSeconds(fbSecs);
+      const syncedSeconds = fbRemaining !== null && data.isActive
+        ? fbRemaining
+        : (!isNaN(fbSecs) ? fbSecs : fbRemaining);
+
+      if (syncedSeconds !== null) {
+        if (syncedSeconds !== secondsRef.current) {
+          secondsRef.current = syncedSeconds;
+          setSeconds(syncedSeconds);
         }
+        endTimeRef.current = data.isActive && data.endsAt ? data.endsAt : null;
       }
     });
 
@@ -104,7 +110,7 @@ export function TimerProvider({ children }) {
         // Host update ke Firebase setiap 5 detik
         if (isHost && nextSecs % 5 === 0) {
           try {
-            await update(ref(db, `rooms/${roomCode}/timer`), { seconds: nextSecs });
+            await update(ref(db, `rooms/${roomCode}/timer`), { seconds: nextSecs, endsAt: endTimeRef.current });
           } catch { /* skip — timer tetap jalan */ }
         }
 
@@ -129,7 +135,7 @@ export function TimerProvider({ children }) {
                   setSeconds(targetSecs);
                   secondsRef.current = targetSecs;
                   endTimeRef.current = Date.now() + targetSecs * 1000;
-                  await update(ref(db, `rooms/${roomCode}/timer`), { seconds: targetSecs, allVoted: true });
+                  await update(ref(db, `rooms/${roomCode}/timer`), { seconds: targetSecs, endsAt: endTimeRef.current, allVoted: true });
                   return; // Keluar dini agar tidak menjadwalkan ulang setTimeout pada tick lama ini
                 } else if (!isAlreadyAllVoted) {
                   await update(ref(db, `rooms/${roomCode}/timer`), { allVoted: true });
@@ -414,8 +420,8 @@ export function TimerProvider({ children }) {
     });
 
     for (const bind of nightActions.filter(a => a.role === 'Lovers' && a.actionType === 'bind')) {
-      if (!bind.targetId) continue;
-      const target = players.find(p => p.id === bind.targetId);
+      if (!bind.targetId || partnerMap[bind.playerId] || partnerMap[bind.targetId]) continue;
+      const target = players.find(p => p.id === bind.targetId && p.status !== 'dead' && !deadIds.has(p.id));
       if (target) {
         updates[`rooms/${roomCode}/players/${bind.playerId}/partnerId`] = bind.targetId;
         updates[`rooms/${roomCode}/players/${bind.playerId}/partnerName`] = target.name;
@@ -425,9 +431,10 @@ export function TimerProvider({ children }) {
         partnerMap[bind.playerId] = bind.targetId;
         partnerMap[bind.targetId] = bind.playerId;
 
-        // Determine Lovers faksi/team
         const targetTeam = getPlayerTeam(target.role);
-        updates[`rooms/${roomCode}/players/${bind.playerId}/loversTeam`] = targetTeam;
+        const loversTeam = targetTeam === 'INDEPENDEN' ? 'JOKER' : targetTeam;
+        updates[`rooms/${roomCode}/players/${bind.playerId}/loversTeam`] = loversTeam;
+        updates[`rooms/${roomCode}/players/${bind.targetId}/loversTeam`] = loversTeam;
 
         logs.push(`Lovers ${bind.name} telah mengikat takdir cintanya dengan ${target.name}!`);
       }
@@ -503,6 +510,7 @@ export function TimerProvider({ children }) {
         day: dayRef.current,
         names: ["TIDAK ADA"],
         executedId: null,
+        isJoker: false,
         timestamp: Date.now()
       });
       return;
@@ -526,6 +534,7 @@ export function TimerProvider({ children }) {
         day: dayRef.current,
         names: ["TIDAK ADA"],
         executedId: null,
+        isJoker: false,
         timestamp: Date.now()
       });
     } else {
@@ -539,6 +548,7 @@ export function TimerProvider({ children }) {
             day: dayRef.current,
             names: [executedPlayer.name],
             executedId,
+            isJoker: true,
             timestamp: Date.now()
           },
           [`rooms/${roomCode}/status`]: 'ended',
@@ -565,6 +575,7 @@ export function TimerProvider({ children }) {
             day: dayRef.current,
             names: voteDeadNames,
             executedId,
+            isJoker: false,
             timestamp: Date.now()
           }
         });
@@ -583,7 +594,7 @@ export function TimerProvider({ children }) {
   // --- Phase Management ---
   const handleSetPhase = useCallback(async (newPhase, isActiveOverride = null) => {
     const pLower = newPhase?.toLowerCase() || '';
-    const isActuallyHost = isHost || myPlayerId?.startsWith('host_');
+    const isActuallyHost = isHost;
     if (!isActuallyHost || !roomCode) return;
     if (isTransitioningRef.current) return; // Cegah double-click
     isTransitioningRef.current = true;
@@ -611,13 +622,14 @@ export function TimerProvider({ children }) {
         const newDay = dayRef.current + 1;
 
         const duration = getPhaseDuration(newPhase, newDay);
-        endTimeRef.current = Date.now() + duration * 1000;
+        endTimeRef.current = targetActive ? Date.now() + duration * 1000 : null;
         setIsActive(targetActive);
         setSeconds(duration);
         setDay(newDay);
 
-        await update(ref(db, `rooms/${roomCode}/timer`), {
-          phase: newPhase, day: newDay, isActive: targetActive, seconds: duration, allVoted: false
+        await update(ref(db), {
+          [`rooms/${roomCode}/timer`]: { phase: newPhase, day: newDay, isActive: targetActive, seconds: duration, endsAt: endTimeRef.current, allVoted: false },
+          [`rooms/${roomCode}/lastActivityAt`]: Date.now()
         });
       } else if (pLower.includes("malam")) {
         if (voteFn) await voteFn();
@@ -625,8 +637,18 @@ export function TimerProvider({ children }) {
         try {
           for (const p of players) {
             const reset = { currentAction: null };
-            if (p.role === 'Hakim') reset.pistolActed = null;
-            if (p.role === 'Warlock') reset.warlockActed = null;
+            if (p.role === 'Hakim') {
+              reset.pistolActed = null;
+              reset.pistolTargetId = null;
+              reset.pistolPartnerTargetId = null;
+              reset.pistolDeadNames = null;
+              reset.pistolDeadDetails = null;
+              reset.pistolResolved = null;
+            }
+            if (p.role === 'Warlock') {
+              reset.warlockActed = null;
+              reset.warlockSkipped = null;
+            }
             await update(ref(db, `rooms/${roomCode}/players/${p.id}`), reset);
           }
           // Clean old results at start of night
@@ -636,21 +658,23 @@ export function TimerProvider({ children }) {
         } catch { /* skip */ }
 
         const duration = getPhaseDuration(newPhase, dayRef.current);
-        endTimeRef.current = Date.now() + duration * 1000;
+        endTimeRef.current = targetActive ? Date.now() + duration * 1000 : null;
         setIsActive(targetActive);
         setSeconds(duration);
 
-        await update(ref(db, `rooms/${roomCode}/timer`), {
-          phase: newPhase, isActive: targetActive, seconds: duration, allVoted: false
+        await update(ref(db), {
+          [`rooms/${roomCode}/timer`]: { phase: newPhase, isActive: targetActive, seconds: duration, endsAt: endTimeRef.current, allVoted: false },
+          [`rooms/${roomCode}/lastActivityAt`]: Date.now()
         });
       } else {
         const duration = getPhaseDuration(newPhase, dayRef.current);
-        endTimeRef.current = Date.now() + duration * 1000;
+        endTimeRef.current = targetActive ? Date.now() + duration * 1000 : null;
         setIsActive(targetActive);
         setSeconds(duration);
 
-        await update(ref(db, `rooms/${roomCode}/timer`), {
-          phase: newPhase, isActive: targetActive, seconds: duration, allVoted: false
+        await update(ref(db), {
+          [`rooms/${roomCode}/timer`]: { phase: newPhase, isActive: targetActive, seconds: duration, endsAt: endTimeRef.current, allVoted: false },
+          [`rooms/${roomCode}/lastActivityAt`]: Date.now()
         });
       }
 
@@ -661,7 +685,7 @@ export function TimerProvider({ children }) {
     } finally {
       isTransitioningRef.current = false;
     }
-  }, [isHost, myPlayerId, roomCode, players]);
+  }, [isHost, roomCode, players]);
 
   // Sync refs setelah callbacks didefinisikan
   useEffect(() => {
@@ -672,29 +696,45 @@ export function TimerProvider({ children }) {
 
   // --- Timer Controls ---
   const toggleTimer = useCallback(async () => {
-    if (!(isHost || myPlayerId?.startsWith('host_'))) return;
+    if (!isHost) return;
     const newActive = !isActiveRef.current;
-    setIsActive(newActive);
     const duration = getPhaseDuration(phaseRef.current, dayRef.current);
+    const nextSeconds = secondsRef.current <= 0 ? duration : secondsRef.current;
+    const nextEndsAt = newActive ? Date.now() + nextSeconds * 1000 : null;
+    endTimeRef.current = nextEndsAt;
+    secondsRef.current = nextSeconds;
+    setIsActive(newActive);
+    setSeconds(nextSeconds);
     await update(ref(db, `rooms/${roomCode}/timer`), {
       isActive: newActive,
-      seconds: secondsRef.current <= 0 ? duration : secondsRef.current
+      seconds: nextSeconds,
+      endsAt: nextEndsAt
     });
-  }, [isHost, myPlayerId, roomCode]);
+  }, [isHost, roomCode]);
 
   const resetTimer = useCallback(async () => {
-    if (!(isHost || myPlayerId?.startsWith('host_'))) return;
-    setIsActive(false);
+    if (!isHost) return;
     const duration = getPhaseDuration(phaseRef.current, dayRef.current);
+    endTimeRef.current = null;
+    secondsRef.current = duration;
+    setIsActive(false);
     setSeconds(duration);
-    await update(ref(db, `rooms/${roomCode}/timer`), { isActive: false, seconds: duration, phase: phaseRef.current });
-  }, [isHost, myPlayerId, roomCode]);
+    await update(ref(db, `rooms/${roomCode}/timer`), {
+      isActive: false,
+      seconds: duration,
+      endsAt: null,
+      phase: phaseRef.current
+    });
+  }, [isHost, roomCode]);
 
   const editTimer = useCallback(async (newSeconds) => {
-    if (!(isHost || myPlayerId?.startsWith('host_'))) return;
+    if (!isHost) return;
+    const nextEndsAt = isActiveRef.current ? Date.now() + newSeconds * 1000 : null;
+    endTimeRef.current = nextEndsAt;
+    secondsRef.current = newSeconds;
     setSeconds(newSeconds);
-    await update(ref(db, `rooms/${roomCode}/timer`), { seconds: newSeconds });
-  }, [isHost, myPlayerId, roomCode]);
+    await update(ref(db, `rooms/${roomCode}/timer`), { seconds: newSeconds, endsAt: nextEndsAt });
+  }, [isHost, roomCode]);
 
   const value = {
     seconds, phase, isActive, day, allVoted,

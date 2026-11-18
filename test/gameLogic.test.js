@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { distributeRoles } from '../src/utils/gameLogic.js';
+import { distributeRoles, isRoleActive } from '../src/utils/gameLogic.js';
 import { calculateRoles } from '../src/utils/roleBalancer.js';
 
 const mkPlayers = (n) => Array.from({ length: n }, (_, i) => ({ id: `p${i}`, name: `P${i}`, role: 'Pending' }));
@@ -26,4 +26,12 @@ test('jumlah Pedagang hasil distributeRoles konsisten dengan preview calculateRo
     const actual = distributeRoles(mkPlayers(n), settings).filter(p => p.role === 'Pedagang').length;
     assert.strictEqual(actual, expected, `n=${n} (Joker+Lovers off)`);
   }
+});
+
+test('isRoleActive menegakkan minimum pemain walau setting diaktifkan', () => {
+  assert.strictEqual(isRoleActive('Joker', { Joker: true }, 5), false);
+  assert.strictEqual(isRoleActive('Joker', { Joker: true }, 6), true);
+  assert.strictEqual(isRoleActive('Guard', { Guard: true }, 5), false);
+  assert.strictEqual(isRoleActive('Guard', { Guard: true }, 6), true);
+  assert.strictEqual(isRoleActive('Seer', {}, 5), true);
 });

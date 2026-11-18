@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert';
+import { getPlayerTeam } from '../src/utils/roleActions.js';
+import { isPlayerWinner } from '../src/utils/playerResult.js';
 
 function simulateLoversBindAction(roomCode, loverData, targetPlayer) {
   const updates = {};
@@ -70,4 +72,29 @@ test('Double wave is shown to Lovers and their Partner, but NOT to third parties
 
   // Third party bystander (e.g. Werewolf or Hakim) does NOT see it
   assert.strictEqual(shouldShowLoversWave('p_other', bindEvent), false);
+});
+
+function resolveLoversTeam(partnerRole) {
+  const team = getPlayerTeam(partnerRole);
+  return team === 'INDEPENDEN' ? 'JOKER' : team;
+}
+
+test('Lovers bind menulis faksi yang sama ke kedua pemain', () => {
+  const lover = { id: 'p_lover', role: 'Lovers' };
+  const werewolf = { id: 'p_ww', role: 'Werewolf' };
+  const team = resolveLoversTeam(werewolf.role);
+
+  assert.strictEqual(team, 'SERIGALA');
+  assert.strictEqual(isPlayerWinner({ ...lover, loversTeam: team }, 'SERIGALA'), true);
+  assert.strictEqual(isPlayerWinner({ ...werewolf, loversTeam: team }, 'SERIGALA'), true);
+});
+
+test('Lovers yang terikat Joker ikut menang saat Joker menang', () => {
+  const joker = { id: 'p_joker', role: 'Joker' };
+  const team = resolveLoversTeam(joker.role);
+  const lover = { id: 'p_lover', role: 'Lovers', loversTeam: team };
+
+  assert.strictEqual(team, 'JOKER');
+  assert.strictEqual(isPlayerWinner(joker, 'JOKER'), true);
+  assert.strictEqual(isPlayerWinner(lover, 'JOKER'), true);
 });

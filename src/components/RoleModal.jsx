@@ -21,7 +21,7 @@ const RoleModal = ({ role, isOpen, onClose }) => {
       desc: "Dua jiwa yang ditakdirkan terikat. Cinta kalian melampaui batas dan peran.",
       powers: [
         "Malam ke-2: Pilih 1 pemain hidup untuk menjadi pasangan cintamu.",
-        "Setelah terikat, tim/faksimu akan mengikuti tim/faksi pasanganmu.",
+        "Setelah terikat, tim/faksimu akan mengikuti tim/faksi pasanganmu, termasuk Joker.",
         "Jika salah satu dari kalian mati, yang lain ikut mati seketika karena patah hati."
       ],
       accent: "border-pink-600/50",
@@ -39,7 +39,7 @@ const RoleModal = ({ role, isOpen, onClose }) => {
       desc: "Badut kekacauan pembawa bom. Keinginan terbesarmu adalah mati digantung di tiang gantungan.",
       powers: [
         "Menang instan jika kamu dieksekusi melalui voting publik di siang hari.",
-        "Jika digantung, kamu meledakkan bom yang mematikan forum (kamu selamat).",
+        "Kematianmu memicu ledakan visual; pemain lain tidak ikut mati.",
         "Kamu tidak memiliki aksi malam hari."
       ],
       accent: "border-green-600/50",
@@ -70,11 +70,11 @@ const RoleModal = ({ role, isOpen, onClose }) => {
       title: "The Warlock",
       icon: <Zap className="text-purple-500" size={40} />,
       desc: "Pengedar gelap yang bermain di bayang-bayang. Membantu Werewolf tanpa tahu siapa mereka.",
-      powers: ["Membeli 1 item per malam dari Pedagang (Vision/Poison).", "Vision: mengetahui role target.", "Poison: membunuh 1 target.", "Tidak tahu identitas Werewolf — cari sendiri."],
+      powers: ["Zigzag: Malam 1 beli, Malam 2 pakai, Malam 3 beli lagi.", "Vision: mengetahui role target.", "Poison: membunuh 1 target.", "Skip hanya berlaku 1 malam; bisa bertindak lagi malam berikutnya.", "Tidak bisa transaksi jika semua Pedagang sudah mati."],
       accent: "border-purple-600/50",
       dot: "bg-purple-600",
       tips: [
-        "Wajib beli item di Malam 1 (Vision/Poison) agar tidak membuang tempo.",
+        "Beli item di Malam 1 (Vision/Poison) agar tidak membuang tempo.",
         "Gunakan Vision terlebih dahulu untuk mencari Seer sebelum memakai Poison.",
         "Waspadai transaksi gelap karena Moderator akan memberi petunjuk ke Pedagang."
       ]
@@ -99,7 +99,7 @@ const RoleModal = ({ role, isOpen, onClose }) => {
       title: "The Guard",
       icon: <Shield className="text-cyan-500" size={40} />,
       desc: "Pelindung desa yang setia. Tugasmu memastikan nyawa yang berharga tetap aman.",
-      powers: ["Proteksi 1 pemain per malam aktif.", "Bisa lindungi diri sendiri maksimal 1x.", "Cooldown 2 malam antar proteksi (aktif malam 1, 4, 7...).", "Proteksi bertahan 2 malam."],
+      powers: ["Proteksi 1 pemain per malam aktif.", "Bisa lindungi diri sendiri maksimal 1x.", "Cooldown 2 malam antar proteksi (aktif malam 1, 3, 5...).", "Proteksi bertahan 2 malam."],
       accent: "border-cyan-600/50",
       dot: "bg-cyan-600",
       tips: [
@@ -127,13 +127,13 @@ const RoleModal = ({ role, isOpen, onClose }) => {
       title: "The Judge",
       icon: <Scale className="text-blue-400" size={40} />,
       desc: "Pengawas keadilan di Waranasura. Kekuasaanmu adalah hukum yang tak terbantahkan.",
-      powers: ["Truth malam: bocorkan chat pribadi target ke publik.", "Pistol siang: 2 peluru — instan kill tanpa voting.", "WAHAI RAKYATKU: wajib berkata sebelum vonis."],
+      powers: ["Truth malam: bocorkan chat pribadi target ke publik.", "Pistol siang: 2 peluru — instan kill tanpa voting."],
       accent: "border-blue-400/50",
       dot: "bg-blue-400",
       tips: [
         "Gunakan Truth malam hari untuk menyadap bisikan mencurigakan.",
         "Pistol siang (2 peluru) adalah instan kill — tembak hanya jika sangat yakin.",
-        "Wajib ucapkan 'WAHAI RAKYATKU' sebelum menembak target di siang hari."
+        "Truth malam lebih aman untuk mengumpulkan informasi sebelum mengambil keputusan."
       ]
     };
 

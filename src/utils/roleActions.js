@@ -167,7 +167,6 @@ export const getRoleActionConfig = (role, currentDay, totalPlayers, roleState = 
 
     case 'Warlock': {
       const warlockItem = roleState.warlockInventory;
-      const hasSkipped = roleState.warlockSkipped;
       const itemUsedThisNight = roleState.warlockItemUsed;
       const phase = roleState.currentPhase;
       const warlockActed = roleState.warlockActed;
@@ -175,13 +174,6 @@ export const getRoleActionConfig = (role, currentDay, totalPlayers, roleState = 
       if (!phase?.includes('Malam')) {
         config.canAct = false;
         config.reason = "Warlock action hanya di malam.";
-        break;
-      }
-
-      if (hasSkipped) {
-        config.canAct = false;
-        config.reason = "Warlock sudah Skip. Action tertutup selamanya.";
-        config.skillName = 'Warlock';
         break;
       }
 
@@ -309,7 +301,6 @@ export const canRoleActTonight = (role, currentDay, playerState = {}) => {
     case 'Hunter':
       return isNight2OrMore && !playerState.hunterActed && !hasActed;
     case 'Warlock':
-      if (playerState.warlockSkipped) return false;
       return !hasActed;
     case 'Lovers':
       return currentDay === 2 && !playerState.partnerId && !hasActed;

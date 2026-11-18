@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ref, update } from "firebase/database";
+import { ref, update, get } from "firebase/database";
 import { db } from "../lib/firebase";
 import { Z_LAYER } from '../constants/zIndex';
 import { lockScroll, unlockScroll } from '../utils/scrollLock';
@@ -62,46 +62,59 @@ const IntroFable = ({ players, roomCode, onFinish, playerData }) => {
 
   useEffect(() => { lockScroll(); return () => unlockScroll(); }, []);
 
-  // Local timer — jalan tanpa Firebase sync
-  // Catatan: sengaja kosongin dependency array — pakai ref biar gak restart
   useEffect(() => {
-    const startTime = Date.now();
-    const totalDuration = 25;
+    let cancelled = false;
+    let interval = null;
+    let fallback = null;
 
-    const interval = setInterval(() => {
-      const elapsed = (Date.now() - startTime) / 1000;
-      const currentProgress = Math.min((elapsed / totalDuration) * 100, 100);
-      setProgress(currentProgress);
-
-      if (elapsed < 6) setStep(1);
-      else if (elapsed < 11) setStep(2);
-      else if (elapsed < 21) setStep(3);
-      else if (elapsed < 26) setStep(4);
-      else if (!finishedRef.current) {
-        finishedRef.current = true;
-        clearInterval(interval);
-        // Catat ke Firebase bahwa player ini sudah lihat intro
-        update(ref(db, `rooms/${roomCode}/introFinished`), {
-          [playerData?.id || 'unknown']: true
-        }).catch(() => {});
-        onFinishRef.current();
+    const start = async () => {
+      let startTime = Date.now();
+      try {
+        const snap = await get(ref(db, `rooms/${roomCode}/introStartedAt`));
+        if (snap.exists()) startTime = snap.val();
+      } catch {
+        startTime = Date.now();
       }
-    }, 100);
+      if (cancelled) return;
 
-    // Fallback: jika 35 detik tidak selesai, paksa selesai
-    const fallback = setTimeout(() => {
-      if (!finishedRef.current) {
-        finishedRef.current = true;
-        clearInterval(interval);
-        onFinishRef.current();
-      }
-    }, 35000);
+      const totalDuration = 25;
+
+      interval = setInterval(() => {
+        const elapsed = (Date.now() - startTime) / 1000;
+        const currentProgress = Math.min((elapsed / totalDuration) * 100, 100);
+        setProgress(currentProgress);
+
+        if (elapsed < 6) setStep(1);
+        else if (elapsed < 11) setStep(2);
+        else if (elapsed < 21) setStep(3);
+        else if (elapsed < 26) setStep(4);
+        else if (!finishedRef.current) {
+          finishedRef.current = true;
+          clearInterval(interval);
+          update(ref(db, `rooms/${roomCode}/introFinished`), {
+            [playerData?.id || 'unknown']: true
+          }).catch(() => {});
+          onFinishRef.current();
+        }
+      }, 100);
+
+      fallback = setTimeout(() => {
+        if (!finishedRef.current) {
+          finishedRef.current = true;
+          clearInterval(interval);
+          onFinishRef.current();
+        }
+      }, 35000);
+    };
+
+    start();
 
     return () => {
+      cancelled = true;
       clearInterval(interval);
       clearTimeout(fallback);
     };
-  }, [roomCode, playerData?.id]); // sengaja tanpa onFinish — pakai ref
+  }, [roomCode, playerData?.id]);
 
   const handleSkip = () => {
     if (finishedRef.current) return;

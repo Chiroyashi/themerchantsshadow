@@ -1,16 +1,18 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { ref, onValue, push, set, update, get } from "firebase/database";
+import { ref, onValue, push, set, update, get, onDisconnect } from "firebase/database";
 import { db, auth } from "../lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { distributeRoles } from '../utils/gameLogic';
 import { cleanupOldRooms, deleteRoom } from '../utils/dbCleanup';
 import { checkWinCondition } from '../utils/winCondition';
 import { useNotification } from './NotificationContext';
+import { pickNextHostUid } from '../utils/roomSafety';
 
 const GameContext = createContext(null);
 
-const SESSION_KEYS = ['room_code', 'my_player_id', 'is_host', 'game_match_id', 'last_page'];
+const MAX_PLAYERS = 20;
+const SESSION_KEYS = ['room_code', 'my_player_id', 'game_match_id', 'last_page'];
 const clearSession = () => {
   SESSION_KEYS.forEach(k => localStorage.removeItem(k));
 };
@@ -21,11 +23,7 @@ export function GameProvider({ children }) {
   // --- Room State ---
   const [roomCode, setRoomCode] = useState(() => localStorage.getItem('room_code') || '');
   const [myPlayerId, setMyPlayerId] = useState(() => localStorage.getItem('my_player_id') || null);
-  const [isHost, setIsHost] = useState(() => {
-    const local = localStorage.getItem('is_host') === 'true';
-    const id = localStorage.getItem('my_player_id');
-    return local || (id && id.startsWith("host_")) || false;
-  });
+  const [isHost, setIsHost] = useState(false);
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('player_name') || '');
   const [gameMatchId, setGameMatchId] = useState(() => localStorage.getItem('game_match_id') || '');
   const [players, setPlayers] = useState([]);
@@ -36,7 +34,7 @@ export function GameProvider({ children }) {
 
   useEffect(() => {
     return onAuthStateChanged(auth, (user) => {
-      if (user) setAuthUid(user.uid);
+      setAuthUid(user ? user.uid : null);
     });
   }, []);
 
@@ -50,9 +48,15 @@ export function GameProvider({ children }) {
     const hash = window.location.hash.replace('#', '').split('?')[0];
     return hash || localStorage.getItem('last_page') || 'landing';
   });
+  const [inviteCode, setInviteCode] = useState(() => {
+    const invite = new URLSearchParams(window.location.hash.split('?')[1] || '').get('invite');
+    return invite ? invite.toUpperCase().substring(0, 6) : '';
+  });
 
   // --- Refs untuk menghindari stale closures ---
-  const hasShownDestroyedRef = useRef(false);
+  const notifiedDestroyedRoomRef = useRef(null);
+  const destroyRedirectRef = useRef(null);
+  const lastPlayerStateRef = useRef('');
   const currentPageRef = useRef(currentPage);
   currentPageRef.current = currentPage;
   const isHostRef = useRef(isHost);
@@ -63,6 +67,8 @@ export function GameProvider({ children }) {
   roomStatusRef.current = roomStatus;
   const authUidRef = useRef(authUid);
   authUidRef.current = authUid;
+  const gameMatchIdRef = useRef(gameMatchId);
+  gameMatchIdRef.current = gameMatchId;
 
   const myData = players.find(p => p.id === myPlayerId);
 
@@ -73,19 +79,21 @@ export function GameProvider({ children }) {
     }
     localStorage.setItem('last_page', currentPage);
     localStorage.setItem('room_code', roomCode);
-    localStorage.setItem('is_host', isHost);
     localStorage.setItem('player_name', playerName);
     localStorage.setItem('game_match_id', gameMatchId);
     if (myPlayerId) {
       localStorage.setItem('my_player_id', myPlayerId);
     }
-  }, [currentPage, roomCode, isHost, myPlayerId, playerName, gameMatchId]);
+  }, [currentPage, roomCode, myPlayerId, playerName, gameMatchId]);
 
   // --- Popstate Handler ---
   useEffect(() => {
     const handlePopState = () => {
-      const hash = window.location.hash.replace('#', '').split('?')[0] || 'landing';
-      setCurrentPage(hash);
+      const rawHash = window.location.hash.replace('#', '');
+      const [hash, query] = rawHash.split('?');
+      setCurrentPage(hash || 'landing');
+      const invite = new URLSearchParams(query || '').get('invite');
+      if (invite) setInviteCode(invite.toUpperCase().substring(0, 6));
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -104,8 +112,8 @@ export function GameProvider({ children }) {
 
       // --- Room Destroyed ---
       if (!data || data.status === "destroyed") {
-        if (!hasShownDestroyedRef.current) {
-          hasShownDestroyedRef.current = true;
+        if (notifiedDestroyedRoomRef.current !== roomCode) {
+          notifiedDestroyedRoomRef.current = roomCode;
           if (!curIsHost) {
             if (roomStatusRef.current === "ended") {
               showNotif("Permainan Selesai", "Room telah ditutup karena permainan telah selesai.", "info");
@@ -113,7 +121,7 @@ export function GameProvider({ children }) {
               showNotif("Room Dibubarkan", "Moderator telah menutup permainan ini.", "error");
             }
           }
-          setTimeout(() => {
+          destroyRedirectRef.current = setTimeout(() => {
             clearSession();
             setRoomCode('');
             setMyPlayerId(null);
@@ -126,7 +134,7 @@ export function GameProvider({ children }) {
 
       // --- Validasi gameMatchId ---
       if (data.gameMatchId) {
-        const localMatchId = localStorage.getItem('game_match_id');
+        const localMatchId = gameMatchIdRef.current;
         if (localMatchId && data.gameMatchId !== localMatchId) {
           clearSession();
           setRoomCode('');
@@ -135,6 +143,7 @@ export function GameProvider({ children }) {
           setCurrentPage('landing');
           return;
         }
+        gameMatchIdRef.current = data.gameMatchId;
         setGameMatchId(data.gameMatchId);
       }
 
@@ -155,7 +164,11 @@ export function GameProvider({ children }) {
         const isHostNow = data.hostId === authUidRef.current;
         if (isHostNow !== isHostRef.current) {
           setIsHost(isHostNow);
-          localStorage.setItem('is_host', isHostNow ? 'true' : 'false');
+        }
+      } else if (!data.hostId && data.status !== 'ended') {
+        const nextHostUid = pickNextHostUid(data.members, data.players);
+        if (nextHostUid && nextHostUid === authUidRef.current) {
+          set(ref(db, `rooms/${roomCode}/hostId`), authUidRef.current).catch(() => {});
         }
       }
 
@@ -168,6 +181,39 @@ export function GameProvider({ children }) {
         setPlayers(Object.entries(data.players).map(([id, val]) => ({ id, ...val })));
       }
 
+      if (curIsHost && data.status === 'playing' && data.players) {
+        const pistolEntry = Object.entries(data.players).find(([, p]) =>
+          p && p.role === 'Hakim' && p.pistolTargetId && !p.pistolResolved
+        );
+        if (pistolEntry) {
+          const [hakimId, hakimData] = pistolEntry;
+          const updates = {
+            [`rooms/${roomCode}/players/${hakimId}/pistolResolved`]: true,
+            [`rooms/${roomCode}/players/${hakimData.pistolTargetId}/status`]: 'dead',
+            [`rooms/${roomCode}/deadToday`]: {
+              day: data.timer?.day || 1,
+              names: hakimData.pistolDeadNames || [],
+              details: hakimData.pistolDeadDetails || {},
+              timestamp: Date.now()
+            }
+          };
+          if (hakimData.pistolPartnerTargetId) {
+            updates[`rooms/${roomCode}/players/${hakimData.pistolPartnerTargetId}/status`] = 'dead';
+          }
+          update(ref(db), updates).catch(() => {});
+        }
+      }
+
+      if (curIsHost && data.status === 'playing') {
+        const playerStateKey = Object.entries(data.players || {})
+          .map(([id, p]) => `${id}:${p.status}`)
+          .join('|');
+        if (playerStateKey !== lastPlayerStateRef.current) {
+          lastPlayerStateRef.current = playerStateKey;
+          checkWinCondition(roomCode).catch(() => {});
+        }
+      }
+
       // --- Room Status ---
       setRoomStatus(data.status);
 
@@ -178,12 +224,24 @@ export function GameProvider({ children }) {
       if (data.status === "intro" && curPage === "room-lobby") {
         setCurrentPage('intro-fable');
       }
-      if (data.status === "playing" && curPage === "room-lobby") {
+      if (data.status === "playing" && ['room-lobby', 'intro-fable'].includes(curPage)) {
         setCurrentPage(curIsHost ? 'view-mod' : 'view-role');
       }
+    }, (error) => {
+      if (error?.code !== 'permission_denied') return;
+      if (currentPageRef.current === 'landing') return;
+      showNotif("Akses Ditolak", "Kamu sudah tidak memiliki akses ke room ini.", "error");
+      clearSession();
+      setRoomCode('');
+      setMyPlayerId(null);
+      setGameMatchId('');
+      setCurrentPage('landing');
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      if (destroyRedirectRef.current) clearTimeout(destroyRedirectRef.current);
+    };
   }, [roomCode, showNotif]);
 
   // --- Actions ---
@@ -191,6 +249,8 @@ export function GameProvider({ children }) {
   const navigate = useCallback((page) => {
     setCurrentPage(page);
   }, []);
+
+  const clearInviteCode = useCallback(() => setInviteCode(''), []);
 
   const handleCreateRoom = useCallback(async (name) => {
     await cleanupOldRooms();
@@ -208,15 +268,24 @@ export function GameProvider({ children }) {
       status: "waiting",
       host: finalName,
       createdAt: Date.now(),
+      lastActivityAt: Date.now(),
+      members: { [hostId]: hostId },
       timer: { isActive: false, seconds: 60, phase: "Pagi (Diskusi)", day: 1 },
       players: {
-        [hostId]: { name: finalName + " (Moderator)", role: "Moderator", status: "alive" }
+        [hostId]: { name: finalName + " (Moderator)", role: "Moderator", status: "alive", authUid: hostId }
       }
     };
     await set(ref(db, "rooms/" + newCode), roomData);
+    await Promise.all([
+      onDisconnect(ref(db, `rooms/${newCode}/hostId`)).set(null).catch(() => {}),
+      onDisconnect(ref(db, `rooms/${newCode}/members/${hostId}`)).remove().catch(() => {})
+    ]);
     setRoomCode(newCode);
     setMyPlayerId(hostId);
     setGameMatchId(newMatchId);
+    gameMatchIdRef.current = newMatchId;
+    notifiedDestroyedRoomRef.current = null;
+        lastPlayerStateRef.current = '';
     setIsHost(true);
     setPlayerName(finalName);
     setCurrentPage('room-lobby');
@@ -224,6 +293,11 @@ export function GameProvider({ children }) {
 
   const handleJoinRoom = useCallback(async (code, inputName) => {
     if (isJoining) return;
+    const uid = authUidRef.current;
+    if (!uid) {
+      showNotif("Error", "Auth belum siap. Coba lagi.", "error");
+      return;
+    }
     setIsJoining(true);
     const finalName = inputName || "Player";
     try {
@@ -237,11 +311,9 @@ export function GameProvider({ children }) {
 
       // Restore session jika sudah jadi anggota (host via hostId, player via authUid) — hindari duplikat
       const existing = (() => {
-        const uid = authUidRef.current;
-        if (!uid) return null;
         if (roomVal.hostId === uid) return { id: roomVal.hostId, isHost: true, name: roomVal.host || finalName };
         for (const [id, p] of Object.entries(roomVal.players || {})) {
-          if (p && p.authUid === uid) return { id, isHost: false, name: p.name || finalName };
+          if (p && p.authUid === uid && !p.leftAt) return { id, isHost: false, name: p.name || finalName };
         }
         return null;
       })();
@@ -249,6 +321,9 @@ export function GameProvider({ children }) {
         setRoomCode(code);
         setMyPlayerId(existing.id);
         setGameMatchId(roomVal.gameMatchId || '');
+        gameMatchIdRef.current = roomVal.gameMatchId || '';
+        notifiedDestroyedRoomRef.current = null;
+        lastPlayerStateRef.current = '';
         setIsHost(existing.isHost);
         setPlayerName(existing.name);
         setCurrentPage('room-lobby');
@@ -264,17 +339,29 @@ export function GameProvider({ children }) {
         showNotif("Ditolak", msg, "error");
         return;
       }
+      const participantCount = Object.values(roomVal.players || {}).filter(p => p && p.role !== 'Moderator' && !p.leftAt).length;
+      if (participantCount >= MAX_PLAYERS) {
+        setIsJoining(false);
+        showNotif("Penuh", `Room sudah mencapai ${MAX_PLAYERS} pemain.`, "error");
+        return;
+      }
       const newPlayerRef = push(ref(db, `rooms/${code}/players`));
-      await set(newPlayerRef, {
-        name: finalName,
-        role: "Pending",
-        status: "alive",
-        joinedAt: Date.now(),
-        authUid: authUidRef.current
+      await update(ref(db), {
+        [`rooms/${code}/players/${newPlayerRef.key}`]: {
+          name: finalName,
+          role: "Pending",
+          status: "alive",
+          joinedAt: Date.now(),
+          authUid: uid
+        },
+        [`rooms/${code}/members/${uid}`]: newPlayerRef.key
       });
       setRoomCode(code);
       setMyPlayerId(newPlayerRef.key);
       setGameMatchId(roomVal.gameMatchId || '');
+      gameMatchIdRef.current = roomVal.gameMatchId || '';
+      notifiedDestroyedRoomRef.current = null;
+        lastPlayerStateRef.current = '';
       setIsHost(false);
       setPlayerName(finalName);
       setCurrentPage('room-lobby');
@@ -286,10 +373,14 @@ export function GameProvider({ children }) {
   }, [isJoining, showNotif]);
 
   const handleKickPlayer = useCallback(async (targetId) => {
-    if (isHost) {
-      await set(ref(db, "rooms/" + roomCode + "/players/" + targetId), null);
+    if (!isHost) return;
+    const target = players.find(p => p.id === targetId);
+    const updates = { [`rooms/${roomCode}/players/${targetId}`]: null };
+    if (target && target.authUid) {
+      updates[`rooms/${roomCode}/members/${target.authUid}`] = null;
     }
-  }, [isHost, roomCode]);
+    await update(ref(db), updates);
+  }, [isHost, players, roomCode]);
 
   const handleStartGame = useCallback(async () => {
     const activePlayers = players.filter(p => p.status !== 'dead');
@@ -305,6 +396,7 @@ export function GameProvider({ children }) {
       updates["players/" + p.id + "/status"] = "alive";
     });
     updates["introStartedAt"] = Date.now();
+    updates["lastActivityAt"] = Date.now();
     updates["status"] = "intro";
     await update(ref(db, "rooms/" + roomCode), updates);
   }, [players, roomCode, roleSettings, showNotif]);
@@ -330,39 +422,65 @@ export function GameProvider({ children }) {
 
   const handleDestroyRoom = useCallback(async () => {
     if (!isHost) return;
-    await deleteRoom(roomCode);
+    try {
+      await deleteRoom(roomCode);
+    } catch {
+      showNotif("Gagal", "Room gagal dihapus. Coba lagi.", "error");
+      return;
+    }
     clearSession();
     setRoomCode('');
     setMyPlayerId(null);
     setGameMatchId('');
     setCurrentPage('room-setup');
-  }, [isHost, roomCode]);
+  }, [isHost, roomCode, showNotif]);
 
   const handleLeaveGame = useCallback(async (hasWinner, redirectPage = 'landing') => {
-    if (hasWinner && isHost) {
-      await deleteRoom(roomCode);
-    } else if (!hasWinner) {
-      update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), { status: "dead" });
+    try {
+      if (hasWinner && isHost) {
+        await deleteRoom(roomCode);
+      } else if (!hasWinner && myPlayerId) {
+        const updates = {
+          [`rooms/${roomCode}/players/${myPlayerId}/status`]: 'dead',
+          [`rooms/${roomCode}/players/${myPlayerId}/leftAt`]: Date.now()
+        };
+        if (authUidRef.current) {
+          updates[`rooms/${roomCode}/members/${authUidRef.current}`] = null;
+        }
+        await update(ref(db), updates);
+      }
+    } catch {
+      showNotif("Gagal", "Gagal keluar dari room. Coba lagi.", "error");
+      return;
     }
     clearSession();
     setRoomCode('');
     setMyPlayerId(null);
     setGameMatchId('');
     setCurrentPage(redirectPage);
-  }, [roomCode, myPlayerId, isHost]);
+  }, [roomCode, myPlayerId, isHost, showNotif]);
 
   const handleLeaveLobby = useCallback(async () => {
-    if (isHost) {
-      await deleteRoom(roomCode);
-    } else if (myPlayerId) {
-      await update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), { status: "dead" });
+    try {
+      if (isHost) {
+        await deleteRoom(roomCode);
+      } else if (myPlayerId) {
+        const updates = { [`rooms/${roomCode}/players/${myPlayerId}`]: null };
+        if (authUidRef.current) {
+          updates[`rooms/${roomCode}/members/${authUidRef.current}`] = null;
+        }
+        await update(ref(db), updates);
+      }
+    } catch {
+      showNotif("Gagal", "Gagal keluar dari room. Coba lagi.", "error");
+      return;
     }
     clearSession();
     setRoomCode('');
     setMyPlayerId(null);
     setGameMatchId('');
     setCurrentPage('room-setup');
-  }, [isHost, roomCode, myPlayerId]);
+  }, [isHost, roomCode, myPlayerId, showNotif]);
 
   const handleToggleRole = useCallback(async (roleName, isEnabled) => {
     if (!isHost || !roomCode) return;
@@ -386,9 +504,9 @@ export function GameProvider({ children }) {
     // State
     roomCode, myPlayerId, isHost, playerName, players, myData,
     gameWinner, roomStatus, isJoining, roleSettings, authUid,
-    currentPage, setHasShownDestroyed: () => { hasShownDestroyedRef.current = true; },
+    currentPage, inviteCode,
     // Actions
-    navigate, handleCreateRoom, handleJoinRoom, handleKickPlayer,
+    navigate, clearInviteCode, handleCreateRoom, handleJoinRoom, handleKickPlayer,
     handleStartGame, handleKillPlayer, handleEndGame,
     handleDestroyRoom, handleLeaveGame, handleToggleRole, handleLeaveLobby, handleRename,
   };

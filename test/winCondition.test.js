@@ -18,10 +18,12 @@ test('isPlayerWinner evaluates Joker win/loss fate accurately', () => {
   assert.strictEqual(isPlayerWinner(wargaPlayer, 'SERIGALA'), false);
   assert.strictEqual(isPlayerWinner(werewolfPlayer, 'SERIGALA'), true);
 
-  // 3. When JOKER wins (Solo Victory): ONLY Joker wins, both Warga and Werewolf lose
+  // 3. When JOKER wins: Joker and Lovers bound to Joker win; Warga and Werewolf lose
   assert.strictEqual(isPlayerWinner(jokerPlayer, 'JOKER'), true);
   assert.strictEqual(isPlayerWinner(wargaPlayer, 'JOKER'), false);
   assert.strictEqual(isPlayerWinner(werewolfPlayer, 'JOKER'), false);
+  assert.strictEqual(isPlayerWinner({ id: 'l1', role: 'Lovers', loversTeam: 'JOKER' }, 'JOKER'), true);
+  assert.strictEqual(isPlayerWinner({ id: 'l2', role: 'Lovers', loversTeam: 'WARGA' }, 'JOKER'), false);
 });
 
 test('WARGA wins when all antagonists are dead', () => {

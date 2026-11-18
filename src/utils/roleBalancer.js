@@ -17,8 +17,7 @@ export const calculateRoles = (playerCount, roleSettings) => {
   const antagonistsCount = Math.max(1, Math.floor(count / 3.5));
 
   // Distribusi Antagonis: Warlock muncul jika pemain >= 7
-  const isWarlockEnabled = isRoleActive('Warlock', roleSettings, count);
-  const warlock = (count >= 7 && isWarlockEnabled) ? 1 : 0;
+  const warlock = isRoleActive('Warlock', roleSettings, count) ? 1 : 0;
   const werewolf = antagonistsCount - warlock;
 
   // 2. Tentukan Power Roles (Protagonis Spesial)
@@ -31,11 +30,11 @@ export const calculateRoles = (playerCount, roleSettings) => {
 
   const specialProtagonists = {
     hakim: 1, // Poros utama, selalu ada jika count >= 5
-    seer: (count >= 5 && isSeerEnabled) ? 1 : 0,
-    guard: (count >= 6 && isGuardEnabled) ? 1 : 0,
-    hunter: (count >= 8 && isHunterEnabled) ? 1 : 0,
-    lovers: (count >= 5 && isLoversEnabled) ? 1 : 0,
-    joker: (count >= 6 && isJokerEnabled) ? 1 : 0,
+    seer: isSeerEnabled ? 1 : 0,
+    guard: isGuardEnabled ? 1 : 0,
+    hunter: isHunterEnabled ? 1 : 0,
+    lovers: isLoversEnabled ? 1 : 0,
+    joker: isJokerEnabled ? 1 : 0,
   };
 
   const totalSpecial = Object.values(specialProtagonists).reduce((a, b) => a + b, 0);

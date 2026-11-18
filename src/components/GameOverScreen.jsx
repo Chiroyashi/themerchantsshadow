@@ -122,7 +122,7 @@ const GameOverScreen = ({ winner, players, playerData, onLeave }) => {
                     ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20 shadow-[0_0_20px_rgba(59,130,246,0.2)]'
                     : 'bg-red-600/10 text-red-500 border border-red-500/20 shadow-[0_0_20px_rgba(239,68,68,0.2)]'
               }`}>
-                {isJokerWinner ? "Joker Menang (Solo Victory)" : isWargaWinner ? "Tim Penduduk Menang" : "Tim Werewolf Menang"}
+                {isJokerWinner ? "Joker Menang" : isWargaWinner ? "Tim Penduduk Menang" : "Tim Werewolf Menang"}
               </div>
             </div>
             <div className="relative inline-block">

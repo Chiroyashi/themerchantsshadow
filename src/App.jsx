@@ -321,9 +321,13 @@ function AppContent() {
 
 function App() {
   const [authLoaded, setAuthLoaded] = useState(false);
+  const [authError, setAuthError] = useState(false);
 
   useEffect(() => {
-    authReady.then(() => setAuthLoaded(true));
+    authReady.then((user) => {
+      if (!user) setAuthError(true);
+      setAuthLoaded(true);
+    });
   }, []);
 
   if (!authLoaded) {
@@ -332,6 +336,22 @@ function App() {
         <div className="text-slate-500 text-[10px] font-black uppercase tracking-[0.4em] animate-pulse">
           Menyambungkan...
         </div>
+      </div>
+    );
+  }
+
+  if (authError) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-4 p-6 text-center">
+        <p className="text-slate-300 text-xs font-bold uppercase tracking-widest">
+          Gagal menyambungkan ke server. Periksa koneksi lalu coba lagi.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-6 py-3 rounded-2xl bg-red-600 text-white text-xs font-black uppercase tracking-widest"
+        >
+          Coba Lagi
+        </button>
       </div>
     );
   }

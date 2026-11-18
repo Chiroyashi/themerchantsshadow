@@ -5,7 +5,7 @@ import InviteLink from '../components/InviteLink';
 import { useGameContext } from '../contexts/GameContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { calculateRoles } from '../utils/roleBalancer';
-import { isRoleActive } from '../utils/gameLogic';
+import { isRoleActive, MIN_PLAYERS_BY_ROLE } from '../utils/gameLogic';
 
 const Lobby = () => {
   const { roomCode, players, myPlayerId, isHost, handleStartGame, handleKickPlayer, roleSettings, handleToggleRole, handleLeaveLobby, handleRename, playerName } = useGameContext();
@@ -383,21 +383,17 @@ const Lobby = () => {
                 { key: 'Lovers', label: 'Lovers', icon: Heart },
                 { key: 'Joker', label: 'Joker', icon: ClownIcon }
               ].map(r => {
+                const minPlayersForRole = MIN_PLAYERS_BY_ROLE[r.key];
+                const isUnlocked = !minPlayersForRole || participantsCount >= minPlayersForRole;
                 const isEnabled = isRoleActive(r.key, roleSettings, participantsCount);
                 const Icon = r.icon;
-                const isRecommended = (
-                  (r.key === 'Seer' && participantsCount >= 5) ||
-                  (r.key === 'Guard' && participantsCount >= 6) ||
-                  (r.key === 'Hunter' && participantsCount >= 8) ||
-                  (r.key === 'Warlock' && participantsCount >= 7) ||
-                  (r.key === 'Lovers' && participantsCount >= 5) ||
-                  (r.key === 'Joker' && participantsCount >= 6)
-                );
+                const isRecommended = isUnlocked && isEnabled;
                 return (
                   <button
                     key={r.key}
-                    onClick={() => handleToggleRole(r.key, !isEnabled)}
-                    className={`flex items-center justify-between p-3 rounded-2xl border transition-all text-left cursor-pointer active:scale-95 ${
+                    onClick={() => isUnlocked && handleToggleRole(r.key, !isEnabled)}
+                    disabled={!isUnlocked}
+                    className={`flex items-center justify-between p-3 rounded-2xl border transition-all text-left cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
                       isEnabled
                         ? 'bg-blue-600/10 border-blue-500/30 text-white'
                         : 'bg-slate-950/40 border-transparent text-slate-500'
@@ -408,6 +404,11 @@ const Lobby = () => {
                         <Icon size={16} className={isEnabled ? 'text-blue-400' : 'text-slate-600'} />
                         <span className="text-[10px] font-black uppercase tracking-wider">{r.label}</span>
                       </div>
+                      {!isUnlocked && (
+                        <span className="text-[7px] font-black uppercase bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700 mt-0.5">
+                          Minimal {minPlayersForRole} pemain
+                        </span>
+                      )}
                       {isRecommended && (
                         <span className="text-[7px] font-black uppercase bg-emerald-600/20 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20 mt-0.5">
                           Rekomendasi

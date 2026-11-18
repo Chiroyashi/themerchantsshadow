@@ -17,7 +17,6 @@ import { useGameContext } from '../contexts/GameContext';
 import { useTimerContext } from '../contexts/TimerContext';
 import { playNotificationChime } from '../utils/audio';
 import { useNotification } from '../contexts/NotificationContext';
-import { checkWinCondition } from '../utils/winCondition';
 import { getRoleActionConfig } from '../utils/roleActions';
 import { Z_LAYER } from '../constants/zIndex';
 import { lockScroll, unlockScroll } from '../utils/scrollLock';
@@ -157,9 +156,9 @@ const ViewRole = ({ onNext }) => {
     hunterActed: playerData?.hunterActed || false,
     lastProtectedDay: playerData?.lastProtectedDay || 0,
     warlockInventory: playerData?.warlockInventory,
-    warlockSkipped: playerData?.warlockSkipped,
     warlockItemUsed: playerData?.warlockItemUsed,
     warlockActed: playerData?.warlockActed,
+    partnerId: playerData?.partnerId,
     currentPhase: phase,
     alivePedagangCount: players.filter(p => p.role === 'Pedagang' && p.status !== 'dead').length,
   };
@@ -397,7 +396,6 @@ const ViewRole = ({ onNext }) => {
 
     try {
       await update(ref(db), updates);
-      await checkWinCondition(roomCode);
     } catch {
       setOptimisticActed(false);
     }
@@ -492,21 +490,22 @@ const ViewRole = ({ onNext }) => {
       timestamp: getTimestamp()
     };
 
-    // Hakim Pistol (siang) — INSTANT KILL: langsung set status dead
     if (isHakim && isPistol && actionTarget) {
-      updates[`rooms/${roomCode}/players/${actionTarget}/status`] = 'dead';
-      updates[`rooms/${roomCode}/players/${playerData.id}/pistolActed`] = true;
-      updates[`rooms/${roomCode}/players/${playerData.id}/pistolUsedCount`] = pistolUsedCount + 1;
-
       const targetPlayer = players.find(p => p.id === actionTarget);
       const namesList = [targetPlayer?.name || "Unknown"];
       const detailsList = { [targetPlayer?.name || "Unknown"]: "hakim" };
 
       if (targetPlayer && targetPlayer.partnerId) {
-        updates[`rooms/${roomCode}/players/${targetPlayer.partnerId}/status`] = 'dead';
         namesList.push(targetPlayer.partnerName);
         detailsList[targetPlayer.partnerName] = "lovers";
       }
+
+      updates[`rooms/${roomCode}/players/${playerData.id}/pistolActed`] = true;
+      updates[`rooms/${roomCode}/players/${playerData.id}/pistolUsedCount`] = pistolUsedCount + 1;
+      updates[`rooms/${roomCode}/players/${playerData.id}/pistolTargetId`] = actionTarget;
+      updates[`rooms/${roomCode}/players/${playerData.id}/pistolPartnerTargetId`] = targetPlayer?.partnerId || null;
+      updates[`rooms/${roomCode}/players/${playerData.id}/pistolDeadNames`] = namesList;
+      updates[`rooms/${roomCode}/players/${playerData.id}/pistolDeadDetails`] = detailsList;
 
       // Kirim gunshotEvent untuk efek guncang layar & kilatan merah
       updates[`rooms/${roomCode}/gunshotEvent`] = {
@@ -523,14 +522,6 @@ const ViewRole = ({ onNext }) => {
         text: `BARRR! Suara tembakan terdengar! Hakim telah menembak ${targetPlayer?.name || "Unknown"}!${targetPlayer?.partnerId ? ` Pasangannya (${targetPlayer.partnerName}) ikut tewas karena patah hati!` : ''}`,
         target: "all",
         channel: "public",
-        timestamp: getTimestamp()
-      };
-
-      // Langsung kirim notif kematian ke target
-      updates[`rooms/${roomCode}/deadToday`] = {
-        day,
-        names: namesList,
-        details: detailsList,
         timestamp: getTimestamp()
       };
     }
@@ -608,6 +599,16 @@ const ViewRole = ({ onNext }) => {
       };
     }
 
+    if (role.includes("lovers") && type === 'skip') {
+      updates[`rooms/${roomCode}/players/${playerData.id}/currentAction`] = {
+        role: "Lovers",
+        action: "bind",
+        targetId: "skip",
+        targetName: "Skip",
+        timestamp: getTimestamp()
+      };
+    }
+
     // Lovers
     if (role.includes("lovers") && actionTarget && type !== 'skip') {
       updates[`rooms/${roomCode}/players/${playerData.id}/currentAction`] = {
@@ -638,12 +639,7 @@ const ViewRole = ({ onNext }) => {
       updates[`rooms/${roomCode}/players/${playerData.id}/hunterActed`] = true;
     }
 
-    update(ref(db), updates).then(async () => {
-      // Auto check win condition setelah Pistol kill
-      if (isHakim && isPistol && actionTarget) {
-        await checkWinCondition(roomCode);
-      }
-    }).catch(() => {
+    update(ref(db), updates).catch(() => {
       // Jika gagal, reset agar user bisa coba lagi
       setOptimisticActed(false);
     });
@@ -680,7 +676,6 @@ const ViewRole = ({ onNext }) => {
     // State warlock ke Firebase
     const warlockUpdates = {};
     if (choice === 'skip') {
-      warlockUpdates[`rooms/${roomCode}/players/${playerData.id}/warlockSkipped`] = true;
       warlockUpdates[`rooms/${roomCode}/players/${playerData.id}/warlockActed`] = true;
     } else if (choice === 'buy' && item) {
       warlockUpdates[`rooms/${roomCode}/players/${playerData.id}/warlockInventory`] = item;
@@ -745,10 +740,7 @@ const ViewRole = ({ onNext }) => {
   const faksi = (() => {
     if (isDead) return 'DEAD';
     if (role.includes('lovers')) {
-      if (playerData?.loversTeam === 'SERIGALA') return 'SERIGALA';
-      if (playerData?.loversTeam === 'WARGA') return 'WARGA';
-      if (playerData?.loversTeam === 'INDEPENDEN') return 'JOKER';
-      return 'LOVERS_NO_TEAM';
+      return playerData?.loversTeam || 'LOVERS_NO_TEAM';
     }
     if (role.includes('joker')) return 'JOKER';
     if (role.includes('werewolf') || role.includes('warlock')) return 'SERIGALA';
@@ -950,14 +942,15 @@ const ViewRole = ({ onNext }) => {
             // Tentukan apakah role ini punya action yang available — via getRoleActionConfig
             const isHakimSiang = actionConfig.phaseType === 'day' && actionConfig.canAct;
             const isHakimMalam = isNight && actionConfig.canAct && actionConfig.actionType === 'truth';
-            const isWarlockMalam = role.includes("warlock") && isNight;
+            const isWarlockMalam = role.includes("warlock") && isNight && actionConfig.canAct;
             const isSeerMalam = isNight && actionConfig.canAct;
             const isGuardMalam = isNight && actionConfig.canAct;
             const isHunterMalam = isNight && actionConfig.canAct;
             const isWerewolfMalam = isNight && actionConfig.canAct;
+            const isLoversMalam = role.includes('lovers') && isNight && actionConfig.canAct;
             const isDayForHakimPistol = actionConfig.phaseType === 'day' && actionConfig.canAct;
 
-            const hasAction = isHakimSiang || isHakimMalam || isWarlockMalam || isSeerMalam || isGuardMalam || isHunterMalam || isWerewolfMalam || isDayForHakimPistol;
+            const hasAction = isHakimSiang || isHakimMalam || isWarlockMalam || isSeerMalam || isGuardMalam || isHunterMalam || isWerewolfMalam || isLoversMalam || isDayForHakimPistol;
 
             if (!hasAction || isDead) return null;
 

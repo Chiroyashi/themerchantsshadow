@@ -1,26 +1,21 @@
-import { ref, remove, get } from "firebase/database";
+import { ref, remove, get, query, orderByChild, endAt } from "firebase/database";
 import { db } from "../lib/firebase";
+import { CLEANUP_DAYS, DAY_MS, isRoomAbandoned } from "./roomSafety";
 
-export const CLEANUP_DAYS = 7;
+export { CLEANUP_DAYS };
 
 export const cleanupOldRooms = async () => {
   try {
-    const roomsRef = ref(db, "rooms");
-    const snapshot = await get(roomsRef);
-    
+    const now = Date.now();
+    const cutoff = now - CLEANUP_DAYS * DAY_MS;
+    const roomsQuery = query(ref(db, "rooms"), orderByChild("createdAt"), endAt(cutoff));
+    const snapshot = await get(roomsQuery);
+
     if (!snapshot.exists()) return 0;
 
-    const rooms = snapshot.val();
-    const now = Date.now();
-    const maxAge = CLEANUP_DAYS * 24 * 60 * 60 * 1000;
     let deletedCount = 0;
-
-    for (const [roomCode, roomData] of Object.entries(rooms)) {
-      const roomTime = roomData.createdAt || roomData.introStartedAt || 0;
-      const isOld = (now - roomTime) > maxAge;
-      const isEnded = roomData.status === "ended" || roomData.status === "destroyed";
-      
-      if (isOld && isEnded) {
+    for (const [roomCode, roomData] of Object.entries(snapshot.val())) {
+      if (isRoomAbandoned(roomData, now)) {
         await remove(ref(db, `rooms/${roomCode}`));
         deletedCount++;
         console.log(`[Cleanup] Deleted old room: ${roomCode}`);
@@ -35,12 +30,7 @@ export const cleanupOldRooms = async () => {
 };
 
 export const deleteRoom = async (roomCode) => {
-  try {
-    await remove(ref(db, `rooms/${roomCode}`));
-    console.log(`[Room] Deleted: ${roomCode}`);
-    return true;
-  } catch (error) {
-    console.error("[Room] Delete error:", error);
-    return false;
-  }
+  await remove(ref(db, `rooms/${roomCode}`));
+  console.log(`[Room] Deleted: ${roomCode}`);
+  return true;
 };

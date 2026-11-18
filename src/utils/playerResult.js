@@ -3,7 +3,8 @@ export const isPlayerWinner = (player, winner) => {
   const roleLower = player.role?.toLowerCase() || "";
 
   if (winner === 'JOKER') {
-    return roleLower === 'joker';
+    if (roleLower === 'joker') return true;
+    return roleLower === 'lovers' && player.loversTeam === 'JOKER';
   }
   if (roleLower === 'joker') {
     return false;
