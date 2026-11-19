@@ -13,6 +13,7 @@ const GameContext = createContext(null);
 
 const MAX_PLAYERS = 20;
 const SESSION_KEYS = ['room_code', 'my_player_id', 'game_match_id', 'last_page'];
+const DEV_MODE_KEY = 'dev_mode';
 const clearSession = () => {
   SESSION_KEYS.forEach(k => localStorage.removeItem(k));
 };
@@ -28,6 +29,7 @@ export function GameProvider({ children }) {
   const [gameMatchId, setGameMatchId] = useState(() => localStorage.getItem('game_match_id') || '');
   const [players, setPlayers] = useState([]);
   const [isJoining, setIsJoining] = useState(false);
+  const [devMode, setDevMode] = useState(() => localStorage.getItem(DEV_MODE_KEY) === 'true');
 
   // --- Auth UID (from anonymous auth) ---
   const [authUid, setAuthUid] = useState(null);
@@ -42,6 +44,7 @@ export function GameProvider({ children }) {
   const [gameWinner, setGameWinner] = useState(null);
   const [roomStatus, setRoomStatus] = useState(null);
   const [roleSettings, setRoleSettings] = useState({});
+  const moderatorEnabled = roleSettings.Moderator !== false;
 
   // --- Navigation State ---
   const [currentPage, setCurrentPage] = useState(() => {
@@ -69,6 +72,8 @@ export function GameProvider({ children }) {
   authUidRef.current = authUid;
   const gameMatchIdRef = useRef(gameMatchId);
   gameMatchIdRef.current = gameMatchId;
+  const moderatorEnabledRef = useRef(moderatorEnabled);
+  moderatorEnabledRef.current = moderatorEnabled;
 
   const myData = players.find(p => p.id === myPlayerId);
 
@@ -225,7 +230,7 @@ export function GameProvider({ children }) {
         setCurrentPage('intro-fable');
       }
       if (data.status === "playing" && ['room-lobby', 'intro-fable'].includes(curPage)) {
-        setCurrentPage(curIsHost ? 'view-mod' : 'view-role');
+        setCurrentPage(moderatorEnabledRef.current && curIsHost ? 'view-mod' : 'view-role');
       }
     }, (error) => {
       if (error?.code !== 'permission_denied') return;
@@ -252,6 +257,145 @@ export function GameProvider({ children }) {
 
   const clearInviteCode = useCallback(() => setInviteCode(''), []);
 
+  const activateDevMode = useCallback(() => {
+    localStorage.setItem(DEV_MODE_KEY, 'true');
+    setDevMode(true);
+  }, []);
+
+  const exitDevMode = useCallback(() => {
+    localStorage.removeItem(DEV_MODE_KEY);
+    setDevMode(false);
+    clearSession();
+    notifiedDestroyedRoomRef.current = null;
+    lastPlayerStateRef.current = '';
+    setRoomCode('');
+    setMyPlayerId(null);
+    setGameMatchId('');
+    gameMatchIdRef.current = '';
+    setIsHost(false);
+    setPlayers([]);
+    setGameWinner(null);
+    setRoomStatus(null);
+    setRoleSettings({});
+    setIsJoining(false);
+    setInviteCode('');
+    setCurrentPage('landing');
+  }, []);
+
+  const startDiagnostic = useCallback(async () => {
+    if (isJoining) return;
+    const uid = authUidRef.current;
+    if (!uid) {
+      showNotif("Error", "Auth belum siap. Coba lagi.", "error");
+      return;
+    }
+    setIsJoining(true);
+    try {
+      await cleanupOldRooms();
+      const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const newMatchId = "dev_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
+      const devName = (playerName || "Developer").replace(/ \(Moderator\)$/, "");
+      const dummyNames = ['Agent A', 'Agent B', 'Agent C', 'Agent D'];
+      const playersObj = {
+        [uid]: { name: devName, role: "Pending", status: "alive", authUid: uid, joinedAt: Date.now() }
+      };
+      dummyNames.forEach((n, i) => {
+        playersObj[`dev_dummy_${i + 1}`] = { name: n, role: "Pending", status: "alive", authUid: `dev_dummy_auth_${i + 1}`, joinedAt: Date.now() + i + 1 };
+      });
+      const roomData = {
+        gameMatchId: newMatchId,
+        hostId: uid,
+        status: "waiting",
+        host: devName,
+        roleSettings: { Moderator: false },
+        createdAt: Date.now(),
+        lastActivityAt: Date.now(),
+        members: { [uid]: uid },
+        timer: { isActive: false, seconds: 60, phase: "Pagi (Diskusi)", day: 1 },
+        players: playersObj
+      };
+      await set(ref(db, "rooms/" + newCode), roomData);
+
+      const startPlayers = Object.entries(playersObj).map(([id, p]) => ({ id, ...p }));
+      const playersWithRoles = distributeRoles(startPlayers, { Moderator: false });
+      const updates = {};
+      playersWithRoles.forEach(p => {
+        updates[`rooms/${newCode}/players/${p.id}/role`] = p.role;
+        updates[`rooms/${newCode}/players/${p.id}/status`] = "alive";
+        updates[`rooms/${newCode}/players/${p.id}/name`] = p.name;
+      });
+      updates[`rooms/${newCode}/status`] = "intro";
+      updates[`rooms/${newCode}/introStartedAt`] = Date.now();
+      updates[`rooms/${newCode}/lastActivityAt`] = Date.now();
+      await update(ref(db), updates);
+
+      setRoomCode(newCode);
+      setMyPlayerId(uid);
+      setGameMatchId(newMatchId);
+      gameMatchIdRef.current = newMatchId;
+      notifiedDestroyedRoomRef.current = null;
+      lastPlayerStateRef.current = '';
+      setIsHost(true);
+      setPlayerName(devName);
+      setCurrentPage('intro-fable');
+    } catch (e) {
+      console.error(e);
+      showNotif("Error", "Gagal memulai diagnostic.", "error");
+    } finally {
+      setIsJoining(false);
+    }
+  }, [isJoining, playerName, showNotif]);
+
+  const switchDevRole = useCallback(async (nextRole) => {
+    if (!devMode || !roomCode || !myPlayerId) return;
+    const devRoles = ['Moderator', 'Werewolf', 'Warlock', 'Seer', 'Guard', 'Hakim', 'Hunter', 'Pedagang', 'Joker', 'Lovers'];
+    if (!devRoles.includes(nextRole)) return;
+
+    const baseName = (playerName || (myData?.name || 'Developer')).replace(/ \(Moderator\)$/, '');
+    const updates = {
+      [`rooms/${roomCode}/players/${myPlayerId}/role`]: nextRole,
+      [`rooms/${roomCode}/players/${myPlayerId}/status`]: 'alive',
+      [`rooms/${roomCode}/players/${myPlayerId}/currentAction`]: null,
+      [`rooms/${roomCode}/players/${myPlayerId}/name`]: nextRole === 'Moderator' ? `${baseName} (Moderator)` : baseName,
+      [`rooms/${roomCode}/players/${myPlayerId}/warlockInventory`]: null,
+      [`rooms/${roomCode}/players/${myPlayerId}/warlockItemUsed`]: null,
+      [`rooms/${roomCode}/players/${myPlayerId}/warlockActed`]: null,
+      [`rooms/${roomCode}/players/${myPlayerId}/warlockSkipped`]: null,
+      [`rooms/${roomCode}/players/${myPlayerId}/truthActed`]: null,
+      [`rooms/${roomCode}/players/${myPlayerId}/underTruth`]: false,
+      [`rooms/${roomCode}/players/${myPlayerId}/pistolActed`]: null,
+      [`rooms/${roomCode}/players/${myPlayerId}/pistolUsedCount`]: 0,
+      [`rooms/${roomCode}/players/${myPlayerId}/pistolTargetId`]: null,
+      [`rooms/${roomCode}/players/${myPlayerId}/pistolPartnerTargetId`]: null,
+      [`rooms/${roomCode}/players/${myPlayerId}/pistolDeadNames`]: null,
+      [`rooms/${roomCode}/players/${myPlayerId}/pistolDeadDetails`]: null,
+      [`rooms/${roomCode}/players/${myPlayerId}/pistolResolved`]: null,
+      [`rooms/${roomCode}/players/${myPlayerId}/hunterActed`]: null,
+      [`rooms/${roomCode}/players/${myPlayerId}/lastProtectedTarget`]: null,
+      [`rooms/${roomCode}/players/${myPlayerId}/lastProtectedDay`]: 0,
+      [`rooms/${roomCode}/players/${myPlayerId}/selfProtectedCount`]: 0,
+      [`rooms/${roomCode}/players/${myPlayerId}/partnerId`]: null,
+      [`rooms/${roomCode}/players/${myPlayerId}/partnerName`]: null,
+      [`rooms/${roomCode}/players/${myPlayerId}/loversTeam`]: null,
+      [`rooms/${roomCode}/roleSettings/Moderator`]: nextRole === 'Moderator',
+      [`rooms/${roomCode}/seerResult/${myPlayerId}`]: null,
+      [`rooms/${roomCode}/seerReveal/${myPlayerId}`]: null,
+      [`rooms/${roomCode}/werewolfResult/${myPlayerId}`]: null,
+      [`rooms/${roomCode}/hunterResult/${myPlayerId}`]: null,
+      [`rooms/${roomCode}/warlockResult/${myPlayerId}`]: null,
+      [`rooms/${roomCode}/votes/${myPlayerId}`]: null
+    };
+    try {
+      await update(ref(db), updates);
+      if (['intro-fable', 'view-role', 'view-mod'].includes(currentPageRef.current)) {
+        setCurrentPage(nextRole === 'Moderator' ? 'view-mod' : 'view-role');
+      }
+    } catch (e) {
+      console.error(e);
+      showNotif("Error", "Gagal mengganti role dev.", "error");
+    }
+  }, [devMode, roomCode, myPlayerId, playerName, myData, showNotif]);
+
   const handleCreateRoom = useCallback(async (name) => {
     await cleanupOldRooms();
     const finalName = name || "Moderator";
@@ -267,6 +411,7 @@ export function GameProvider({ children }) {
       hostId: hostId,
       status: "waiting",
       host: finalName,
+      roleSettings: { Moderator: true },
       createdAt: Date.now(),
       lastActivityAt: Date.now(),
       members: { [hostId]: hostId },
@@ -339,7 +484,8 @@ export function GameProvider({ children }) {
         showNotif("Ditolak", msg, "error");
         return;
       }
-      const participantCount = Object.values(roomVal.players || {}).filter(p => p && p.role !== 'Moderator' && !p.leftAt).length;
+      const moderatorOn = roomVal.roleSettings?.Moderator !== false;
+      const participantCount = Object.values(roomVal.players || {}).filter(p => p && !p.leftAt && (!moderatorOn || p.role !== 'Moderator')).length;
       if (participantCount >= MAX_PLAYERS) {
         setIsJoining(false);
         showNotif("Penuh", `Room sudah mencapai ${MAX_PLAYERS} pemain.`, "error");
@@ -384,22 +530,35 @@ export function GameProvider({ children }) {
 
   const handleStartGame = useCallback(async () => {
     const activePlayers = players.filter(p => p.status !== 'dead');
-    const participants = activePlayers.filter(p => p.role !== 'Moderator');
+    const hostId = authUidRef.current;
+    const startPlayers = moderatorEnabled
+      ? activePlayers
+      : activePlayers.map(p => p.id === hostId
+        ? { ...p, role: 'Pending', name: (p.name || '').replace(/ \(Moderator\)$/, '') }
+        : p);
+    const participants = startPlayers.filter(p => p.role !== 'Moderator');
     if (participants.length < 5) {
       showNotif("Gagal", "Minimal 5 pemain (di luar Moderator)!", "error");
       return;
     }
-    const playersWithRoles = distributeRoles(activePlayers, roleSettings);
+    const playersWithRoles = distributeRoles(startPlayers, roleSettings);
     const updates = {};
     playersWithRoles.forEach(p => {
       updates["players/" + p.id + "/role"] = p.role;
       updates["players/" + p.id + "/status"] = "alive";
+      updates["players/" + p.id + "/name"] = p.name;
     });
     updates["introStartedAt"] = Date.now();
     updates["lastActivityAt"] = Date.now();
     updates["status"] = "intro";
     await update(ref(db, "rooms/" + roomCode), updates);
-  }, [players, roomCode, roleSettings, showNotif]);
+
+    if (!moderatorEnabled) {
+      const successor = playersWithRoles.find(p => p.id !== hostId);
+      await onDisconnect(ref(db, `rooms/${roomCode}/hostId`)).cancel().catch(() => {});
+      await onDisconnect(ref(db, `rooms/${roomCode}/hostId`)).set(successor?.authUid || null).catch(() => {});
+    }
+  }, [players, roomCode, roleSettings, moderatorEnabled, showNotif]);
 
   const handleKillPlayer = useCallback(async (id, status) => {
     if (isHost) {
@@ -444,6 +603,10 @@ export function GameProvider({ children }) {
           [`rooms/${roomCode}/players/${myPlayerId}/status`]: 'dead',
           [`rooms/${roomCode}/players/${myPlayerId}/leftAt`]: Date.now()
         };
+        if (isHost && !moderatorEnabled) {
+          const successor = players.find(p => p.id !== myPlayerId && p.status !== 'dead');
+          updates[`rooms/${roomCode}/hostId`] = successor?.authUid || null;
+        }
         if (authUidRef.current) {
           updates[`rooms/${roomCode}/members/${authUidRef.current}`] = null;
         }
@@ -458,7 +621,7 @@ export function GameProvider({ children }) {
     setMyPlayerId(null);
     setGameMatchId('');
     setCurrentPage(redirectPage);
-  }, [roomCode, myPlayerId, isHost, showNotif]);
+  }, [roomCode, myPlayerId, isHost, moderatorEnabled, players, showNotif]);
 
   const handleLeaveLobby = useCallback(async () => {
     try {
@@ -484,8 +647,17 @@ export function GameProvider({ children }) {
 
   const handleToggleRole = useCallback(async (roleName, isEnabled) => {
     if (!isHost || !roomCode) return;
+    if (roleName === 'Moderator') {
+      const hostId = authUidRef.current;
+      await update(ref(db), {
+        [`rooms/${roomCode}/roleSettings/Moderator`]: isEnabled,
+        [`rooms/${roomCode}/players/${hostId}/role`]: isEnabled ? 'Moderator' : 'Pending',
+        [`rooms/${roomCode}/players/${hostId}/name`]: isEnabled ? `${playerName} (Moderator)` : playerName
+      });
+      return;
+    }
     await set(ref(db, `rooms/${roomCode}/roleSettings/${roleName}`), isEnabled);
-  }, [isHost, roomCode]);
+  }, [isHost, roomCode, playerName]);
 
   const handleRename = useCallback(async (name) => {
     if (!roomCode || !myPlayerId || !name.trim()) return;
@@ -493,22 +665,23 @@ export function GameProvider({ children }) {
     if (isHost) {
       await update(ref(db, `rooms/${roomCode}`), { host: clean });
       await update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`),
-        { name: clean + " (Moderator)" });
+        { name: moderatorEnabled ? clean + " (Moderator)" : clean });
     } else {
       await update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), { name: clean });
     }
     setPlayerName(clean);
-  }, [roomCode, myPlayerId, isHost]);
+  }, [roomCode, myPlayerId, isHost, moderatorEnabled]);
 
   const value = {
     // State
     roomCode, myPlayerId, isHost, playerName, players, myData,
-    gameWinner, roomStatus, isJoining, roleSettings, authUid,
-    currentPage, inviteCode,
+    gameWinner, roomStatus, isJoining, roleSettings, moderatorEnabled, authUid,
+    currentPage, inviteCode, devMode,
     // Actions
     navigate, clearInviteCode, handleCreateRoom, handleJoinRoom, handleKickPlayer,
     handleStartGame, handleKillPlayer, handleEndGame,
     handleDestroyRoom, handleLeaveGame, handleToggleRole, handleLeaveLobby, handleRename,
+    activateDevMode, exitDevMode, startDiagnostic, switchDevRole,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

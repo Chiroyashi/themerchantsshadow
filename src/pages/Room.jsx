@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { get, ref } from "firebase/database";
 import { db } from "../lib/firebase";
-import { Plus, Users, ArrowRight, ChevronLeft, UserCircle, ScrollText, BadgeCheck, GripVertical, Clipboard } from 'lucide-react';
+import { Plus, Users, ArrowRight, ChevronLeft, UserCircle, ScrollText, BadgeCheck, GripVertical, Clipboard, FlaskConical } from 'lucide-react';
 import { useGameContext } from '../contexts/GameContext';
 
 const Room = ({ onBack }) => {
-  const { handleCreateRoom, handleJoinRoom, isJoining, navigate, authUid, inviteCode, clearInviteCode } = useGameContext();
+  const { handleCreateRoom, handleJoinRoom, isJoining, navigate, authUid, inviteCode, clearInviteCode, devMode, startDiagnostic } = useGameContext();
   const [inputCode, setInputCode] = useState(() => inviteCode || '');
   const [roomLocked, setRoomLocked] = useState(false);
   const [lockReason, setLockReason] = useState('');
@@ -50,6 +50,43 @@ const Room = ({ onBack }) => {
 
   const isNameEmpty = tempName.trim().length < 3;
   const nameLength = tempName.trim().length;
+
+  if (devMode) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 p-6 flex flex-col items-center justify-center font-sans">
+        <div className="max-w-md w-full space-y-8">
+          <button
+            onClick={onBack}
+            className="group flex items-center gap-2 text-slate-500 hover:text-white transition-colors text-[10px] uppercase font-black tracking-widest"
+          >
+            <ChevronLeft size={14} className="group-hover:-translate-x-1 transition-transform" /> Kembali
+          </button>
+
+          <div className="text-center space-y-2">
+            <h1 className="text-3xl sm:text-5xl font-black tracking-tighter uppercase italic leading-none">Setup Room</h1>
+            <p className="text-slate-500 text-xs font-medium uppercase tracking-widest flex items-center justify-center gap-2">
+              <ScrollText size={14} /> Memasuki Kota Waranasura
+            </p>
+          </div>
+
+          <button
+            onClick={startDiagnostic}
+            disabled={isJoining}
+            className="w-full group p-8 border rounded-3xl transition-all text-left space-y-3 relative overflow-hidden bg-slate-900 border-blue-500/40 hover:border-blue-400 shadow-xl shadow-blue-900/20 disabled:opacity-60"
+          >
+            <div className="absolute -top-20 -right-20 w-40 h-40 bg-blue-600/10 group-hover:bg-blue-600/20 rounded-full blur-3xl transition-all duration-500" />
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-blue-600 text-white relative z-10">
+              <FlaskConical size={28} />
+            </div>
+            <div className="relative z-10">
+              <h3 className="font-black uppercase tracking-tight text-lg text-white">mulai diagnostic?</h3>
+              <p className="text-[10px] text-slate-400 leading-relaxed uppercase tracking-widest font-bold mt-1">Mode developer • 1 user • ganti role</p>
+            </div>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-6 flex flex-col items-center justify-center font-sans">

@@ -7,13 +7,38 @@
  * License   : Personal Intellectual Property (Indie)
  */
 
-import React from 'react';
-import { 
+import React, { useEffect, useRef } from 'react';
+import {
   Copyright, ShieldCheck, ChevronLeft, Lock, Code2, Coins,
   ShieldAlert, BookOpen
 } from 'lucide-react';
+import { useGameContext } from '../contexts/GameContext';
 
 const Credits = ({ onBack }) => {
+  const { activateDevMode } = useGameContext();
+  const nameClickRef = useRef({ count: 0, timer: null });
+
+  useEffect(() => {
+    const state = nameClickRef.current;
+    return () => {
+      if (state.timer) clearTimeout(state.timer);
+    };
+  }, []);
+
+  const handleSecretNameClick = () => {
+    const state = nameClickRef.current;
+    state.count += 1;
+    if (state.timer) clearTimeout(state.timer);
+    if (state.count >= 3) {
+      state.count = 0;
+      activateDevMode?.();
+      return;
+    }
+    state.timer = setTimeout(() => {
+      state.count = 0;
+    }, 500);
+  };
+
   // Metode URL Constructor: Cara paling aman di Vite untuk akses folder public
   const logoUrl = new URL('/assets/logo.png', import.meta.url).href;
 
@@ -72,7 +97,12 @@ const Credits = ({ onBack }) => {
                 />
               </div>
               <div>
-                <h2 className="text-xl font-black text-white uppercase italic tracking-tighter">Akbar Muzaky</h2>
+                <h2
+                  onClick={handleSecretNameClick}
+                  className="text-xl font-black text-white uppercase italic tracking-tighter cursor-default select-none"
+                >
+                  Akbar Muzaky
+                </h2>
                 <p className="text-red-500 text-[9px] font-black uppercase tracking-[0.3em]">@chiroyashi</p>
               </div>
             </div>

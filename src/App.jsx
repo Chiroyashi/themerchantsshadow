@@ -6,6 +6,11 @@ import { GameProvider, useGameContext } from './contexts/GameContext';
 import { TimerProvider, useTimerContext } from './contexts/TimerContext';
 import { Z_LAYER } from './constants/zIndex';
 import { isSiang } from './constants/phases';
+import { eventKey, hasSeenEvent, markEventSeen } from './utils/eventSeen';
+import { shouldShowLoversWave } from './utils/uiVisibility';
+
+const DEV_ROLES = ['Moderator', 'Werewolf', 'Warlock', 'Seer', 'Guard', 'Hakim', 'Hunter', 'Pedagang', 'Joker', 'Lovers'];
+const IN_MATCH_PAGES = new Set(['room-lobby', 'intro-fable', 'view-role', 'view-mod']);
 
 // Import Pages
 import LandingPage from './pages/LandingPage';
@@ -27,12 +32,28 @@ import LoversWaveOverlay from './components/LoversWaveOverlay';
 import { playClickSound } from './utils/audio';
 
 function AppContent() {
-  const { currentPage, navigate, players, isHost, roomCode, myData, roomStatus, gameWinner, handleLeaveGame } = useGameContext();
+  const { currentPage, navigate, players, isHost, moderatorEnabled, roomCode, myData, roomStatus, gameWinner, handleLeaveGame, devMode, exitDevMode, switchDevRole } = useGameContext();
   const { phase, day, allVoted, seconds } = useTimerContext();
   const [showBoard, setShowBoard] = useState(false);
   const [activeDeathAnimation, setActiveDeathAnimation] = useState(null);
-  const dismissedDayRef = useRef(null);
+  const [devMenuOpen, setDevMenuOpen] = useState(false);
   const prevPhaseRef = useRef(null);
+  const gunshotTimerRef = useRef(null);
+  const devMenuRef = useRef(null);
+
+  const inMatch = !!roomCode && IN_MATCH_PAGES.has(currentPage);
+  const isDevMenuOpen = devMode && devMenuOpen;
+
+  useEffect(() => {
+    if (!isDevMenuOpen) return;
+    const onDown = (e) => {
+      if (devMenuRef.current && !devMenuRef.current.contains(e.target)) {
+        setDevMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [isDevMenuOpen]);
 
   // Global overlays
   const [voteResult, setVoteResult] = useState(null);
@@ -51,12 +72,18 @@ function AppContent() {
     setDeadToday({ names: [], day: 1, details: {} });
     setVoteResult(null);
     setActiveLoversBind(null);
+    setShowGunshotEffect(false);
+    setActiveDeathAnimation(null);
+    setShowBoard(false);
   }
 
   // Update refs di useEffect saat roomCode berubah (kepatuhan React 19: ref hanya boleh dimodifikasi di effect/handler)
   useEffect(() => {
     prevPhaseRef.current = null;
-    dismissedDayRef.current = null;
+    if (gunshotTimerRef.current) clearTimeout(gunshotTimerRef.current);
+    return () => {
+      if (gunshotTimerRef.current) clearTimeout(gunshotTimerRef.current);
+    };
   }, [roomCode]);
 
   // Global UI click sound listener
@@ -77,10 +104,12 @@ function AppContent() {
     const ref_ = ref(db, `rooms/${roomCode}/voteResult`);
     const unsub = onValue(ref_, snap => {
       const data = snap.val();
-      if (data && data.timestamp) {
-        setVoteResult(data);
-        setShowVoteResult(true);
-      }
+      if (!data?.timestamp) return;
+      const key = eventKey('vote', data.timestamp);
+      if (hasSeenEvent(localStorage, roomCode, key)) return;
+      markEventSeen(localStorage, roomCode, key);
+      setVoteResult(data);
+      setShowVoteResult(true);
     });
     return () => {
       unsub();
@@ -89,31 +118,30 @@ function AppContent() {
 
   // Listen deadToday langsung — muncul pas ada data (ditulis processNightResults saat Malam→Pagi)
   useEffect(() => {
-    if (!roomCode || currentPage === 'landing' || isHost) return;
+    if (!roomCode || currentPage === 'landing' || (isHost && moderatorEnabled)) return;
     const deadRef = ref(db, `rooms/${roomCode}/deadToday`);
     const unsub = onValue(deadRef, snap => {
       const data = snap.val();
-      if (data && data.names && data.names.length > 0) {
-        if (dismissedDayRef.current === data.day) return;
-        setDeadToday({ names: data.names, day: data.day, details: data.details || {} });
+      if (!data?.names?.length || !myData?.id) return;
+      const key = eventKey('dead', data.timestamp);
+      if (hasSeenEvent(localStorage, roomCode, key)) return;
+      markEventSeen(localStorage, roomCode, key);
+      setDeadToday({ names: data.names, day: data.day, details: data.details || {} });
 
-        // Cek apakah saya termasuk yang mati
-        const myNameStr = myData?.name;
-        const amIKilled = data.names.includes(myNameStr);
-        if (amIKilled) {
-          const cause = data.details?.[myNameStr] || "general";
-          if (["hunter", "hunter_backfire", "werewolf", "poison", "hakim"].includes(cause)) {
-            setActiveDeathAnimation(cause);
-          } else {
-            setShowDeathPopUp(true);
-          }
+      const myNameStr = myData.name;
+      if (data.names.includes(myNameStr)) {
+        const cause = data.details?.[myNameStr] || "general";
+        if (["hunter", "hunter_backfire", "werewolf", "poison", "hakim"].includes(cause)) {
+          setActiveDeathAnimation(cause);
         } else {
           setShowDeathPopUp(true);
         }
+      } else {
+        setShowDeathPopUp(true);
       }
     });
     return () => unsub();
-  }, [roomCode, currentPage, isHost, myData]);
+  }, [roomCode, currentPage, isHost, moderatorEnabled, myData]);
 
   // Listen gunshotEvent untuk guncangan layar & kilatan merah
   useEffect(() => {
@@ -121,13 +149,16 @@ function AppContent() {
     const gunshotRef = ref(db, `rooms/${roomCode}/gunshotEvent`);
     const unsub = onValue(gunshotRef, snap => {
       const data = snap.val();
-      if (data && data.timestamp && data.timestamp > (Date.now() - 4000)) {
-        setShowGunshotEffect(true);
-        const timer = setTimeout(() => {
-          setShowGunshotEffect(false);
-        }, 1200);
-        return () => clearTimeout(timer);
-      }
+      if (!data?.timestamp) return;
+      const key = eventKey('gunshot', data.timestamp);
+      if (hasSeenEvent(localStorage, roomCode, key)) return;
+      markEventSeen(localStorage, roomCode, key);
+      if (data.timestamp <= Date.now() - 4000) return;
+      setShowGunshotEffect(true);
+      if (gunshotTimerRef.current) clearTimeout(gunshotTimerRef.current);
+      gunshotTimerRef.current = setTimeout(() => {
+        setShowGunshotEffect(false);
+      }, 1200);
     });
     return () => unsub();
   }, [roomCode, currentPage]);
@@ -138,18 +169,30 @@ function AppContent() {
     const loversRef = ref(db, `rooms/${roomCode}/loversBindEvent`);
     const unsub = onValue(loversRef, snap => {
       const data = snap.val();
-      if (data && data.timestamp && data.timestamp > (Date.now() - 6000)) {
-        const myId = myData?.id;
-        if (myId && (myId === data.loverId || myId === data.partnerId)) {
-          const partnerName = myId === data.loverId ? data.partnerName : data.loverName;
-          setActiveLoversBind({ partnerName, timestamp: data.timestamp });
-        }
+      if (!data?.timestamp || !myData?.id) return;
+      const key = eventKey('lovers', data.timestamp);
+      if (hasSeenEvent(localStorage, roomCode, key)) return;
+      markEventSeen(localStorage, roomCode, key);
+      const myId = myData.id;
+      if (shouldShowLoversWave(myId, data)) {
+        const partnerName = myId === data.loverId ? data.partnerName : data.loverName;
+        setActiveLoversBind({ partnerName, timestamp: data.timestamp });
       }
     });
     return () => unsub();
   }, [roomCode, currentPage, myData?.id]);
 
   const isGamePage = ['intro-fable', 'view-role', 'view-mod'].includes(currentPage);
+
+  const renderPlayerView = () => (
+    <div className="fixed inset-0" key={`${myData?.id || 'me'}-${myData?.role || 'none'}`}>
+      {showBoard ? (
+        <GameBoard onBack={() => setShowBoard(false)} />
+      ) : (
+        <ViewRole onNext={() => setShowBoard(true)} />
+      )}
+    </div>
+  );
 
   const renderPage = () => {
     if (isGamePage && roomStatus === 'ended' && gameWinner) {
@@ -181,29 +224,21 @@ function AppContent() {
             roomCode={roomCode}
             playerData={myData}
             onFinish={async () => {
-              if (isHost) {
+              if (isHost && moderatorEnabled) {
                 await update(ref(db, `rooms/${roomCode}`), { status: "playing", "timer/isActive": true });
               } else {
                 // Catat intro selesai biar ViewRole gak ngulang
                 await set(ref(db, `rooms/${roomCode}/introFinished/${myData?.id}`), true);
                 localStorage.setItem(`intro_${roomCode}`, 'true');
               }
-              navigate(isHost ? 'view-mod' : 'view-role');
+              navigate(isHost && moderatorEnabled ? 'view-mod' : 'view-role');
             }}
           />
         );
       case 'view-mod':
-        return <ModeratorDashboard />;
+        return moderatorEnabled ? <ModeratorDashboard /> : renderPlayerView();
       case 'view-role':
-        return (
-          <div className="fixed inset-0">
-            {showBoard ? (
-              <GameBoard onBack={() => setShowBoard(false)} />
-            ) : (
-              <ViewRole onNext={() => setShowBoard(true)} />
-            )}
-          </div>
-        );
+        return renderPlayerView();
       default:
         return <LandingPage onNext={() => navigate('introduction')} />;
     }
@@ -231,9 +266,46 @@ function AppContent() {
 
       {renderPage()}
 
+      {devMode && (
+        <div ref={devMenuRef} className="fixed top-4 right-4 flex flex-col items-end gap-2" style={{ zIndex: Z_LAYER.DEV_BADGE }}>
+          <button
+            onClick={() => setDevMenuOpen((v) => !v)}
+            className="w-10 h-10 rounded-full bg-amber-400 text-slate-900 border-2 border-amber-200 shadow-lg shadow-amber-500/30 flex items-center justify-center text-[10px] font-black lowercase tracking-tight"
+            title="Developer mode"
+          >
+            dev.
+          </button>
+          {isDevMenuOpen && (
+            <div className="w-44 max-h-[70vh] overflow-y-auto rounded-2xl border border-amber-400/30 bg-slate-900/95 backdrop-blur-md shadow-2xl p-2 space-y-1" style={{ zIndex: Z_LAYER.DEV_MENU }}>
+              {inMatch && DEV_ROLES.map((role) => (
+                <button
+                  key={role}
+                  onClick={async () => {
+                    setDevMenuOpen(false);
+                    await switchDevRole(role);
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 transition-colors"
+                >
+                  {role}
+                </button>
+              ))}
+              <button
+                onClick={() => {
+                  setDevMenuOpen(false);
+                  exitDevMode();
+                }}
+                className="w-full text-left px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide text-red-400 hover:bg-red-500/20 transition-colors border-t border-white/5 mt-1 pt-2"
+              >
+                Out
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Red Gunshot Flash Overlay */}
       {showGunshotEffect && (
-        <div className="fixed inset-0 bg-red-600/35 pointer-events-none z-[99999] animate-pulse" />
+        <div className="fixed inset-0 bg-red-600/35 pointer-events-none animate-pulse" style={{ zIndex: Z_LAYER.EFFECT_FLASH }} />
       )}
 
       {/* GLOBAL: Vote Result Overlay — in-game only */}
@@ -252,10 +324,7 @@ function AppContent() {
           deadPlayers={deadToday.names}
           deadDetails={deadToday.details}
           day={deadToday.day}
-          onClose={() => {
-            dismissedDayRef.current = deadToday.day;
-            setShowDeathPopUp(false);
-          }}
+          onClose={() => setShowDeathPopUp(false)}
         />
       )}
 
