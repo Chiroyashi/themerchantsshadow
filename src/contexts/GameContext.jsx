@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { ref, onValue, push, set, update, get, onDisconnect } from "firebase/database";
-import { db, auth } from "../lib/firebase";
+import { db, auth, authReady } from "../lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { distributeRoles } from '../utils/gameLogic';
 import { cleanupOldRooms, deleteRoom } from '../utils/dbCleanup';
@@ -284,7 +284,11 @@ export function GameProvider({ children }) {
 
   const startDiagnostic = useCallback(async () => {
     if (isJoining) return;
-    const uid = authUidRef.current;
+    let uid = authUidRef.current || auth.currentUser?.uid || null;
+    if (!uid) {
+      try { await authReady; } catch { /* ignore */ }
+      uid = authUidRef.current || auth.currentUser?.uid || null;
+    }
     if (!uid) {
       showNotif("Error", "Auth belum siap. Coba lagi.", "error");
       return;
@@ -315,6 +319,10 @@ export function GameProvider({ children }) {
         players: playersObj
       };
       await set(ref(db, "rooms/" + newCode), roomData);
+      await Promise.all([
+        onDisconnect(ref(db, `rooms/${newCode}/hostId`)).set(null).catch(() => {}),
+        onDisconnect(ref(db, `rooms/${newCode}/members/${uid}`)).remove().catch(() => {})
+      ]);
 
       const startPlayers = Object.entries(playersObj).map(([id, p]) => ({ id, ...p }));
       const playersWithRoles = distributeRoles(startPlayers, { Moderator: false });
@@ -340,7 +348,8 @@ export function GameProvider({ children }) {
       setCurrentPage('intro-fable');
     } catch (e) {
       console.error(e);
-      showNotif("Error", "Gagal memulai diagnostic.", "error");
+      const detail = e?.code || e?.message || "unknown";
+      showNotif("Error", `Gagal memulai diagnostic: ${detail}`, "error");
     } finally {
       setIsJoining(false);
     }
