@@ -20,7 +20,7 @@ const RoleModal = ({ role, isOpen, onClose }) => {
       icon: <Heart className="text-pink-500" size={40} />,
       desc: "Dua jiwa yang ditakdirkan terikat. Cinta kalian melampaui batas dan peran.",
       powers: [
-        "Malam ke-2: Pilih 1 pemain hidup untuk menjadi pasangan cintamu.",
+        "Mulai Malam ke-2: Pilih 1 pemain hidup untuk menjadi pasangan cintamu. Bisa dicoba lagi sampai berhasil.",
         "Setelah terikat, tim/faksimu akan mengikuti tim/faksi pasanganmu, termasuk Joker.",
         "Jika salah satu dari kalian mati, yang lain ikut mati seketika karena patah hati."
       ],

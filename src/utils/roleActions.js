@@ -217,16 +217,20 @@ export const getRoleActionConfig = (role, currentDay, totalPlayers, roleState = 
     }
 
     case 'Lovers':
-      if (currentDay === 2) {
+      if (currentDay >= 2) {
         config.canAct = !hasActed && !roleState.partnerId;
         config.actionType = 'lovers-bind';
-        config.reason = hasActed ? "Kamu sudah memilih pasangan." : "MALAM KE-2: Pilih 1 pemain untuk menjadi pasangan hidupmu.";
+        config.reason = roleState.partnerId
+          ? "Kamu sudah terikat dengan pasanganmu."
+          : hasActed
+            ? "Kamu sudah memilih malam ini. Bisa coba lagi malam berikutnya."
+            : "MULAI MALAM KE-2: Pilih 1 pemain untuk menjadi pasangan hidupmu.";
         config.maxUses = 1;
         config.skillName = 'Bind';
       } else {
         config.canAct = false;
         config.actionType = null;
-        config.reason = currentDay < 2 ? "Kemampuan mencari pasangan aktif pada Malam ke-2." : "Kamu sudah terikat dengan pasanganmu.";
+        config.reason = "Kemampuan mencari pasangan aktif mulai Malam ke-2.";
       }
       break;
 
@@ -303,7 +307,7 @@ export const canRoleActTonight = (role, currentDay, playerState = {}) => {
     case 'Warlock':
       return !hasActed;
     case 'Lovers':
-      return currentDay === 2 && !playerState.partnerId && !hasActed;
+      return isNight2OrMore && !playerState.partnerId && !hasActed;
     case 'Joker':
       return false;
     default:

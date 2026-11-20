@@ -76,7 +76,7 @@ test('Hakim Pistol (day) and Truth (night) restrictions', () => {
   assert.strictEqual(nightAlreadyUsed.canAct, false);
 });
 
-test('Lovers bind hanya aktif malam ke-2', () => {
+test('Lovers bind aktif mulai malam ke-2 sampai terikat', () => {
   const night1 = getRoleActionConfig('Lovers', 1, 6, { currentPhase: 'Malam (Eksekusi)' });
   assert.strictEqual(night1.canAct, false);
 
@@ -84,10 +84,16 @@ test('Lovers bind hanya aktif malam ke-2', () => {
   assert.strictEqual(night2.canAct, true);
   assert.strictEqual(night2.actionType, 'lovers-bind');
 
-  const alreadyBound = getRoleActionConfig('Lovers', 2, 6, { currentPhase: 'Malam (Eksekusi)', partnerId: 'p1' });
-  assert.strictEqual(alreadyBound.canAct, false);
+  const night3 = getRoleActionConfig('Lovers', 3, 6, { currentPhase: 'Malam (Eksekusi)' });
+  assert.strictEqual(night3.canAct, true);
+  assert.strictEqual(night3.actionType, 'lovers-bind');
+  assert.strictEqual(canRoleActTonight('Lovers', 3, {}), true);
 
-  const skipped = getRoleActionConfig('Lovers', 2, 6, { currentPhase: 'Malam (Eksekusi)', hasActed: true });
+  const alreadyBound = getRoleActionConfig('Lovers', 3, 6, { currentPhase: 'Malam (Eksekusi)', partnerId: 'p1' });
+  assert.strictEqual(alreadyBound.canAct, false);
+  assert.strictEqual(canRoleActTonight('Lovers', 3, { partnerId: 'p1' }), false);
+
+  const skipped = getRoleActionConfig('Lovers', 3, 6, { currentPhase: 'Malam (Eksekusi)', hasActed: true });
   assert.strictEqual(skipped.canAct, false);
 });
 
