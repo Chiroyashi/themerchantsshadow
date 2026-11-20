@@ -1,4 +1,4 @@
-export const LOVERS_OVERLAY_DELAY_MS = 700;
+export const LOVERS_OVERLAY_DELAY_MS = 0;
 
 export const shouldShowLoversWave = (myId, bindEvent) => {
   if (!bindEvent?.timestamp) return false;
