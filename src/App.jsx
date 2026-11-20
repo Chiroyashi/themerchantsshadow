@@ -8,7 +8,7 @@ import { Z_LAYER } from './constants/zIndex';
 import { DEV_ROLES } from './constants/roles';
 import { isSiang } from './constants/phases';
 import { eventKey, hasSeenEvent, markEventSeen } from './utils/eventSeen';
-import { shouldShowLoversWave } from './utils/uiVisibility';
+import { canShowLoversOverlay, LOVERS_OVERLAY_DELAY_MS, shouldShowLoversWave } from './utils/uiVisibility';
 
 const IN_MATCH_PAGES = new Set(['room-lobby', 'intro-fable', 'view-role', 'view-mod']);
 
@@ -62,6 +62,7 @@ function AppContent() {
   const [showDeathPopUp, setShowDeathPopUp] = useState(false);
   const [showGunshotEffect, setShowGunshotEffect] = useState(false);
   const [activeLoversBind, setActiveLoversBind] = useState(null);
+  const [showLoversOverlay, setShowLoversOverlay] = useState(false);
 
   // Reset overlay tiap room ganti atau game mulai (menggunakan render phase state adjustment untuk efisiensi & kepatuhan React 19)
   const [prevRoomCode, setPrevRoomCode] = useState(roomCode);
@@ -74,6 +75,7 @@ function AppContent() {
     setDeadToday({ names: [], day: 1, details: {} });
     setVoteResult(null);
     setActiveLoversBind(null);
+    setShowLoversOverlay(false);
     setShowGunshotEffect(false);
     setActiveDeathAnimation(null);
     setShowBoard(false);
@@ -176,19 +178,41 @@ function AppContent() {
     const unsub = onValue(loversRef, snap => {
       const data = snap.val();
       if (!data?.timestamp || !myData?.id) return;
+      const myId = myData.id;
+      if (!shouldShowLoversWave(myId, data)) return;
       const key = eventKey('lovers', data.timestamp);
       if (hasSeenEvent(localStorage, roomCode, key)) return;
       markEventSeen(localStorage, roomCode, key);
-      const myId = myData.id;
-      if (shouldShowLoversWave(myId, data)) {
-        const partnerName = myId === data.loverId ? data.partnerName : data.loverName;
-        setActiveLoversBind({ partnerName, timestamp: data.timestamp });
-      }
+      const partnerName = myId === data.loverId ? data.partnerName : data.loverName;
+      setActiveLoversBind({ partnerName, timestamp: data.timestamp });
     });
     return () => unsub();
   }, [roomCode, currentPage, myData?.id]);
 
   const isGamePage = ['intro-fable', 'view-role', 'view-mod'].includes(currentPage);
+  const inPlayerOverlayScope = isGamePage && currentPage !== 'view-mod';
+  const importantOverlayActive =
+    (roomStatus === 'ended' && gameWinner) ||
+    (inPlayerOverlayScope && (
+      (showVoteResult && voteResult) ||
+      showDeathPopUp ||
+      activeDeathAnimation ||
+      (allVoted && isSiang(phase))
+    ));
+
+  const loversOverlayReady = canShowLoversOverlay(activeLoversBind, importantOverlayActive, isGamePage);
+  const loversReadyKey = loversOverlayReady ? activeLoversBind.timestamp : null;
+  const [prevLoversReadyKey, setPrevLoversReadyKey] = useState(loversReadyKey);
+  if (loversReadyKey !== prevLoversReadyKey) {
+    setPrevLoversReadyKey(loversReadyKey);
+    if (showLoversOverlay) setShowLoversOverlay(false);
+  }
+
+  useEffect(() => {
+    if (!loversReadyKey || showLoversOverlay) return;
+    const timer = setTimeout(() => setShowLoversOverlay(true), LOVERS_OVERLAY_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [loversReadyKey, showLoversOverlay]);
 
   const renderPlayerView = () => (
     <div className="fixed inset-0" key={`${myData?.id || 'me'}-${myData?.role || 'none'}`}>
@@ -348,10 +372,13 @@ function AppContent() {
       )}
 
       {/* GLOBAL: Lovers Double Wave Overlay saat aksi Lovers dipilih */}
-      {activeLoversBind && isGamePage && (
+      {showLoversOverlay && activeLoversBind && isGamePage && (
         <LoversWaveOverlay
           partnerName={activeLoversBind.partnerName}
-          onFinish={() => setActiveLoversBind(null)}
+          onFinish={() => {
+            setActiveLoversBind(null);
+            setShowLoversOverlay(false);
+          }}
         />
       )}
 

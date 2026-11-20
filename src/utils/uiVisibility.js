@@ -1,10 +1,12 @@
-export const LOVERS_WAVE_WINDOW_MS = 6000;
+export const LOVERS_OVERLAY_DELAY_MS = 700;
 
-export const shouldShowLoversWave = (myId, bindEvent, now = Date.now()) => {
+export const shouldShowLoversWave = (myId, bindEvent) => {
   if (!bindEvent?.timestamp) return false;
-  if (bindEvent.timestamp <= now - LOVERS_WAVE_WINDOW_MS) return false;
   return myId === bindEvent.loverId || myId === bindEvent.partnerId;
 };
+
+export const canShowLoversOverlay = (pendingBind, importantOverlayActive, isGamePage) =>
+  Boolean(pendingBind && isGamePage && !importantOverlayActive);
 
 export const shouldShowJujurBadge = (isUnderTruth, isSystemTruth, isSystemGunshot) =>
   Boolean(isUnderTruth && !isSystemTruth && !isSystemGunshot);

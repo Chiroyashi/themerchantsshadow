@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 import { getPlayerTeam } from '../src/utils/roleActions.js';
 import { isPlayerWinner } from '../src/utils/playerResult.js';
+import { canShowLoversOverlay, shouldShowLoversWave } from '../src/utils/uiVisibility.js';
 
 function simulateLoversBindAction(roomCode, loverData, targetPlayer) {
   const updates = {};
@@ -26,17 +27,6 @@ function simulateLoversBindAction(roomCode, loverData, targetPlayer) {
   };
 
   return updates;
-}
-
-function shouldShowLoversWave(myId, bindEvent) {
-  if (!bindEvent || !bindEvent.timestamp) return false;
-  const isRecent = Date.now() - bindEvent.timestamp < 10000;
-  if (!isRecent) return false;
-
-  const isLover = myId === bindEvent.loverId;
-  const isPartner = myId === bindEvent.partnerId;
-
-  return isLover || isPartner;
 }
 
 test('Lovers bind action creates both currentAction and loversBindEvent', () => {
@@ -72,6 +62,19 @@ test('Double wave is shown to Lovers and their Partner, but NOT to third parties
 
   // Third party bystander (e.g. Werewolf or Hakim) does NOT see it
   assert.strictEqual(shouldShowLoversWave('p_other', bindEvent), false);
+});
+
+test('Partner yang load telat tetap melihat double wave', () => {
+  const bindEvent = { loverId: 'p_lover', partnerId: 'p_partner', timestamp: Date.now() - 60000 };
+  assert.strictEqual(shouldShowLoversWave('p_partner', bindEvent), true);
+});
+
+test('Lovers overlay ditunda saat overlay penting aktif', () => {
+  const pending = { partnerName: 'Juliet', timestamp: Date.now() };
+  assert.strictEqual(canShowLoversOverlay(pending, true, true), false);
+  assert.strictEqual(canShowLoversOverlay(pending, false, false), false);
+  assert.strictEqual(canShowLoversOverlay(pending, false, true), true);
+  assert.strictEqual(canShowLoversOverlay(null, false, true), false);
 });
 
 function resolveLoversTeam(partnerRole) {
