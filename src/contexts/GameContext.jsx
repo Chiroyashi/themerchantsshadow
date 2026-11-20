@@ -390,11 +390,12 @@ export function GameProvider({ children }) {
       setMyPlayerId(devSlotId(nextRole));
       setPlayerName(nextRole);
       localStorage.setItem(`intro_${roomCode}`, 'true');
+      navigate(nextRole === 'Moderator' ? 'view-mod' : 'view-role');
     } catch (e) {
       console.error(e);
       showNotif("Error", `Gagal mengambil alih slot dev: ${e?.code || e?.message || "unknown"}`, "error");
     }
-  }, [devMode, roomCode, playerName, showNotif]);
+  }, [devMode, roomCode, playerName, navigate, showNotif]);
 
   const handleCreateRoom = useCallback(async (name) => {
     await cleanupOldRooms();
