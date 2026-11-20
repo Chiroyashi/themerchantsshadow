@@ -7,16 +7,22 @@
  * License   : Personal Intellectual Property (Indie)
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Copyright, ShieldCheck, ChevronLeft, Lock, Code2, Coins,
   ShieldAlert, BookOpen
 } from 'lucide-react';
 import { useGameContext } from '../contexts/GameContext';
+import { Z_LAYER } from '../constants/zIndex';
+import { isDevPasswordValid } from '../utils/devDiagnostics';
 
 const Credits = ({ onBack }) => {
   const { activateDevMode } = useGameContext();
   const nameClickRef = useRef({ count: 0, timer: null });
+  const passwordInputRef = useRef(null);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState('');
 
   useEffect(() => {
     const state = nameClickRef.current;
@@ -25,13 +31,37 @@ const Credits = ({ onBack }) => {
     };
   }, []);
 
+  useEffect(() => {
+    if (showPasswordModal) passwordInputRef.current?.focus();
+  }, [showPasswordModal]);
+
+  const closePasswordModal = () => {
+    setShowPasswordModal(false);
+    setPasswordInput('');
+    setPasswordError('');
+  };
+
+  const handlePasswordSubmit = (e) => {
+    e.preventDefault();
+    if (!isDevPasswordValid(passwordInput)) {
+      setPasswordError('PW salah');
+      setPasswordInput('');
+      passwordInputRef.current?.focus();
+      return;
+    }
+    closePasswordModal();
+    activateDevMode?.();
+  };
+
   const handleSecretNameClick = () => {
     const state = nameClickRef.current;
     state.count += 1;
     if (state.timer) clearTimeout(state.timer);
     if (state.count >= 3) {
       state.count = 0;
-      activateDevMode?.();
+      setPasswordInput('');
+      setPasswordError('');
+      setShowPasswordModal(true);
       return;
     }
     state.timer = setTimeout(() => {
@@ -196,6 +226,57 @@ const Credits = ({ onBack }) => {
            </div>
         </footer>
       </div>
+
+      {showPasswordModal && (
+        <div
+          className="fixed inset-0 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md"
+          style={{ zIndex: Z_LAYER.NOTIFICATION }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="dev-password-title"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) closePasswordModal(); }}
+          onKeyDown={(e) => { if (e.key === 'Escape') closePasswordModal(); }}
+        >
+          <form
+            onSubmit={handlePasswordSubmit}
+            className="w-full max-w-sm rounded-[2rem] border border-amber-400/30 bg-slate-900 p-8 space-y-6 text-center shadow-2xl"
+          >
+            <div className="flex justify-center text-amber-400"><Lock size={20} /></div>
+            <div className="space-y-2">
+              <h2 id="dev-password-title" className="text-lg font-black uppercase italic tracking-tighter text-white">Akses Developer</h2>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Masukkan PW untuk membuka mode dev.</p>
+            </div>
+            <input
+              ref={passwordInputRef}
+              type="password"
+              value={passwordInput}
+              onChange={(e) => { setPasswordInput(e.target.value); setPasswordError(''); }}
+              placeholder="PW"
+              autoComplete="off"
+              aria-label="Password developer"
+              className="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-center text-sm font-black tracking-[0.3em] text-white outline-none focus:border-amber-400/60"
+            />
+            {passwordError && (
+              <p className="text-[10px] font-black uppercase tracking-widest text-red-500">{passwordError}</p>
+            )}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={closePasswordModal}
+                className="flex-1 rounded-2xl bg-slate-800 py-3 text-[10px] font-black uppercase tracking-widest text-slate-300"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                className="flex-1 rounded-2xl bg-amber-400 py-3 text-[10px] font-black uppercase tracking-widest text-slate-900"
+              >
+                Buka
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 };

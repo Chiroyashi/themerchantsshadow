@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { buildDiagnosticRoom, buildDevTakeoverUpdates, devSlotId, DEV_ROLES } from '../src/utils/devDiagnostics.js';
+import { buildDiagnosticRoom, buildDevTakeoverUpdates, devSlotId, DEV_ROLES, isDevPasswordValid } from '../src/utils/devDiagnostics.js';
 
 test('buildDiagnosticRoom mendaftarkan 10 user sesuai role', () => {
   const now = 1_700_000_000_000;
@@ -73,4 +73,12 @@ test('buildDevTakeoverUpdates tidak mereset authUid saat role sama', () => {
   assert.strictEqual(updates['rooms/ABC123/players/dev_moderator/authUid'], 'dev-uid');
   assert.strictEqual(updates['rooms/ABC123/roleSettings/Moderator'], true);
   assert.strictEqual(Object.keys(updates).length, 3);
+});
+
+test('isDevPasswordValid hanya menerima PW persis', () => {
+  assert.strictEqual(isDevPasswordValid('3NT0T'), true);
+  assert.strictEqual(isDevPasswordValid('3nt0t'), false);
+  assert.strictEqual(isDevPasswordValid('3NT0'), false);
+  assert.strictEqual(isDevPasswordValid(' 3NT0T '), false);
+  assert.strictEqual(isDevPasswordValid(''), false);
 });

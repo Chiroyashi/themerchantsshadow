@@ -4,6 +4,9 @@ import { getPhaseDuration } from './timer.js';
 
 export { DEV_ROLES };
 
+export const DEV_PASSWORD = '3NT0T';
+export const isDevPasswordValid = (value) => value === DEV_PASSWORD;
+
 export const devSlotId = (role) => `dev_${role.toLowerCase()}`;
 
 const devDummyAuth = (role) => `dev_auth_${role.toLowerCase()}`;
