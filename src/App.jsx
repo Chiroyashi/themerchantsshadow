@@ -5,11 +5,11 @@ import { NotificationProvider } from './contexts/NotificationContext';
 import { GameProvider, useGameContext } from './contexts/GameContext';
 import { TimerProvider, useTimerContext } from './contexts/TimerContext';
 import { Z_LAYER } from './constants/zIndex';
+import { DEV_ROLES } from './constants/roles';
 import { isSiang } from './constants/phases';
 import { eventKey, hasSeenEvent, markEventSeen } from './utils/eventSeen';
 import { shouldShowLoversWave } from './utils/uiVisibility';
 
-const DEV_ROLES = ['Moderator', 'Werewolf', 'Warlock', 'Seer', 'Guard', 'Hakim', 'Hunter', 'Pedagang', 'Joker', 'Lovers'];
 const IN_MATCH_PAGES = new Set(['room-lobby', 'intro-fable', 'view-role', 'view-mod']);
 
 // Import Pages
@@ -32,7 +32,7 @@ import LoversWaveOverlay from './components/LoversWaveOverlay';
 import { playClickSound } from './utils/audio';
 
 function AppContent() {
-  const { currentPage, navigate, players, isHost, moderatorEnabled, roomCode, myData, roomStatus, gameWinner, handleLeaveGame, devMode, exitDevMode, switchDevRole } = useGameContext();
+  const { currentPage, navigate, players, isHost, moderatorEnabled, roomCode, myData, myPlayerId, roomStatus, gameWinner, handleLeaveGame, devMode, exitDevMode, takeoverDevSlot } = useGameContext();
   const { phase, day, allVoted, seconds } = useTimerContext();
   const [showBoard, setShowBoard] = useState(false);
   const [activeDeathAnimation, setActiveDeathAnimation] = useState(null);
@@ -65,7 +65,9 @@ function AppContent() {
 
   // Reset overlay tiap room ganti atau game mulai (menggunakan render phase state adjustment untuk efisiensi & kepatuhan React 19)
   const [prevRoomCode, setPrevRoomCode] = useState(roomCode);
+  const [prevPlayerId, setPrevPlayerId] = useState(myPlayerId);
   if (roomCode !== prevRoomCode) {
+    setPrevPlayerId(myPlayerId);
     setPrevRoomCode(roomCode);
     setShowVoteResult(false);
     setShowDeathPopUp(false);
@@ -74,6 +76,10 @@ function AppContent() {
     setActiveLoversBind(null);
     setShowGunshotEffect(false);
     setActiveDeathAnimation(null);
+    setShowBoard(false);
+  }
+  if (myPlayerId !== prevPlayerId) {
+    setPrevPlayerId(myPlayerId);
     setShowBoard(false);
   }
 
@@ -236,7 +242,7 @@ function AppContent() {
           />
         );
       case 'view-mod':
-        return moderatorEnabled ? <ModeratorDashboard /> : renderPlayerView();
+        return (moderatorEnabled || devMode) ? <ModeratorDashboard /> : renderPlayerView();
       case 'view-role':
         return renderPlayerView();
       default:
@@ -277,18 +283,31 @@ function AppContent() {
           </button>
           {isDevMenuOpen && (
             <div className="w-44 max-h-[70vh] overflow-y-auto rounded-2xl border border-amber-400/30 bg-slate-900/95 backdrop-blur-md shadow-2xl p-2 space-y-1" style={{ zIndex: Z_LAYER.DEV_MENU }}>
-              {inMatch && DEV_ROLES.map((role) => (
-                <button
-                  key={role}
-                  onClick={async () => {
-                    setDevMenuOpen(false);
-                    await switchDevRole(role);
-                  }}
-                  className="w-full text-left px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 transition-colors"
-                >
-                  {role}
-                </button>
-              ))}
+              {inMatch && (
+                <>
+                  <button
+                    onClick={() => {
+                      setDevMenuOpen(false);
+                      navigate('view-mod');
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide text-amber-300 hover:bg-amber-500/20 transition-colors border-b border-white/5 mb-1 pb-2"
+                  >
+                    Dashboard
+                  </button>
+                  {DEV_ROLES.map((role) => (
+                    <button
+                      key={role}
+                      onClick={async () => {
+                        setDevMenuOpen(false);
+                        await takeoverDevSlot(role);
+                      }}
+                      className={`w-full text-left px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide transition-colors ${myData?.role === role ? 'bg-amber-500/20 text-amber-300' : 'text-slate-200 hover:bg-amber-500/20 hover:text-amber-300'}`}
+                    >
+                      {role}
+                    </button>
+                  ))}
+                </>
+              )}
               <button
                 onClick={() => {
                   setDevMenuOpen(false);

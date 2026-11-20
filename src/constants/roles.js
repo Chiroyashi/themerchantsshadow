@@ -24,3 +24,5 @@ export const TEAM_JOKER = [
 export const TEAM_LAINNYA = [
   { name: "Lovers", desc: "Mencari pasangan di malam ke-2. Tim dan nasibnya akan terikat dengan pasangannya.", type: "Independent" }
 ];
+
+export const DEV_ROLES = ['Moderator', 'Werewolf', 'Warlock', 'Seer', 'Guard', 'Hakim', 'Hunter', 'Pedagang', 'Joker', 'Lovers'];

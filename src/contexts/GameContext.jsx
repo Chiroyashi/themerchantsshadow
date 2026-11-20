@@ -6,8 +6,11 @@ import { onAuthStateChanged } from "firebase/auth";
 import { distributeRoles } from '../utils/gameLogic';
 import { cleanupOldRooms, deleteRoom } from '../utils/dbCleanup';
 import { checkWinCondition } from '../utils/winCondition';
+import { buildDiagnosticRoom, buildDevTakeoverUpdates, devSlotId } from '../utils/devDiagnostics';
 import { useNotification } from './NotificationContext';
 import { pickNextHostUid } from '../utils/roomSafety';
+import { PHASE } from '../constants/phases';
+import { getPhaseDuration } from '../utils/timer';
 
 const GameContext = createContext(null);
 
@@ -16,6 +19,17 @@ const SESSION_KEYS = ['room_code', 'my_player_id', 'game_match_id', 'last_page']
 const DEV_MODE_KEY = 'dev_mode';
 const clearSession = () => {
   SESSION_KEYS.forEach(k => localStorage.removeItem(k));
+};
+
+const writeWithRetry = async (write) => {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await write();
+    } catch (e) {
+      if (e?.code !== 'permission-denied' || attempt === 1) throw e;
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
+  }
 };
 
 export function GameProvider({ children }) {
@@ -64,6 +78,7 @@ export function GameProvider({ children }) {
   currentPageRef.current = currentPage;
   const isHostRef = useRef(isHost);
   isHostRef.current = isHost;
+  const isJoiningRef = useRef(false);
   const myPlayerIdRef = useRef(myPlayerId);
   myPlayerIdRef.current = myPlayerId;
   const roomStatusRef = useRef(roomStatus);
@@ -262,12 +277,22 @@ export function GameProvider({ children }) {
     setDevMode(true);
   }, []);
 
-  const exitDevMode = useCallback(() => {
+  const exitDevMode = useCallback(async () => {
+    if (roomCode && gameMatchIdRef.current.startsWith('dev_')) {
+      notifiedDestroyedRoomRef.current = roomCode;
+      try {
+        await deleteRoom(roomCode);
+      } catch (e) {
+        console.error(e);
+      }
+    }
     localStorage.removeItem(DEV_MODE_KEY);
-    setDevMode(false);
     clearSession();
+    clearTimeout(destroyRedirectRef.current);
+    destroyRedirectRef.current = null;
     notifiedDestroyedRoomRef.current = null;
     lastPlayerStateRef.current = '';
+    setDevMode(false);
     setRoomCode('');
     setMyPlayerId(null);
     setGameMatchId('');
@@ -278,12 +303,13 @@ export function GameProvider({ children }) {
     setRoomStatus(null);
     setRoleSettings({});
     setIsJoining(false);
+    isJoiningRef.current = false;
     setInviteCode('');
     setCurrentPage('landing');
-  }, []);
+  }, [roomCode]);
 
   const startDiagnostic = useCallback(async () => {
-    if (isJoining) return;
+    if (isJoiningRef.current) return;
     let uid = authUidRef.current || auth.currentUser?.uid || null;
     if (!uid) {
       try { await authReady; } catch { /* ignore */ }
@@ -293,117 +319,82 @@ export function GameProvider({ children }) {
       showNotif("Error", "Auth belum siap. Coba lagi.", "error");
       return;
     }
+    isJoiningRef.current = true;
     setIsJoining(true);
+    let step = 'createRoom';
     try {
       await cleanupOldRooms();
+      await auth.currentUser?.getIdToken?.();
       const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
       const newMatchId = "dev_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
-      const devName = (playerName || "Developer").replace(/ \(Moderator\)$/, "");
-      const dummyNames = ['Agent A', 'Agent B', 'Agent C', 'Agent D'];
-      const playersObj = {
-        [uid]: { name: devName, role: "Pending", status: "alive", authUid: uid, joinedAt: Date.now() }
-      };
-      dummyNames.forEach((n, i) => {
-        playersObj[`dev_dummy_${i + 1}`] = { name: n, role: "Pending", status: "alive", authUid: `dev_dummy_auth_${i + 1}`, joinedAt: Date.now() + i + 1 };
+      const now = Date.now();
+      const { roomData, updates: roomUpdates, moderatorSlotId } = buildDiagnosticRoom({
+        uid,
+        matchId: newMatchId,
+        now
       });
-      const roomData = {
-        gameMatchId: newMatchId,
-        hostId: uid,
-        status: "waiting",
-        host: devName,
-        roleSettings: { Moderator: false },
-        createdAt: Date.now(),
-        lastActivityAt: Date.now(),
-        members: { [uid]: uid },
-        timer: { isActive: false, seconds: 60, phase: "Pagi (Diskusi)", day: 1 },
-        players: playersObj
-      };
-      await set(ref(db, "rooms/" + newCode), roomData);
-      await Promise.all([
-        onDisconnect(ref(db, `rooms/${newCode}/hostId`)).set(null).catch(() => {}),
-        onDisconnect(ref(db, `rooms/${newCode}/members/${uid}`)).remove().catch(() => {})
-      ]);
+      await writeWithRetry(() => set(ref(db, "rooms/" + newCode), roomData));
+      step = 'onDisconnect';
+      await onDisconnect(ref(db, `rooms/${newCode}/members/${uid}`)).remove().catch(() => {});
 
-      const startPlayers = Object.entries(playersObj).map(([id, p]) => ({ id, ...p }));
-      const playersWithRoles = distributeRoles(startPlayers, { Moderator: false });
+      step = 'seedState';
       const updates = {};
-      playersWithRoles.forEach(p => {
-        updates[`rooms/${newCode}/players/${p.id}/role`] = p.role;
-        updates[`rooms/${newCode}/players/${p.id}/status`] = "alive";
-        updates[`rooms/${newCode}/players/${p.id}/name`] = p.name;
+      Object.entries(roomUpdates).forEach(([path, value]) => {
+        updates[`rooms/${newCode}/${path}`] = value;
       });
-      updates[`rooms/${newCode}/status`] = "intro";
-      updates[`rooms/${newCode}/introStartedAt`] = Date.now();
-      updates[`rooms/${newCode}/lastActivityAt`] = Date.now();
-      await update(ref(db), updates);
+      await writeWithRetry(() => update(ref(db), updates));
 
       setRoomCode(newCode);
-      setMyPlayerId(uid);
+      setMyPlayerId(moderatorSlotId);
       setGameMatchId(newMatchId);
       gameMatchIdRef.current = newMatchId;
       notifiedDestroyedRoomRef.current = null;
       lastPlayerStateRef.current = '';
       setIsHost(true);
-      setPlayerName(devName);
-      setCurrentPage('intro-fable');
+      setPlayerName('Moderator');
+      setCurrentPage('view-mod');
     } catch (e) {
       console.error(e);
       const detail = e?.code || e?.message || "unknown";
-      showNotif("Error", `Gagal memulai diagnostic: ${detail}`, "error");
+      showNotif("Error", `Gagal memulai diagnostic [${step}]: ${detail}`, "error");
     } finally {
+      isJoiningRef.current = false;
       setIsJoining(false);
     }
-  }, [isJoining, playerName, showNotif]);
+  }, [showNotif]);
 
-  const switchDevRole = useCallback(async (nextRole) => {
-    if (!devMode || !roomCode || !myPlayerId) return;
-    const devRoles = ['Moderator', 'Werewolf', 'Warlock', 'Seer', 'Guard', 'Hakim', 'Hunter', 'Pedagang', 'Joker', 'Lovers'];
-    if (!devRoles.includes(nextRole)) return;
+  const takeoverDevSlot = useCallback(async (nextRole) => {
+    if (!devMode || !roomCode || !isHostRef.current) return;
+    if (roomStatusRef.current === 'ended') return;
+    const uid = authUidRef.current || auth.currentUser?.uid;
+    if (!uid) return;
 
-    const baseName = (playerName || (myData?.name || 'Developer')).replace(/ \(Moderator\)$/, '');
-    const updates = {
-      [`rooms/${roomCode}/players/${myPlayerId}/role`]: nextRole,
-      [`rooms/${roomCode}/players/${myPlayerId}/status`]: 'alive',
-      [`rooms/${roomCode}/players/${myPlayerId}/currentAction`]: null,
-      [`rooms/${roomCode}/players/${myPlayerId}/name`]: nextRole === 'Moderator' ? `${baseName} (Moderator)` : baseName,
-      [`rooms/${roomCode}/players/${myPlayerId}/warlockInventory`]: null,
-      [`rooms/${roomCode}/players/${myPlayerId}/warlockItemUsed`]: null,
-      [`rooms/${roomCode}/players/${myPlayerId}/warlockActed`]: null,
-      [`rooms/${roomCode}/players/${myPlayerId}/warlockSkipped`]: null,
-      [`rooms/${roomCode}/players/${myPlayerId}/truthActed`]: null,
-      [`rooms/${roomCode}/players/${myPlayerId}/underTruth`]: false,
-      [`rooms/${roomCode}/players/${myPlayerId}/pistolActed`]: null,
-      [`rooms/${roomCode}/players/${myPlayerId}/pistolUsedCount`]: 0,
-      [`rooms/${roomCode}/players/${myPlayerId}/pistolTargetId`]: null,
-      [`rooms/${roomCode}/players/${myPlayerId}/pistolPartnerTargetId`]: null,
-      [`rooms/${roomCode}/players/${myPlayerId}/pistolDeadNames`]: null,
-      [`rooms/${roomCode}/players/${myPlayerId}/pistolDeadDetails`]: null,
-      [`rooms/${roomCode}/players/${myPlayerId}/pistolResolved`]: null,
-      [`rooms/${roomCode}/players/${myPlayerId}/hunterActed`]: null,
-      [`rooms/${roomCode}/players/${myPlayerId}/lastProtectedTarget`]: null,
-      [`rooms/${roomCode}/players/${myPlayerId}/lastProtectedDay`]: 0,
-      [`rooms/${roomCode}/players/${myPlayerId}/selfProtectedCount`]: 0,
-      [`rooms/${roomCode}/players/${myPlayerId}/partnerId`]: null,
-      [`rooms/${roomCode}/players/${myPlayerId}/partnerName`]: null,
-      [`rooms/${roomCode}/players/${myPlayerId}/loversTeam`]: null,
-      [`rooms/${roomCode}/roleSettings/Moderator`]: nextRole === 'Moderator',
-      [`rooms/${roomCode}/seerResult/${myPlayerId}`]: null,
-      [`rooms/${roomCode}/seerReveal/${myPlayerId}`]: null,
-      [`rooms/${roomCode}/werewolfResult/${myPlayerId}`]: null,
-      [`rooms/${roomCode}/hunterResult/${myPlayerId}`]: null,
-      [`rooms/${roomCode}/warlockResult/${myPlayerId}`]: null,
-      [`rooms/${roomCode}/votes/${myPlayerId}`]: null
-    };
+    const updates = buildDevTakeoverUpdates({
+      roomCode,
+      uid,
+      role: nextRole,
+      previousRole: playerName
+    });
+    if (!updates) return;
+
+    if (roomStatusRef.current === 'intro') {
+      const targetSlotId = devSlotId(nextRole);
+      updates[`rooms/${roomCode}/status`] = 'playing';
+      updates[`rooms/${roomCode}/introFinished/${targetSlotId}`] = true;
+      updates[`rooms/${roomCode}/timer/isActive`] = true;
+      updates[`rooms/${roomCode}/timer/endsAt`] = Date.now() + getPhaseDuration(PHASE.PAGI, 1) * 1000;
+    }
+
     try {
-      await update(ref(db), updates);
-      if (['intro-fable', 'view-role', 'view-mod'].includes(currentPageRef.current)) {
-        setCurrentPage(nextRole === 'Moderator' ? 'view-mod' : 'view-role');
-      }
+      await writeWithRetry(() => update(ref(db), updates));
+      setMyPlayerId(devSlotId(nextRole));
+      setPlayerName(nextRole);
+      localStorage.setItem(`intro_${roomCode}`, 'true');
     } catch (e) {
       console.error(e);
-      showNotif("Error", "Gagal mengganti role dev.", "error");
+      showNotif("Error", `Gagal mengambil alih slot dev: ${e?.code || e?.message || "unknown"}`, "error");
     }
-  }, [devMode, roomCode, myPlayerId, playerName, myData, showNotif]);
+  }, [devMode, roomCode, playerName, showNotif]);
 
   const handleCreateRoom = useCallback(async (name) => {
     await cleanupOldRooms();
@@ -430,16 +421,13 @@ export function GameProvider({ children }) {
       }
     };
     await set(ref(db, "rooms/" + newCode), roomData);
-    await Promise.all([
-      onDisconnect(ref(db, `rooms/${newCode}/hostId`)).set(null).catch(() => {}),
-      onDisconnect(ref(db, `rooms/${newCode}/members/${hostId}`)).remove().catch(() => {})
-    ]);
+    await onDisconnect(ref(db, `rooms/${newCode}/members/${hostId}`)).remove().catch(() => {});
     setRoomCode(newCode);
     setMyPlayerId(hostId);
     setGameMatchId(newMatchId);
     gameMatchIdRef.current = newMatchId;
     notifiedDestroyedRoomRef.current = null;
-        lastPlayerStateRef.current = '';
+    lastPlayerStateRef.current = '';
     setIsHost(true);
     setPlayerName(finalName);
     setCurrentPage('room-lobby');
@@ -690,7 +678,7 @@ export function GameProvider({ children }) {
     navigate, clearInviteCode, handleCreateRoom, handleJoinRoom, handleKickPlayer,
     handleStartGame, handleKillPlayer, handleEndGame,
     handleDestroyRoom, handleLeaveGame, handleToggleRole, handleLeaveLobby, handleRename,
-    activateDevMode, exitDevMode, startDiagnostic, switchDevRole,
+    activateDevMode, exitDevMode, startDiagnostic, takeoverDevSlot,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

@@ -3,6 +3,7 @@ import { get, ref } from "firebase/database";
 import { db } from "../lib/firebase";
 import { Plus, Users, ArrowRight, ChevronLeft, UserCircle, ScrollText, BadgeCheck, GripVertical, Clipboard, FlaskConical } from 'lucide-react';
 import { useGameContext } from '../contexts/GameContext';
+import { DEV_ROLES } from '../constants/roles';
 
 const Room = ({ onBack }) => {
   const { handleCreateRoom, handleJoinRoom, isJoining, navigate, authUid, inviteCode, clearInviteCode, devMode, startDiagnostic } = useGameContext();
@@ -54,7 +55,7 @@ const Room = ({ onBack }) => {
   if (devMode) {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 p-6 flex flex-col items-center justify-center font-sans">
-        <div className="max-w-md w-full space-y-8">
+        <div className="max-w-md w-full space-y-6">
           <button
             onClick={onBack}
             className="group flex items-center gap-2 text-slate-500 hover:text-white transition-colors text-[10px] uppercase font-black tracking-widest"
@@ -69,6 +70,28 @@ const Room = ({ onBack }) => {
             </p>
           </div>
 
+          <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4 space-y-3">
+            <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-slate-400">
+              <span className="flex items-center gap-2"><Users size={14} /> User terdaftar</span>
+              <span>{DEV_ROLES.length} slot</span>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {DEV_ROLES.map((role) => (
+                <div
+                  key={role}
+                  className={`px-2 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wide ${
+                    role === 'Moderator'
+                      ? 'bg-amber-400/10 text-amber-300 border border-amber-400/40'
+                      : 'bg-white/5 text-slate-300'
+                  }`}
+                >
+                  {role}
+                </div>
+              ))}
+            </div>
+            <p className="text-[10px] text-slate-500 font-medium">Developer masuk sebagai Moderator.</p>
+          </div>
+
           <button
             onClick={startDiagnostic}
             disabled={isJoining}
@@ -80,7 +103,7 @@ const Room = ({ onBack }) => {
             </div>
             <div className="relative z-10">
               <h3 className="font-black uppercase tracking-tight text-lg text-white">mulai diagnostic?</h3>
-              <p className="text-[10px] text-slate-400 leading-relaxed uppercase tracking-widest font-bold mt-1">Mode developer • 1 user • ganti role</p>
+              <p className="text-[10px] text-slate-400 leading-relaxed uppercase tracking-widest font-bold mt-1">Mode developer • 10 user • pandu slot lewat menu dev</p>
             </div>
           </button>
         </div>

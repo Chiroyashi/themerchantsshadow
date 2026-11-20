@@ -131,7 +131,7 @@
         "chats": {
           ".write": "auth.uid === root.child('rooms').child($roomCode).child('hostId').val()",
           "$msgId": {
-            ".write": "auth.uid === root.child('rooms').child($roomCode).child('hostId').val() || (root.child('rooms').child($roomCode).child('members').child(auth.uid).exists() && (newData.child('senderId').val() === root.child('rooms').child($roomCode).child('members').child(auth.uid).val() || newData.child('senderId').val() === root.child('rooms').child($roomCode).child('players').child(newData.child('senderId').val()).child('authUid').val() || newData.child('senderId').val() === 'SYSTEM_GUNSHOT'))",
+            ".write": "auth.uid === root.child('rooms').child($roomCode).child('hostId').val() || (root.child('rooms').child($roomCode).child('members').child(auth.uid).exists() && (newData.child('senderId').val() === root.child('rooms').child($roomCode).child('members').child(auth.uid).val() || newData.child('senderId').val() === root.child('rooms').child($roomCode).child('players').child(newData.child('senderId').val()).child('authUid').val() || newData.child('senderId').val() === 'SYSTEM_GUNSHOT' || newData.child('senderId').val() === 'SYSTEM_TRUTH'))",
             ".validate": "newData.hasChildren(['senderId', 'text', 'timestamp'])"
           }
         },
@@ -195,7 +195,7 @@
         },
 
         "merchantClues": {
-          ".write": "auth.uid === root.child('rooms').child($roomCode).child('hostId').val()"
+          ".write": "auth.uid === root.child('rooms').child($roomCode).child('hostId').val() || (root.child('rooms').child($roomCode).child('members').child(auth.uid).exists() && root.child('rooms').child($roomCode).child('players').child(root.child('rooms').child($roomCode).child('members').child(auth.uid).val()).child('role').val() === 'Warlock')"
         },
 
         "truthActivity": {
