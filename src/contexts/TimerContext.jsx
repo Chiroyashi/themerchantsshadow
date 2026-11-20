@@ -663,7 +663,7 @@ export function TimerProvider({ children }) {
         setSeconds(duration);
 
         await update(ref(db), {
-          [`rooms/${roomCode}/timer`]: { phase: newPhase, isActive: targetActive, seconds: duration, endsAt: endTimeRef.current, allVoted: false },
+          [`rooms/${roomCode}/timer`]: { phase: newPhase, day: dayRef.current, isActive: targetActive, seconds: duration, endsAt: endTimeRef.current, allVoted: false },
           [`rooms/${roomCode}/lastActivityAt`]: Date.now()
         });
       } else {
@@ -673,7 +673,7 @@ export function TimerProvider({ children }) {
         setSeconds(duration);
 
         await update(ref(db), {
-          [`rooms/${roomCode}/timer`]: { phase: newPhase, isActive: targetActive, seconds: duration, endsAt: endTimeRef.current, allVoted: false },
+          [`rooms/${roomCode}/timer`]: { phase: newPhase, day: dayRef.current, isActive: targetActive, seconds: duration, endsAt: endTimeRef.current, allVoted: false },
           [`rooms/${roomCode}/lastActivityAt`]: Date.now()
         });
       }
