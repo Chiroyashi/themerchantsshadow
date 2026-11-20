@@ -69,12 +69,11 @@ test('Partner yang load telat tetap melihat double wave', () => {
   assert.strictEqual(shouldShowLoversWave('p_partner', bindEvent), true);
 });
 
-test('Lovers overlay ditunda saat overlay penting aktif', () => {
+test('Lovers overlay aktif di halaman game', () => {
   const pending = { partnerName: 'Juliet', timestamp: Date.now() };
-  assert.strictEqual(canShowLoversOverlay(pending, true, true), false);
-  assert.strictEqual(canShowLoversOverlay(pending, false, false), false);
-  assert.strictEqual(canShowLoversOverlay(pending, false, true), true);
-  assert.strictEqual(canShowLoversOverlay(null, false, true), false);
+  assert.strictEqual(canShowLoversOverlay(pending, true), true);
+  assert.strictEqual(canShowLoversOverlay(pending, false), false);
+  assert.strictEqual(canShowLoversOverlay(null, true), false);
 });
 
 function resolveLoversTeam(partnerRole) {

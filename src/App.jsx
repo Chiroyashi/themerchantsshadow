@@ -190,17 +190,7 @@ function AppContent() {
   }, [roomCode, currentPage, myData?.id]);
 
   const isGamePage = ['intro-fable', 'view-role', 'view-mod'].includes(currentPage);
-  const inPlayerOverlayScope = isGamePage && currentPage !== 'view-mod';
-  const importantOverlayActive =
-    (roomStatus === 'ended' && gameWinner) ||
-    (inPlayerOverlayScope && (
-      (showVoteResult && voteResult) ||
-      showDeathPopUp ||
-      activeDeathAnimation ||
-      (allVoted && isSiang(phase))
-    ));
-
-  const loversOverlayReady = canShowLoversOverlay(activeLoversBind, importantOverlayActive, isGamePage);
+  const loversOverlayReady = canShowLoversOverlay(activeLoversBind, isGamePage);
   const loversReadyKey = loversOverlayReady ? activeLoversBind.timestamp : null;
   const [prevLoversReadyKey, setPrevLoversReadyKey] = useState(loversReadyKey);
   if (loversReadyKey !== prevLoversReadyKey) {
@@ -214,12 +204,14 @@ function AppContent() {
     return () => clearTimeout(timer);
   }, [loversReadyKey, showLoversOverlay]);
 
+  const loversOverlayVisible = Boolean(showLoversOverlay && activeLoversBind && isGamePage);
+
   const renderPlayerView = () => (
     <div className="fixed inset-0" key={`${myData?.id || 'me'}-${myData?.role || 'none'}`}>
       {showBoard ? (
         <GameBoard onBack={() => setShowBoard(false)} />
       ) : (
-        <ViewRole onNext={() => setShowBoard(true)} />
+        <ViewRole onNext={() => setShowBoard(true)} loversOverlayActive={loversOverlayVisible} />
       )}
     </div>
   );
@@ -352,7 +344,7 @@ function AppContent() {
       )}
 
       {/* GLOBAL: Vote Result Overlay — in-game only */}
-      {showVoteResult && voteResult && isGamePage && currentPage !== 'view-mod' && (
+      {showVoteResult && voteResult && isGamePage && currentPage !== 'view-mod' && !loversOverlayVisible && (
         <VoteAnnouncement
           names={voteResult.names}
           day={voteResult.day}
@@ -362,7 +354,7 @@ function AppContent() {
       )}
 
       {/* GLOBAL: Death Announcement — in-game only */}
-      {showDeathPopUp && isGamePage && currentPage !== 'view-mod' && (
+      {showDeathPopUp && isGamePage && currentPage !== 'view-mod' && !loversOverlayVisible && (
         <DeathAnnouncement
           deadPlayers={deadToday.names}
           deadDetails={deadToday.details}
@@ -383,7 +375,7 @@ function AppContent() {
       )}
 
       {/* GLOBAL: Personal Death Animation Overlay (1-4) */}
-      {activeDeathAnimation && isGamePage && currentPage !== 'view-mod' && (
+      {activeDeathAnimation && isGamePage && currentPage !== 'view-mod' && !loversOverlayVisible && (
         <PersonalDeathAnimation
           cause={activeDeathAnimation}
           playerName={myData?.name}
@@ -395,7 +387,7 @@ function AppContent() {
       )}
 
       {/* GLOBAL: Voting Closed / Transition Overlay */}
-      {allVoted && isSiang(phase) && isGamePage && currentPage !== 'view-mod' && (
+      {allVoted && isSiang(phase) && isGamePage && currentPage !== 'view-mod' && !loversOverlayVisible && (
         <div
           className="fixed inset-0 flex items-center justify-center p-6 bg-black/90 backdrop-blur-md animate-in fade-in duration-500"
           style={{ zIndex: Z_LAYER.PHASE_OVERLAY }}

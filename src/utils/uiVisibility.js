@@ -5,8 +5,8 @@ export const shouldShowLoversWave = (myId, bindEvent) => {
   return myId === bindEvent.loverId || myId === bindEvent.partnerId;
 };
 
-export const canShowLoversOverlay = (pendingBind, importantOverlayActive, isGamePage) =>
-  Boolean(pendingBind && isGamePage && !importantOverlayActive);
+export const canShowLoversOverlay = (pendingBind, isGamePage) =>
+  Boolean(pendingBind && isGamePage);
 
 export const shouldShowJujurBadge = (isUnderTruth, isSystemTruth, isSystemGunshot) =>
   Boolean(isUnderTruth && !isSystemTruth && !isSystemGunshot);

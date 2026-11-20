@@ -49,7 +49,7 @@ const CrackedOverlay = () => (
   </svg>
 );
 
-const ViewRole = ({ onNext }) => {
+const ViewRole = ({ onNext, loversOverlayActive }) => {
   const {
     players, roomCode, myData,
     isHost, gameWinner, handleLeaveGame
@@ -69,11 +69,11 @@ const ViewRole = ({ onNext }) => {
   const [showIntro, setShowIntro] = useState(false);
   const [showWave, setShowWave] = useState(false);
   const [loveAnim, setLoveAnim] = useState(null); // null | 'heart' | 'wave'
+  const [seenPartnerId, setSeenPartnerId] = useState(playerData?.partnerId || null);
   const [showCluePopup, setShowCluePopup] = useState(false);
   const [showActionPopup, setShowActionPopup] = useState(false);
   const [actionPopupData, setActionPopupData] = useState(null);
   const prevPhaseRef = useRef(phase);
-  const prevPartnerIdRef = useRef(playerData?.partnerId);
 
   const isDead = playerData?.status === 'dead';
   const isNight = isMalam(phase);
@@ -97,11 +97,12 @@ const ViewRole = ({ onNext }) => {
   }
 
   // Lovers bind moment: pasangan terikat → heart pop → wave pink (1x, baik Lovers maupun pasangannya)
-  useEffect(() => {
-    const pid = playerData?.partnerId;
-    if (pid && !prevPartnerIdRef.current) setLoveAnim('heart');
-    prevPartnerIdRef.current = pid || null;
-  }, [playerData?.partnerId]);
+  const currentPartnerId = playerData?.partnerId || null;
+  if (currentPartnerId !== seenPartnerId) {
+    setSeenPartnerId(currentPartnerId);
+    if (currentPartnerId && !loversOverlayActive) setLoveAnim('heart');
+  }
+  if (loversOverlayActive && loveAnim) setLoveAnim(null);
 
   useEffect(() => {
     if (loveAnim !== 'heart') return;
@@ -814,7 +815,7 @@ const ViewRole = ({ onNext }) => {
       )}
 
       {/* Lovers bind moment — heart pop + nama pasangan → wave pink (1x, Lovers & pasangannya) */}
-      {loveAnim && faksi !== 'DEAD' && (
+      {loveAnim && !loversOverlayActive && faksi !== 'DEAD' && (
         <div className="fixed inset-0 w-full h-full pointer-events-none overflow-hidden z-[9999]">
           {loveAnim === 'heart' && (
             <>
