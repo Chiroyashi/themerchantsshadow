@@ -211,7 +211,7 @@ function AppContent() {
       {showBoard ? (
         <GameBoard onBack={() => setShowBoard(false)} />
       ) : (
-        <ViewRole onNext={() => setShowBoard(true)} loversOverlayActive={loversOverlayVisible} />
+        <ViewRole onNext={() => setShowBoard(true)} />
       )}
     </div>
   );

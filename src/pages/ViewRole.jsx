@@ -49,7 +49,7 @@ const CrackedOverlay = () => (
   </svg>
 );
 
-const ViewRole = ({ onNext, loversOverlayActive }) => {
+const ViewRole = ({ onNext }) => {
   const {
     players, roomCode, myData,
     isHost, gameWinner, handleLeaveGame
@@ -68,8 +68,6 @@ const ViewRole = ({ onNext, loversOverlayActive }) => {
   const [myClues, setMyClues] = useState(null);
   const [showIntro, setShowIntro] = useState(false);
   const [showWave, setShowWave] = useState(false);
-  const [loveAnim, setLoveAnim] = useState(null); // null | 'heart' | 'wave'
-  const [seenPartnerId, setSeenPartnerId] = useState(playerData?.partnerId || null);
   const [showCluePopup, setShowCluePopup] = useState(false);
   const [showActionPopup, setShowActionPopup] = useState(false);
   const [actionPopupData, setActionPopupData] = useState(null);
@@ -95,20 +93,6 @@ const ViewRole = ({ onNext, loversOverlayActive }) => {
     setWarlockChoice(null);
     setWarlockItem(null);
   }
-
-  // Lovers bind moment: pasangan terikat → heart pop → wave pink (1x, baik Lovers maupun pasangannya)
-  const currentPartnerId = playerData?.partnerId || null;
-  if (currentPartnerId !== seenPartnerId) {
-    setSeenPartnerId(currentPartnerId);
-    if (currentPartnerId && !loversOverlayActive) setLoveAnim('heart');
-  }
-  if (loversOverlayActive && loveAnim) setLoveAnim(null);
-
-  useEffect(() => {
-    if (loveAnim !== 'heart') return;
-    const t = setTimeout(() => setLoveAnim('wave'), 1800);
-    return () => clearTimeout(t);
-  }, [loveAnim]);
 
   // Derive acted status from Firebase data + local optimistic updates
   const actedFromDb = (() => {
@@ -323,7 +307,7 @@ const ViewRole = ({ onNext, loversOverlayActive }) => {
       });
 
     return () => unsubs.forEach(u => u());
-  }, [roomCode, playerData?.id, role, day, phase]);
+  }, [roomCode, playerData?.id, playerData?.partnerId, role, day, phase]);
 
   // Scroll lock for popups
   useEffect(() => {
@@ -785,22 +769,6 @@ const ViewRole = ({ onNext, loversOverlayActive }) => {
         .faction-wave-lovers {
           background: linear-gradient(to top, rgba(236,72,153,0.45), transparent);
         }
-        @keyframes heartPop {
-          0%   { transform: scale(0); opacity: 0; }
-          15%  { transform: scale(1.15); opacity: 1; }
-          35%  { transform: scale(1); }
-          75%  { transform: scale(1.05); opacity: 1; }
-          100% { transform: scale(1.1) translateY(-10px); opacity: 0; }
-        }
-        .heart-pop {
-          animation: heartPop 1.8s ease-in-out both;
-          filter: drop-shadow(0 0 25px rgba(236,72,153,0.95));
-          text-shadow: 0 0 40px rgba(236,72,153,0.9);
-        }
-        .heart-glow-bg {
-          animation: heartPop 1.8s ease-in-out both;
-          background: radial-gradient(circle, rgba(236,72,153,0.4), transparent 70%);
-        }
       `}</style>
 
       {/* Faction Wave Overlay — 1x setelah IntroFable selesai */}
@@ -811,26 +779,6 @@ const ViewRole = ({ onNext, loversOverlayActive }) => {
             className={`faction-wave ${faksi === 'WARGA' ? 'faction-wave-warga' : faksi === 'SERIGALA' ? 'faction-wave-serigala' : faksi === 'JOKER' ? 'faction-wave-joker' : 'faction-wave-lovers'}`}
             onAnimationEnd={() => setShowWave(false)}
           />
-        </div>
-      )}
-
-      {/* Lovers bind moment — heart pop + nama pasangan → wave pink (1x, Lovers & pasangannya) */}
-      {loveAnim && !loversOverlayActive && faksi !== 'DEAD' && (
-        <div className="fixed inset-0 w-full h-full pointer-events-none overflow-hidden z-[9999]">
-          {loveAnim === 'heart' && (
-            <>
-              <div className="absolute inset-0 heart-glow-bg" />
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-5">
-                <span className="heart-pop text-[5rem] sm:text-[8rem]">💖</span>
-                <span className="text-pink-400 font-black uppercase tracking-widest text-lg sm:text-2xl drop-shadow-[0_0_20px_rgba(236,72,153,0.85)]">
-                  {playerData?.partnerName}
-                </span>
-              </div>
-            </>
-          )}
-          {loveAnim === 'wave' && (
-            <div className="faction-wave faction-wave-lovers" onAnimationEnd={() => setLoveAnim(null)} />
-          )}
         </div>
       )}
 
