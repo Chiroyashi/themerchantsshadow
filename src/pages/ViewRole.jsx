@@ -259,16 +259,6 @@ const ViewRole = ({ onNext }) => {
         }),
       },
       {
-        role: 'lovers',
-        forPartner: true,
-        path: `rooms/${roomCode}/players/${playerData.id}/partnerName`,
-        validate: (d) => !!d,
-        map: (d) => ({
-          icon: '💖', title: 'Ikatan Cinta Abadi',
-          desc: `Kamu kini telah terikat cinta abadi dengan ${d}! Jika salah satu dari kalian mati, yang lain juga ikut mati patah hati.`,
-        }),
-      },
-      {
         role: 'hunter',
         path: `rooms/${roomCode}/hunterResult/${playerData.id}`,
         validate: (d) => d && d.targetName,
@@ -459,8 +449,6 @@ const ViewRole = ({ onNext }) => {
     }   else if (role.includes("lovers")) {
       if (isSkip) {
         popupInfo = { icon: "💖", title: "Aksi Dilewati", desc: "Kamu memilih untuk tidak mengikat cinta siapa pun malam ini." };
-      } else {
-        popupInfo = { icon: "💖", title: "Ikatan Cinta", desc: `Kamu memilih ${targetPlayer?.name || "Target"} sebagai pasangan hidup sematimu.` };
       }
     } else if (role.includes("hakim") && !isPistol) {
       if (isSkip) {
