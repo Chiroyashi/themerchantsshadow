@@ -7,6 +7,7 @@ import { checkWinCondition } from '../utils/winCondition';
 import { isSiang, isMalam, isPagi, PHASE } from '../constants/phases';
 import { getRemainingSeconds, getPhaseDuration } from '../utils/timer';
 import { resolveHunterShot, resolveHakimTruth, resolveLoversBinds, resolveLoversChain } from '../utils/nightResolution';
+import { buildJokerVoteUpdates } from '../utils/voteResolution';
 
 const TimerContext = createContext(null);
 
@@ -445,19 +446,13 @@ export function TimerProvider({ children }) {
       const executedPlayer = players.find(p => p.id === executedId);
 
       if (executedPlayer && executedPlayer.role === 'Joker') {
-        await update(ref(db), {
-          [`rooms/${roomCode}/players/${executedId}/status`]: 'dead',
-          [`rooms/${roomCode}/voteResult`]: {
-            day: dayRef.current,
-            names: [executedPlayer.name],
-            executedId,
-            isJoker: true,
-            timestamp: Date.now()
-          },
-          [`rooms/${roomCode}/status`]: 'ended',
-          [`rooms/${roomCode}/winner`]: 'JOKER',
-          [`rooms/${roomCode}/endedAt`]: Date.now()
-        });
+        await update(ref(db), buildJokerVoteUpdates({
+          roomCode,
+          players,
+          executedId,
+          day: dayRef.current,
+          timestamp: Date.now()
+        }));
       } else {
         const voteUpdates = {
           [`rooms/${roomCode}/players/${executedId}/status`]: 'dead'

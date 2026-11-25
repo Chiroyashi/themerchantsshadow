@@ -840,11 +840,6 @@ const ViewRole = ({ onNext }) => {
           <div className="space-y-1">
             <p className="text-slate-300 text-[8px] md:text-[10px] uppercase tracking-[0.3em]">{isNight ? 'Malam' : 'Hari'} ke-{day} • Waranasura</p>
             <h2 className={`text-base sm:text-lg md:text-xl font-bold italic transition-colors ${isDead ? 'text-slate-600' : 'text-blue-400'}`}>{playerData?.name} {playerData?.underTruth && "🔍"}</h2>
-            {playerData?.partnerId && (
-              <p className="text-pink-500 font-black uppercase tracking-widest text-[9px] sm:text-[10px] animate-pulse">
-                💖 Terikat dengan: {playerData.partnerName}
-              </p>
-            )}
           </div>
 
             <div
@@ -1123,6 +1118,12 @@ const ViewRole = ({ onNext }) => {
           >
             🗳️ Vote
           </button>
+          {playerData?.partnerId && (
+            <div className="bg-pink-950/20 border border-pink-600/30 rounded-2xl p-4 space-y-1">
+              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-pink-400">Kalian saling mencinta</p>
+              <p className="text-sm font-black text-pink-200">{playerData.partnerName || 'Pasanganmu'}</p>
+            </div>
+          )}
           <button onClick={() => {
             const msg = gameWinner ? "Room akan dihapus dari database. Lanjutkan?" : "Statusmu jadi MATI. Lanjutkan?";
             showNotif("Keluar", msg, "confirm", onLeave);

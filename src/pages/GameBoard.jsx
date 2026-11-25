@@ -261,8 +261,8 @@ const GameBoard = ({ onBack }) => {
         })}
         {me?.partnerId && me?.partnerName && (
           <div className="col-span-2 p-3 rounded-2xl border border-pink-500/40 bg-pink-950/30 text-center shadow-lg shadow-pink-900/20">
-            <p className="text-[9px] font-black uppercase tracking-[0.25em] text-pink-400">💖 Lovers</p>
-            <p className="mt-1 text-sm font-black text-pink-200">Pasangan: {me.partnerName}</p>
+            <p className="text-[9px] font-black uppercase tracking-[0.25em] text-pink-400">💖 Love</p>
+            <p className="mt-1 text-sm font-black text-pink-200">{me.partnerName}</p>
           </div>
         )}
       </main>
