@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getDatabase } from "firebase/database";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
+import { getAuth, signInAnonymously, signOut } from "firebase/auth";
+import { isStaleAuthError } from "../utils/authRecovery.js";
 
 const env = import.meta.env ?? {};
 const requiredEnvKeys = [
@@ -32,20 +33,29 @@ export const db = getDatabase(app);
 export const auth = getAuth(app);
 
 // Auto-sign-in anonymous, resolve when ready
-export const authReady = new Promise((resolve) => {
-  if (typeof window === 'undefined') {
-    resolve(null);
-    return;
-  }
+const signInAndVerify = async () => {
+  const { user } = await signInAnonymously(auth);
+  await user.getIdToken();
+  return user;
+};
 
-  const unsubscribe = onAuthStateChanged(auth, (user) => {
-    if (user) {
-      unsubscribe();
-      resolve(user);
+const startAnonymousSession = async () => {
+  try {
+    return await signInAndVerify();
+  } catch (error) {
+    if (!isStaleAuthError(error)) {
+      console.error(`Anonymous auth failed (${error?.code || error?.message}):`, error);
+      return null;
     }
-  });
-  signInAnonymously(auth).catch((err) => {
-    console.error("Anonymous auth failed:", err);
-    resolve(null);
-  });
-});
+
+    try {
+      await signOut(auth);
+      return await signInAndVerify();
+    } catch (retryError) {
+      console.error(`Anonymous auth retry failed (${retryError?.code || retryError?.message}):`, retryError);
+      return null;
+    }
+  }
+};
+
+export const authReady = typeof window === "undefined" ? Promise.resolve(null) : startAnonymousSession();

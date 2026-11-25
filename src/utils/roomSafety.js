@@ -29,3 +29,7 @@ export function isRoomAbandoned(room, now = Date.now()) {
   const lastActivityAt = room?.lastActivityAt || createdAt;
   return now - createdAt > CLEANUP_DAYS * DAY_MS && now - lastActivityAt > DAY_MS;
 }
+
+export function canCleanupRoom(room, uid, now = Date.now()) {
+  return Boolean(uid) && room?.hostId === uid && isRoomAbandoned(room, now);
+}

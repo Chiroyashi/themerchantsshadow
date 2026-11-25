@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { DAY_MS, isRoomAbandoned, normalizeMembers, pickNextHostUid } from '../src/utils/roomSafety.js';
+import { DAY_MS, canCleanupRoom, isRoomAbandoned, normalizeMembers, pickNextHostUid } from '../src/utils/roomSafety.js';
 import { buildModeratorToggleUpdates } from '../src/utils/actionPayloads.js';
 
 test('pickNextHostUid chooses the first alive non-moderator member', () => {
@@ -45,4 +45,15 @@ test('isRoomAbandoned needs both old creation and stale activity', () => {
   assert.strictEqual(isRoomAbandoned({ createdAt: old, lastActivityAt: fresh }, now), false);
   assert.strictEqual(isRoomAbandoned({ createdAt: old, lastActivityAt: old }, now), true);
   assert.strictEqual(isRoomAbandoned({}, now), false);
+});
+
+test('canCleanupRoom only allows the host to delete an abandoned room', () => {
+  const now = Date.now();
+  const old = now - 8 * DAY_MS;
+  const room = { hostId: 'uid_host', createdAt: old, lastActivityAt: old };
+
+  assert.strictEqual(canCleanupRoom(room, 'uid_host', now), true);
+  assert.strictEqual(canCleanupRoom(room, 'uid_other', now), false);
+  assert.strictEqual(canCleanupRoom(room, null, now), false);
+  assert.strictEqual(canCleanupRoom({ ...room, lastActivityAt: now }, 'uid_host', now), false);
 });
