@@ -195,7 +195,10 @@
         },
 
         "merchantClues": {
-          ".write": "auth.uid === root.child('rooms').child($roomCode).child('hostId').val() || (root.child('rooms').child($roomCode).child('members').child(auth.uid).exists() && root.child('rooms').child($roomCode).child('players').child(root.child('rooms').child($roomCode).child('members').child(auth.uid).val()).child('role').val() === 'Warlock')"
+          ".write": "auth.uid === root.child('rooms').child($roomCode).child('hostId').val()",
+          "$pedagangId": {
+            ".write": "auth.uid === root.child('rooms').child($roomCode).child('hostId').val() || ((root.child('rooms').child($roomCode).child('members').child(auth.uid).exists() && root.child('rooms').child($roomCode).child('players').child(root.child('rooms').child($roomCode).child('members').child(auth.uid).val()).child('role').val() === 'Warlock') && !data.exists())"
+          }
         },
 
         "truthActivity": {

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert';
 import { DAY_MS, isRoomAbandoned, normalizeMembers, pickNextHostUid } from '../src/utils/roomSafety.js';
+import { buildModeratorToggleUpdates } from '../src/utils/actionPayloads.js';
 
 test('pickNextHostUid chooses the first alive non-moderator member', () => {
   const members = { uid_a: 'p_c', uid_b: 'p_a', uid_host: 'p_mod' };
@@ -21,6 +22,19 @@ test('pickNextHostUid falls back to player authUid on old rooms', () => {
 
   assert.strictEqual(normalizeMembers(null, players).uid_old, 'p_old');
   assert.strictEqual(pickNextHostUid(null, players), 'uid_old');
+});
+
+test('buildModeratorToggleUpdates uses host player id after transfer', () => {
+  const updates = buildModeratorToggleUpdates({
+    roomCode: 'ROOM1',
+    playerId: 'p_successor',
+    playerName: 'Host Baru',
+    isEnabled: true
+  });
+
+  assert.strictEqual(updates['rooms/ROOM1/roleSettings/Moderator'], true);
+  assert.strictEqual(updates['rooms/ROOM1/players/p_successor/role'], 'Moderator');
+  assert.strictEqual(updates['rooms/ROOM1/players/p_successor/name'], 'Host Baru (Moderator)');
 });
 
 test('isRoomAbandoned needs both old creation and stale activity', () => {

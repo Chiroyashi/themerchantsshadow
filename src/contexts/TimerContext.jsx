@@ -5,24 +5,10 @@ import { db } from "../lib/firebase";
 import { useGameContext } from './GameContext';
 import { checkWinCondition } from '../utils/winCondition';
 import { isSiang, isMalam, isPagi, PHASE } from '../constants/phases';
-import { getPlayerTeam } from '../utils/roleActions';
-import { getRemainingSeconds } from '../utils/timer';
+import { getRemainingSeconds, getPhaseDuration } from '../utils/timer';
+import { resolveHunterShot, resolveHakimTruth, resolveLoversBinds, resolveLoversChain } from '../utils/nightResolution';
 
 const TimerContext = createContext(null);
-
-const getPhaseDuration = (phaseName, dayNum) => {
-  const pLower = phaseName?.toLowerCase() || '';
-  if (pLower.includes('pagi')) {
-    return dayNum === 1 ? 60 : 90;
-  }
-  if (pLower.includes('siang')) {
-    return 120;
-  }
-  if (pLower.includes('malam')) {
-    return 90;
-  }
-  return 120; // Fallback default
-};
 
 export function TimerProvider({ children }) {
   const { roomCode, isHost, players } = useGameContext();
@@ -189,7 +175,6 @@ export function TimerProvider({ children }) {
     if (alivePlayers.length === 0) return;
 
     const actionsSnapshot = await get(ref(db, `rooms/${roomCode}/players`));
-    const historySnapshot = await get(ref(db, `rooms/${roomCode}/nightHistory`));
     if (!actionsSnapshot.exists()) return;
 
     const allActions = actionsSnapshot.val();
@@ -217,28 +202,6 @@ export function TimerProvider({ children }) {
       }
     });
 
-    // Juga baca nightHistory/hari_${day} untuk Truth Hakim di siang hari
-    if (historySnapshot.exists()) {
-      const history = historySnapshot.val();
-      const dayHistory = history[`hari_${dayRef.current}`];
-      if (dayHistory) {
-        Object.entries(dayHistory).forEach(([playerId, action]) => {
-          if (action.role === 'Hakim' && action.targetId && action.action === 'Truth') {
-            const alreadyExists = nightActions.some(a => a.playerId === playerId && a.role === 'Hakim');
-            if (!alreadyExists) {
-              nightActions.push({
-                playerId,
-                role: 'Hakim',
-                name: action.senderName,
-                targetId: action.targetId,
-                targetName: action.targetName
-              });
-            }
-          }
-        });
-      }
-    }
-
     // ======================================================
     // PRIORITY QUEUE AKSI MALAM
     // Urutan: Guard → Hunter → Werewolf → Warlock → Seer → Truth
@@ -263,32 +226,11 @@ export function TimerProvider({ children }) {
     // ── STAGE 2: Hunter — tembak duluan (first strike) ──
     const hunterActions = nightActions.filter(a => a.role === 'Hunter' && dayRef.current >= 2);
     for (const hunt of hunterActions) {
-      if (!hunt.targetId) continue;
-      const target = players.find(p => p.id === hunt.targetId);
-      if (!target) continue;
-
-      const isSerigala = target.role === 'Werewolf' || target.role === 'Warlock' || (target.role === 'Lovers' && target.loversTeam === 'SERIGALA');
-
-      if (!isSerigala) {
-        deadIds.add(hunt.targetId);
-        deathCauses[hunt.targetId] = "hunter";
-        deadIds.add(hunt.playerId);
-        deathCauses[hunt.playerId] = "hunter_backfire";
-        const targetDesc = target.role === 'Joker' ? 'Joker' : 'Warga';
-        logs.push(`Hunter ${hunt.name} menembak ${targetDesc} ${hunt.targetName} → Keduanya MATI!`);
-      } else {
-        deadIds.add(hunt.targetId);
-        deathCauses[hunt.targetId] = "hunter";
-        logs.push(`Hunter ${hunt.name} menembak Serigala ${hunt.targetName} → Hunter SELAMAT!`);
-      }
-
-      updates[`rooms/${roomCode}/hunterResult/${hunt.playerId}`] = {
-        targetName: target.name,
-        targetRole: target.role,
-        isCorrect: isSerigala,
-        isHost: false,
-        timestamp: Date.now()
-      };
+      const shot = resolveHunterShot(players, hunt);
+      shot.deadIds.forEach(id => deadIds.add(id));
+      Object.assign(deathCauses, shot.deathCauses);
+      logs.push(...shot.logs);
+      if (shot.hunterResult) updates[`rooms/${roomCode}/hunterResult/${hunt.playerId}`] = shot.hunterResult;
     }
 
     // ── STAGE 3: Werewolf — cek apakah masih hidup ──
@@ -404,61 +346,25 @@ export function TimerProvider({ children }) {
     }
 
     // ── STAGE 6: Hakim Truth (info murni) ──
-    const truthTargets = {};
-    for (const truth of nightActions.filter(a => a.role === 'Hakim')) {
-      if (!truth.targetId) continue;
-      truthTargets[truth.targetId] = true;
-      logs.push(`Hakim ${truth.name} menggunakan Truth pada ${truth.targetName}`);
-    }
+    const truth = resolveHakimTruth({ actions: nightActions, roomCode });
+    Object.assign(updates, truth.updates);
+    logs.push(...truth.logs);
 
     // ── STAGE 7: Lovers — ikat pasangan (Malam 2) ──
-    const partnerMap = {};
-    players.forEach(p => {
-      if (p.partnerId) {
-        partnerMap[p.id] = p.partnerId;
-      }
+    const lovers = resolveLoversBinds({
+      players,
+      binds: nightActions.filter(a => a.role === 'Lovers' && a.actionType === 'bind'),
+      roomCode,
+      deadIds
     });
-
-    for (const bind of nightActions.filter(a => a.role === 'Lovers' && a.actionType === 'bind')) {
-      if (!bind.targetId || partnerMap[bind.playerId] || partnerMap[bind.targetId]) continue;
-      const target = players.find(p => p.id === bind.targetId && p.status !== 'dead' && !deadIds.has(p.id));
-      if (target) {
-        updates[`rooms/${roomCode}/players/${bind.playerId}/partnerId`] = bind.targetId;
-        updates[`rooms/${roomCode}/players/${bind.playerId}/partnerName`] = target.name;
-        updates[`rooms/${roomCode}/players/${bind.targetId}/partnerId`] = bind.playerId;
-        updates[`rooms/${roomCode}/players/${bind.targetId}/partnerName`] = bind.name;
-
-        partnerMap[bind.playerId] = bind.targetId;
-        partnerMap[bind.targetId] = bind.playerId;
-
-        const targetTeam = getPlayerTeam(target.role);
-        const loversTeam = targetTeam === 'INDEPENDEN' ? 'JOKER' : targetTeam;
-        updates[`rooms/${roomCode}/players/${bind.playerId}/loversTeam`] = loversTeam;
-        updates[`rooms/${roomCode}/players/${bind.targetId}/loversTeam`] = loversTeam;
-
-        logs.push(`Lovers ${bind.name} telah mengikat takdir cintanya dengan ${target.name}!`);
-      }
-    }
+    Object.assign(updates, lovers.updates);
+    logs.push(...lovers.logs);
 
     // Lovers broken heart chain deaths
-    let loverDied = true;
-    while (loverDied) {
-      loverDied = false;
-      players.forEach(p => {
-        const partnerId = partnerMap[p.id];
-        if (partnerId && (p.status === 'dead' || deadIds.has(p.id))) {
-          if (!deadIds.has(partnerId)) {
-            const partner = players.find(pl => pl.id === partnerId);
-            if (partner && partner.status !== 'dead') {
-              deadIds.add(partnerId);
-              deathCauses[partnerId] = "lovers";
-              logs.push(`Lovers: ${partner.name} gugur patah hati karena pasangannya (${p.name}) tewas.`);
-              loverDied = true;
-            }
-          }
-        }
-      });
-    }
+    const chain = resolveLoversChain(players, lovers.partnerMap, [...deadIds]);
+    chain.deadIds.forEach(id => deadIds.add(id));
+    Object.assign(deathCauses, chain.deathCauses);
+    logs.push(...chain.logs);
 
     // ======================================================
     // BUILD FIREBASE UPDATES
@@ -466,9 +372,6 @@ export function TimerProvider({ children }) {
 
     deadIds.forEach(id => {
       updates[`rooms/${roomCode}/players/${id}/status`] = 'dead';
-    });
-    Object.keys(truthTargets).forEach(id => {
-      updates[`rooms/${roomCode}/players/${id}/underTruth`] = true;
     });
     if (logs.length > 0) {
       logs.forEach((log, idx) => {

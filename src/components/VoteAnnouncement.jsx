@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { ShieldCheck, User, X, Bomb, Flame } from 'lucide-react';
 import { Z_LAYER } from '../constants/zIndex';
-import { lockScroll, unlockScroll } from '../utils/scrollLock';
+import DialogOverlay from './DialogOverlay';
 import { playGallowsExecutionSound, playExplosionSound } from '../utils/audio';
 
 const GallowsOverlay = () => (
@@ -103,19 +103,15 @@ const VoteAnnouncement = ({ names, day, isJoker, onClose }) => {
   }, [isPeaceful, isJoker]);
 
   useEffect(() => {
-    lockScroll();
     const timer = setTimeout(() => {
       handleDismiss();
     }, 3800); // Set duration matching animation duration (3.8s)
-    return () => {
-      unlockScroll();
-      clearTimeout(timer);
-    };
+    return () => clearTimeout(timer);
   }, []);
 
   if (!names || names.length === 0) return null;
 
-  const glowBg = isPeaceful ? 'bg-emerald-600' : (isJoker ? 'bg-yellow-600' : 'bg-red-700');
+  const glowBg = isPeaceful ? 'bg-emerald-600/20' : (isJoker ? 'bg-yellow-600/20' : 'bg-red-700/20');
   const accentText = isPeaceful ? 'text-emerald-400' : (isJoker ? 'text-yellow-400' : 'text-red-500');
 
   const gradientBg = isPeaceful
@@ -125,7 +121,10 @@ const VoteAnnouncement = ({ names, day, isJoker, onClose }) => {
       : 'linear-gradient(to bottom, rgba(2, 6, 23, 1) 0%, rgba(2, 6, 23, 0.7) 70%, rgba(153, 27, 27, 1) 100%)';
 
   return (
-    <div
+    <DialogOverlay
+      role="alertdialog"
+      labelledBy="vote-title"
+      onClose={handleDismiss}
       className="fixed inset-0 flex flex-col items-center justify-center p-6 sm:p-8 animate-in fade-in duration-700 overflow-y-auto custom-scrollbar text-center"
       style={{
         zIndex: Z_LAYER.PHASE_OVERLAY,
@@ -170,7 +169,7 @@ const VoteAnnouncement = ({ names, day, isJoker, onClose }) => {
         {!isPeaceful && !isJoker && <GallowsOverlay />}
 
         <div className="relative mb-4">
-          <div className={`absolute inset-0 blur-2xl rounded-full scale-150 animate-pulse ${glowBg}/20`} />
+          <div className={`absolute inset-0 blur-2xl rounded-full scale-150 animate-pulse ${glowBg}`} />
           {isPeaceful ? (
             <ShieldCheck size={72} className="text-slate-500 mx-auto relative z-10 animate-bounce" />
           ) : isJoker ? (
@@ -181,7 +180,7 @@ const VoteAnnouncement = ({ names, day, isJoker, onClose }) => {
         </div>
 
         <div className="space-y-2 relative z-10">
-          <h2 className={`font-black uppercase tracking-[0.4em] text-[10px] ${accentText}`}>
+          <h2 id="vote-title" className={`font-black uppercase tracking-[0.4em] text-[10px] ${accentText}`}>
             Laporan Forensik • Hari {day}
           </h2>
           <h1 className="text-white text-2xl font-black italic uppercase leading-none tracking-tighter">
@@ -218,7 +217,7 @@ const VoteAnnouncement = ({ names, day, isJoker, onClose }) => {
               : '"Keputusan telah diambil. Semoga Waranasura beristirahat dalam damai."'}
         </p>
       </div>
-    </div>
+    </DialogOverlay>
   );
 };
 

@@ -22,6 +22,11 @@ const GameBoard = ({ onBack }) => {
   const [chatOpen, setChatOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const prevPhaseRef = useRef(phase);
+  const actionTimerRef = useRef(null);
+
+  useEffect(() => () => {
+    if (actionTimerRef.current) clearTimeout(actionTimerRef.current);
+  }, []);
 
   const me = players.find(p => p.id === myPlayerId);
   const isDead = me?.status === 'dead';
@@ -105,7 +110,8 @@ const GameBoard = ({ onBack }) => {
       : (players.find(p => p.id === targetId)?.name || "Unknown");
 
     setActionNotif(targetId === 'skip' ? `⏭️ Kamu skip vote` : `🗳️ Kamu vote ${targetName}`);
-    setTimeout(() => setActionNotif(null), 3000);
+    if (actionTimerRef.current) clearTimeout(actionTimerRef.current);
+    actionTimerRef.current = setTimeout(() => setActionNotif(null), 3000);
     setHasActed(true);
     setSelectedTarget(targetId === 'skip' ? null : targetId);
 

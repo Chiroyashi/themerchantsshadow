@@ -2,7 +2,7 @@ const MAX_SEEN_EVENTS = 200;
 
 const storageKey = (roomCode) => `shadow_seen_events_${roomCode}`;
 
-export const eventKey = (kind, timestamp) => `${kind}:${timestamp}`;
+export const eventKey = (kind, data) => `${kind}:${JSON.stringify(data)}`;
 
 export const getSeenEvents = (storage, roomCode) => {
   try {

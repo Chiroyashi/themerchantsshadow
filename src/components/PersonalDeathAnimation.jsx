@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { User, Crosshair, Skull, Gavel, ShieldAlert, X } from 'lucide-react';
 import { Z_LAYER } from '../constants/zIndex';
-import { lockScroll, unlockScroll } from '../utils/scrollLock';
+import { playPoisonSound } from '../utils/audio';
+import DialogOverlay from './DialogOverlay';
 
 export default function PersonalDeathAnimation({ cause, playerName, onFinish }) {
   const finishRef = useRef(onFinish);
@@ -28,6 +29,8 @@ export default function PersonalDeathAnimation({ cause, playerName, onFinish }) 
       soundFile = 'hakim.mp3';
     }
 
+    if (cause === 'poison') playPoisonSound();
+
     if (soundFile) {
       const audio = new Audio(`${import.meta.env.BASE_URL}assets/${soundFile}`);
       audio.volume = 0.45;
@@ -44,14 +47,10 @@ export default function PersonalDeathAnimation({ cause, playerName, onFinish }) 
   }, [cause]);
 
   useEffect(() => {
-    lockScroll();
     const timer = setTimeout(() => {
       handleFinish();
     }, 3800); // Animation duration is 3.8s
-    return () => {
-      unlockScroll();
-      clearTimeout(timer);
-    };
+    return () => clearTimeout(timer);
   }, []);
 
   const renderAnimationContent = () => {
@@ -231,7 +230,10 @@ export default function PersonalDeathAnimation({ cause, playerName, onFinish }) 
   };
 
   return (
-    <div
+    <DialogOverlay
+      role="alertdialog"
+      label="Animasi kematian"
+      onClose={handleFinish}
       className="fixed inset-0 flex flex-col items-center justify-center bg-slate-950 pointer-events-auto"
       style={{ zIndex: Z_LAYER.PHASE_OVERLAY }}
     >
@@ -437,6 +439,6 @@ export default function PersonalDeathAnimation({ cause, playerName, onFinish }) 
       `}</style>
 
       {renderAnimationContent()}
-    </div>
+    </DialogOverlay>
   );
 }

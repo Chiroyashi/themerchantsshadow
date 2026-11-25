@@ -35,6 +35,26 @@ test('buildDiagnosticRoom mendaftarkan 10 user sesuai role', () => {
   assert.deepStrictEqual(updates.introFinished, { dev_moderator: true });
 });
 
+test('buildDiagnosticRoom tanpa Moderator menaruh host di slot Werewolf', () => {
+  const now = 1_700_000_000_000;
+  const { roomData, updates, hostSlotId, hostRole } = buildDiagnosticRoom({
+    uid: 'dev-uid',
+    matchId: 'dev_match',
+    moderatorEnabled: false,
+    now
+  });
+
+  assert.strictEqual(hostRole, 'Werewolf');
+  assert.strictEqual(hostSlotId, 'dev_werewolf');
+  assert.strictEqual(roomData.host, 'Werewolf');
+  assert.deepStrictEqual(roomData.roleSettings, { Moderator: false });
+  assert.deepStrictEqual(roomData.members, { 'dev-uid': 'dev_werewolf' });
+  assert.strictEqual(roomData.players.dev_werewolf.authUid, 'dev-uid');
+  assert.strictEqual(roomData.players.dev_moderator.authUid, 'dev_auth_moderator');
+  assert.strictEqual(Object.keys(roomData.players).length, 10);
+  assert.deepStrictEqual(updates.introFinished, { dev_werewolf: true });
+});
+
 test('buildDevTakeoverUpdates menolak role di luar whitelist', () => {
   assert.strictEqual(buildDevTakeoverUpdates({
     roomCode: 'ABC123',

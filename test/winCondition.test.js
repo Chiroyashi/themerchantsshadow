@@ -116,3 +116,9 @@ test('Unbound Lovers (no partner) is excluded from win counts and always loses',
   assert.strictEqual(isPlayerWinner(unboundLover, 'WARGA'), false);
   assert.strictEqual(isPlayerWinner(unboundLover, 'SERIGALA'), false);
 });
+
+test('Tidak ada pemenang jika tidak ada pemain aktif', () => {
+  assert.strictEqual(calculateWinner(null), null);
+  assert.strictEqual(calculateWinner([]), null);
+  assert.strictEqual(calculateWinner([{ id: 'mod', role: 'Moderator', status: 'alive' }]), null);
+});

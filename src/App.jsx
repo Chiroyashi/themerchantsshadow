@@ -113,7 +113,7 @@ function AppContent() {
     const unsub = onValue(ref_, snap => {
       const data = snap.val();
       if (!data?.timestamp) return;
-      const key = eventKey('vote', data.timestamp);
+      const key = eventKey('vote', data);
       if (hasSeenEvent(localStorage, roomCode, key)) return;
       markEventSeen(localStorage, roomCode, key);
       setVoteResult(data);
@@ -131,7 +131,7 @@ function AppContent() {
     const unsub = onValue(deadRef, snap => {
       const data = snap.val();
       if (!data?.names?.length || !myData?.id) return;
-      const key = eventKey('dead', data.timestamp);
+      const key = eventKey('dead', data);
       if (hasSeenEvent(localStorage, roomCode, key)) return;
       markEventSeen(localStorage, roomCode, key);
       setDeadToday({ names: data.names, day: data.day, details: data.details || {} });
@@ -158,7 +158,7 @@ function AppContent() {
     const unsub = onValue(gunshotRef, snap => {
       const data = snap.val();
       if (!data?.timestamp) return;
-      const key = eventKey('gunshot', data.timestamp);
+      const key = eventKey('gunshot', data);
       if (hasSeenEvent(localStorage, roomCode, key)) return;
       markEventSeen(localStorage, roomCode, key);
       if (data.timestamp <= Date.now() - 4000) return;
@@ -180,7 +180,7 @@ function AppContent() {
       if (!data?.timestamp || !myData?.id) return;
       const myId = myData.id;
       if (!shouldShowLoversWave(myId, data)) return;
-      const key = eventKey('lovers', data.timestamp);
+      const key = eventKey('lovers', data);
       if (hasSeenEvent(localStorage, roomCode, key)) return;
       markEventSeen(localStorage, roomCode, key);
       const partnerName = myId === data.loverId ? data.partnerName : data.loverName;

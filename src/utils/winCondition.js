@@ -12,6 +12,7 @@ export const calculateWinner = (players) => {
 
   // Moderator tidak dihitung sebagai pemain
   const alive = players.filter(p => p.status !== 'dead' && p.role !== 'Moderator');
+  if (alive.length === 0) return null;
 
   const getPlayerFaksi = (p) => {
     if (p.role === 'Lovers') {
@@ -47,8 +48,11 @@ export const calculateWinner = (players) => {
 export const checkWinCondition = async (roomCode) => {
   if (!roomCode) return null;
 
-  const snap = await get(ref(db, `rooms/${roomCode}/players`));
-  if (!snap.exists()) return null;
+  const [roomSnap, snap] = await Promise.all([
+    get(ref(db, `rooms/${roomCode}/status`)),
+    get(ref(db, `rooms/${roomCode}/players`))
+  ]);
+  if (roomSnap.val() !== 'playing' || !snap.exists()) return null;
 
   const players = Object.values(snap.val());
   const winner = calculateWinner(players);

@@ -1,80 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { getPlayerTeam } from '../src/utils/roleActions.js';
+import {
+  resolveHunterShot,
+  resolveLoversBinds,
+  resolveLoversChain
+} from '../src/utils/nightResolution.js';
 
-// Simulation function representing the fixed Hunter logic from TimerContext.jsx
-function simulateHunterNightAction(players, huntAction) {
-  const deadIds = new Set();
-  const deathCauses = {};
-  const logs = [];
-
-  const target = players.find(p => p.id === huntAction.targetId);
-  if (!target) return { deadIds, deathCauses, logs };
-
-  const isSerigala = target.role === 'Werewolf' || target.role === 'Warlock' || (target.role === 'Lovers' && target.loversTeam === 'SERIGALA');
-
-  if (!isSerigala) {
-    deadIds.add(huntAction.targetId);
-    deathCauses[huntAction.targetId] = "hunter";
-    deadIds.add(huntAction.playerId);
-    deathCauses[huntAction.playerId] = "hunter_backfire";
-    const targetDesc = target.role === 'Joker' ? 'Joker' : 'Warga';
-    logs.push(`Hunter ${huntAction.name} menembak ${targetDesc} ${huntAction.targetName} → Keduanya MATI!`);
-  } else {
-    deadIds.add(huntAction.targetId);
-    deathCauses[huntAction.targetId] = "hunter";
-    logs.push(`Hunter ${huntAction.name} menembak Serigala ${huntAction.targetName} → Hunter SELAMAT!`);
-  }
-
-  return {
-    deadIds: Array.from(deadIds),
-    deathCauses,
-    logs,
-    isCorrect: isSerigala
-  };
-}
-
-// Simulation function representing the fixed Lovers chain death logic from TimerContext.jsx
-function simulateLoversChainDeaths(players, newBinds, initialDeadIds) {
-  const deadIds = new Set(initialDeadIds);
-  const deathCauses = {};
-  const logs = [];
-
-  const partnerMap = {};
-  players.forEach(p => {
-    if (p.partnerId) {
-      partnerMap[p.id] = p.partnerId;
-    }
-  });
-
-  for (const bind of newBinds) {
-    if (bind.targetId) {
-      partnerMap[bind.playerId] = bind.targetId;
-      partnerMap[bind.targetId] = bind.playerId;
-    }
-  }
-
-  let loverDied = true;
-  while (loverDied) {
-    loverDied = false;
-    players.forEach(p => {
-      const partnerId = partnerMap[p.id];
-      if (partnerId && (p.status === 'dead' || deadIds.has(p.id))) {
-        if (!deadIds.has(partnerId)) {
-          const partner = players.find(pl => pl.id === partnerId);
-          if (partner && partner.status !== 'dead') {
-            deadIds.add(partnerId);
-            deathCauses[partnerId] = "lovers";
-            logs.push(`Lovers: ${partner.name} gugur patah hati karena pasangannya (${p.name}) tewas.`);
-            loverDied = true;
-          }
-        }
-      }
-    });
-  }
-
-  return { deadIds: Array.from(deadIds), deathCauses, logs };
-}
+const resolveChain = (players, newBinds, initialDeadIds) => {
+  const { partnerMap } = resolveLoversBinds({ players, binds: newBinds, roomCode: 'TEST' });
+  return resolveLoversChain(players, partnerMap, initialDeadIds);
+};
 
 test('Hunter shooting Werewolf: Hunter lives, Werewolf dies', () => {
   const players = [
@@ -82,7 +17,7 @@ test('Hunter shooting Werewolf: Hunter lives, Werewolf dies', () => {
     { id: 'ww1', name: 'Serigala Malam', role: 'Werewolf', status: 'alive' }
   ];
 
-  const result = simulateHunterNightAction(players, {
+  const result = resolveHunterShot(players, {
     playerId: 'hunter1',
     name: 'Pak Hunter',
     targetId: 'ww1',
@@ -101,7 +36,7 @@ test('Hunter shooting Warga: both Hunter and target die', () => {
     { id: 'pedagang1', name: 'Pak Pedagang', role: 'Pedagang', status: 'alive' }
   ];
 
-  const result = simulateHunterNightAction(players, {
+  const result = resolveHunterShot(players, {
     playerId: 'hunter1',
     name: 'Pak Hunter',
     targetId: 'pedagang1',
@@ -121,7 +56,7 @@ test('Hunter shooting Joker: both die (Joker is not treated as Serigala)', () =>
     { id: 'joker1', name: 'Si Joker', role: 'Joker', status: 'alive' }
   ];
 
-  const result = simulateHunterNightAction(players, {
+  const result = resolveHunterShot(players, {
     playerId: 'hunter1',
     name: 'Pak Hunter',
     targetId: 'joker1',
@@ -148,11 +83,45 @@ test('Lovers broken heart: partner dies on the same night they are bound', () =>
   // Juliet was killed by Werewolf tonight
   const initialDeadIds = ['target1'];
 
-  const result = simulateLoversChainDeaths(players, newBinds, initialDeadIds);
+  const result = resolveChain(players, newBinds, initialDeadIds);
 
   // Both Juliet (initial) and Romeo (broken heart) must be dead
   assert.ok(result.deadIds.includes('target1'));
   assert.ok(result.deadIds.includes('lover1'));
   assert.strictEqual(result.deathCauses['lover1'], 'lovers');
   assert.ok(result.logs[0].includes('Romeo gugur patah hati'));
+});
+
+test('Hunter yang sudah mati tidak menembak', () => {
+  const players = [
+    { id: 'hunter1', name: 'Pak Hunter', role: 'Hunter', status: 'dead' },
+    { id: 'ww1', name: 'Serigala Malam', role: 'Werewolf', status: 'alive' }
+  ];
+
+  const result = resolveHunterShot(players, {
+    playerId: 'hunter1',
+    name: 'Pak Hunter',
+    targetId: 'ww1',
+    targetName: 'Serigala Malam'
+  });
+
+  assert.deepStrictEqual(result.deadIds, []);
+  assert.strictEqual(result.hunterResult, null);
+});
+
+test('Target yang sudah mati tidak ditembak ulang', () => {
+  const players = [
+    { id: 'hunter1', name: 'Pak Hunter', role: 'Hunter', status: 'alive' },
+    { id: 'ww1', name: 'Serigala Malam', role: 'Werewolf', status: 'dead' }
+  ];
+
+  const result = resolveHunterShot(players, {
+    playerId: 'hunter1',
+    name: 'Pak Hunter',
+    targetId: 'ww1',
+    targetName: 'Serigala Malam'
+  });
+
+  assert.deepStrictEqual(result.deadIds, []);
+  assert.strictEqual(result.hunterResult, null);
 });

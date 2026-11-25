@@ -53,7 +53,7 @@ const SharedTimer = ({ seconds, phase, isActive }) => {
         {/* Time display */}
         <div className="flex items-center gap-2 md:gap-3">
           <Clock
-            size={16} md:size={20}
+            size={16}
             className={`${isActive
               ? isUrgent
                 ? "text-red-500 animate-bounce"
@@ -75,7 +75,7 @@ const SharedTimer = ({ seconds, phase, isActive }) => {
         {/* Status badge */}
         {!isActive && seconds > 0 && (
           <div className="flex items-center gap-1 px-2.5 md:px-3.5 py-0.5 md:py-1 bg-amber-500/10 rounded-full">
-            <Pause size={8} md:size={10} className="text-amber-500" />
+            <Pause size={8} className="text-amber-500" />
             <span className="text-[6px] md:text-[8px] font-black uppercase tracking-widest text-amber-500">
               PAUSED
             </span>
@@ -86,7 +86,7 @@ const SharedTimer = ({ seconds, phase, isActive }) => {
           <div className={`flex items-center gap-1 px-2.5 md:px-3.5 py-0.5 md:py-1 rounded-full ${
             isUrgent ? 'bg-red-500/20' : 'bg-blue-500/10'
           }`}>
-            <Play size={8} md:size={10} className={isUrgent ? 'text-red-400' : 'text-blue-400'} />
+            <Play size={8} className={isUrgent ? 'text-red-400' : 'text-blue-400'} />
             <span className={`text-[6px] md:text-[8px] font-black uppercase tracking-widest ${
               isUrgent ? 'text-red-400' : 'text-blue-400'
             }`}>

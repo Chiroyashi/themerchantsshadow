@@ -12,14 +12,16 @@ export const devSlotId = (role) => `dev_${role.toLowerCase()}`;
 const devDummyAuth = (role) => `dev_auth_${role.toLowerCase()}`;
 const MODERATOR_SLOT_ID = devSlotId('Moderator');
 
-export function buildDiagnosticRoom({ uid, matchId, now = Date.now() }) {
+export function buildDiagnosticRoom({ uid, matchId, moderatorEnabled = true, now = Date.now() }) {
+  const hostRole = moderatorEnabled ? 'Moderator' : DEV_ROLES.find(role => role !== 'Moderator');
+  const hostSlotIdValue = devSlotId(hostRole);
   const players = {};
   DEV_ROLES.forEach((role) => {
     players[devSlotId(role)] = {
       name: role,
       role,
       status: 'alive',
-      authUid: role === 'Moderator' ? uid : devDummyAuth(role),
+      authUid: role === hostRole ? uid : devDummyAuth(role),
       joinedAt: now
     };
   });
@@ -30,11 +32,11 @@ export function buildDiagnosticRoom({ uid, matchId, now = Date.now() }) {
       gameMatchId: matchId,
       hostId: uid,
       status: 'waiting',
-      host: 'Moderator',
-      roleSettings: { Moderator: true },
+      host: hostRole,
+      roleSettings: { Moderator: moderatorEnabled },
       createdAt: now,
       lastActivityAt: now,
-      members: { [uid]: MODERATOR_SLOT_ID },
+      members: { [uid]: hostSlotIdValue },
       timer: {
         phase: PHASE.PAGI,
         day: 1,
@@ -48,10 +50,12 @@ export function buildDiagnosticRoom({ uid, matchId, now = Date.now() }) {
     updates: {
       status: 'playing',
       introStartedAt: now,
-      introFinished: { [MODERATOR_SLOT_ID]: true },
+      introFinished: { [hostSlotIdValue]: true },
       lastActivityAt: now
     },
     moderatorSlotId: MODERATOR_SLOT_ID,
+    hostSlotId: hostSlotIdValue,
+    hostRole,
     playersWithRoles: DEV_ROLES
   };
 }

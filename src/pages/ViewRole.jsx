@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ref, set, onValue, update, push } from "firebase/database";
+import { ref, set, onValue, update, push, get } from "firebase/database";
 import { db } from "../lib/firebase";
 import {
   Eye, EyeOff, Shield, Skull, HelpCircle, BookOpen, X, Ghost,
@@ -18,9 +18,11 @@ import { useTimerContext } from '../contexts/TimerContext';
 import { playNotificationChime } from '../utils/audio';
 import { useNotification } from '../contexts/NotificationContext';
 import { getRoleActionConfig } from '../utils/roleActions';
+import { buildHakimTruthUpdates, buildHakimSkipUpdates, buildLoversBindUpdates } from '../utils/actionPayloads';
 import { Z_LAYER } from '../constants/zIndex';
 import { lockScroll, unlockScroll } from '../utils/scrollLock';
 import { isSiang, isMalam, isPagi } from '../constants/phases';
+import { buildMerchantClue, clueDismissKey, pickSystemClueRecipient } from '../utils/merchantClue';
 
 const getTimestamp = () => Date.now();
 
@@ -52,7 +54,7 @@ const CrackedOverlay = () => (
 const ViewRole = ({ onNext }) => {
   const {
     players, roomCode, myData,
-    isHost, gameWinner, handleLeaveGame
+    isHost, moderatorEnabled, gameWinner, handleLeaveGame
   } = useGameContext();
   const totalPlayers = players.filter(p => p.role !== 'Moderator').length;
   const { seconds, phase, isActive, day } = useTimerContext();
@@ -72,6 +74,7 @@ const ViewRole = ({ onNext }) => {
   const [showActionPopup, setShowActionPopup] = useState(false);
   const [actionPopupData, setActionPopupData] = useState(null);
   const prevPhaseRef = useRef(phase);
+  const statusTimerRef = useRef(null);
 
   const isDead = playerData?.status === 'dead';
   const isNight = isMalam(phase);
@@ -151,14 +154,14 @@ const ViewRole = ({ onNext }) => {
 
   // Auto-redirect ke GameBoard saat Siang
   useEffect(() => {
-    if (!phase || isDead || isHost) return;
+    if (!phase || isDead || (isHost && moderatorEnabled)) return;
     const isSiangPhase = isSiang(phase);
     const wasNotSiang = !isSiang(prevPhaseRef.current);
     if (isSiangPhase && wasNotSiang) {
       onNext();
     }
     prevPhaseRef.current = phase;
-  }, [phase, isDead, isHost, onNext]);
+  }, [phase, isDead, isHost, moderatorEnabled, onNext]);
 
   useEffect(() => {
     const checkIntro = async () => {
@@ -205,10 +208,14 @@ const ViewRole = ({ onNext }) => {
       if (data && data.timestamp > (Date.now() - 3000)) {
         playNotificationChime();
         setActionStatus({ type: 'success', msg: `AKTIVITAS TERDETEKSI: ${data.msg}` });
-        setTimeout(() => setActionStatus(null), 4000);
+        if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+        statusTimerRef.current = setTimeout(() => setActionStatus(null), 4000);
       }
     });
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    };
   }, [roomCode, role]);
 
   useEffect(() => {
@@ -218,7 +225,7 @@ const ViewRole = ({ onNext }) => {
         const data = snapshot.val();
         if (data && data.message) {
           setMyClues(data);
-          const isDismissed = localStorage.getItem(`dismissed_clue_${roomCode}_${day}`) === 'true';
+          const isDismissed = localStorage.getItem(clueDismissKey(roomCode, data)) === 'true';
           if (!isDismissed) {
             setShowCluePopup(true);
           }
@@ -226,7 +233,7 @@ const ViewRole = ({ onNext }) => {
       });
       return () => unsubscribe();
     }
-  }, [roomCode, playerData?.id, role, day]);
+  }, [roomCode, playerData?.id, role]);
 
   // ── Morning popup: 1 generic listener untuk semua role ──
   useEffect(() => {
@@ -322,7 +329,7 @@ const ViewRole = ({ onNext }) => {
     setShowIntro(false);
     localStorage.setItem(`intro_${roomCode}`, 'true');
     setShowWave(true);
-    if (!isHost && onNext) onNext();
+    if ((!isHost || !moderatorEnabled) && onNext) onNext();
   };
 
   const handleWarlockUse = async () => {
@@ -499,18 +506,24 @@ const ViewRole = ({ onNext }) => {
       };
     }
 
+    if (isHakim && !isPistol && type === 'skip') {
+      Object.assign(updates, buildHakimSkipUpdates({
+        roomCode,
+        playerId: playerData.id,
+        timestamp: getTimestamp()
+      }));
+    }
+
     // Hakim Truth (malam)
     if (isHakim && !isPistol && actionTarget && type !== 'skip') {
-      updates[`rooms/${roomCode}/players/${playerData.id}/currentAction`] = {
-        role: "Hakim",
-        action: "truth",
-        actionType: "truth",
+      Object.assign(updates, buildHakimTruthUpdates({
+        roomCode,
+        playerId: playerData.id,
         targetId: actionTarget,
         targetName: targetPlayer?.name || "Unknown",
+        truthUsedCount: playerData?.truthUsedCount || 0,
         timestamp: getTimestamp()
-      };
-      updates[`rooms/${roomCode}/players/${playerData.id}/truthActed`] = true;
-      updates[`rooms/${roomCode}/players/${playerData.id}/truthUsedCount`] = (playerData?.truthUsedCount || 0) + 1;
+      }));
     }
 
     // Guard logic
@@ -584,20 +597,12 @@ const ViewRole = ({ onNext }) => {
 
     // Lovers
     if (role.includes("lovers") && actionTarget && type !== 'skip') {
-      updates[`rooms/${roomCode}/players/${playerData.id}/currentAction`] = {
-        role: "Lovers",
-        action: "bind",
-        targetId: actionTarget,
-        targetName: targetPlayer?.name || "Unknown",
+      Object.assign(updates, buildLoversBindUpdates({
+        roomCode,
+        lover: { id: playerData.id, name: playerData.name },
+        partner: { id: actionTarget, name: targetPlayer?.name || "Unknown" },
         timestamp: getTimestamp()
-      };
-      updates[`rooms/${roomCode}/loversBindEvent`] = {
-        loverId: playerData.id,
-        loverName: playerData.name,
-        partnerId: actionTarget,
-        partnerName: targetPlayer?.name || "Unknown",
-        timestamp: getTimestamp()
-      };
+      }));
     }
 
     // Hunter
@@ -647,21 +652,31 @@ const ViewRole = ({ onNext }) => {
     });
 
     // State warlock ke Firebase
-    const warlockUpdates = {};
+    const updates = {};
+    let clueUpdates = null;
     if (choice === 'skip') {
-      warlockUpdates[`rooms/${roomCode}/players/${playerData.id}/warlockActed`] = true;
+      updates[`rooms/${roomCode}/players/${playerData.id}/warlockActed`] = true;
     } else if (choice === 'buy' && item) {
-      warlockUpdates[`rooms/${roomCode}/players/${playerData.id}/warlockInventory`] = item;
-      warlockUpdates[`rooms/${roomCode}/players/${playerData.id}/warlockItemUsed`] = false;
-      warlockUpdates[`rooms/${roomCode}/players/${playerData.id}/warlockActed`] = true;
+      updates[`rooms/${roomCode}/players/${playerData.id}/warlockInventory`] = item;
+      updates[`rooms/${roomCode}/players/${playerData.id}/warlockItemUsed`] = false;
+      updates[`rooms/${roomCode}/players/${playerData.id}/warlockActed`] = true;
 
       // Catat transaksi ke merchantTransaksi — untuk clue popup moderator
       const pedagangList = players.filter(p => p.role === 'Pedagang' && p.status !== 'dead');
-      const randomPedagang = pedagangList.length > 0
+      let randomPedagang = pedagangList.length > 0
         ? pedagangList[Math.floor(Math.random() * pedagangList.length)]
         : null;
-      const transaksiRef = ref(db, `rooms/${roomCode}/merchantTransaksi/${folder}`);
-      await push(transaksiRef, {
+      if (!moderatorEnabled) {
+        try {
+          const clueSnapshot = await get(ref(db, `rooms/${roomCode}/merchantClues`));
+          randomPedagang = pickSystemClueRecipient(players, clueSnapshot.val() || {});
+        } catch {
+          randomPedagang = null;
+        }
+      }
+      const transactionRef = push(ref(db, `rooms/${roomCode}/merchantTransaksi/${folder}`));
+      const transactionKey = transactionRef.key;
+      updates[`rooms/${roomCode}/merchantTransaksi/${folder}/${transactionKey}`] = {
         warlock: playerData.name,
         item: item,
         targetId: targetId || "none",
@@ -669,10 +684,29 @@ const ViewRole = ({ onNext }) => {
         merchantId: randomPedagang?.id || "system",
         merchantName: randomPedagang?.name || "System",
         timestamp: getTimestamp()
-      });
+      };
+
+      if (!moderatorEnabled && randomPedagang) {
+        const clue = buildMerchantClue(players);
+        if (clue) {
+          clueUpdates = {
+            [`rooms/${roomCode}/merchantClues/${randomPedagang.id}`]: {
+              message: clue.message,
+              suspects: clue.suspects,
+              from: "Sistem",
+              day,
+              timestamp: getTimestamp(),
+              transactionKey
+            }
+          };
+        }
+      }
     }
-    if (Object.keys(warlockUpdates).length > 0) {
-      await update(ref(db), warlockUpdates);
+    if (Object.keys(updates).length > 0) {
+      await update(ref(db), updates);
+    }
+    if (clueUpdates) {
+      await update(ref(db), clueUpdates).catch(() => {});
     }
 
     setOptimisticActed(true);
@@ -773,7 +807,7 @@ const ViewRole = ({ onNext }) => {
 
       {/* Faction Wave Overlay — 1x setelah IntroFable selesai */}
       {showWave && faksi !== 'DEAD' && (
-        <div className="fixed inset-0 w-full h-full pointer-events-none overflow-hidden z-[9999]">
+        <div className="fixed inset-0 w-full h-full pointer-events-none overflow-hidden" style={{ zIndex: Z_LAYER.LOVE_WAVE }}>
           {/* Full-screen band sweeping top → bottom (solid color at bottom edge, fades to transparent upward) */}
           <div
             className={`faction-wave ${faksi === 'WARGA' ? 'faction-wave-warga' : faksi === 'SERIGALA' ? 'faction-wave-serigala' : faksi === 'JOKER' ? 'faction-wave-joker' : 'faction-wave-lovers'}`}
@@ -795,7 +829,7 @@ const ViewRole = ({ onNext }) => {
         </div>
       )}
 
-      {showIntro && <IntroFable players={players} playerData={playerData} onFinish={handleIntroFinish} />}
+      {showIntro && <IntroFable players={players} roomCode={roomCode} playerData={playerData} onFinish={handleIntroFinish} />}
 
       <>
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-40 w-full max-w-[280px] sm:max-w-xs px-2">
@@ -1075,6 +1109,11 @@ const ViewRole = ({ onNext }) => {
                   <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500">Petunjuk Transaksi Gelap</p>
                 </div>
                 <p className="text-xs text-emerald-400 italic leading-relaxed">{myClues.message}</p>
+                {myClues.suspects?.length > 0 && (
+                  <p className="text-[9px] font-black uppercase tracking-widest text-emerald-300">
+                    {myClues.suspects.join(' • ')}
+                  </p>
+                )}
                 <p className="text-[7px] text-slate-500">Hari ke-{myClues.day}</p>
               </div>
             )}
@@ -1149,6 +1188,13 @@ const ViewRole = ({ onNext }) => {
                 {/* Message */}
                 <div className="bg-slate-950/50 border border-emerald-500/30 rounded-xl p-4">
                   <p className="text-sm md:text-base text-emerald-300 italic leading-relaxed text-center">"{myClues.message}"</p>
+                  {myClues.suspects?.length > 0 && (
+                    <div className="flex flex-wrap justify-center gap-2 pt-2">
+                      {myClues.suspects.map(name => (
+                        <span key={name} className="px-3 py-1 rounded-lg text-[9px] font-black uppercase bg-emerald-600/20 text-emerald-300 border border-emerald-500/30">{name}</span>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Info */}
@@ -1160,7 +1206,7 @@ const ViewRole = ({ onNext }) => {
                 <button
                   onClick={() => {
                     setShowCluePopup(false);
-                    localStorage.setItem(`dismissed_clue_${roomCode}_${day}`, 'true');
+                    localStorage.setItem(clueDismissKey(roomCode, myClues), 'true');
                   }}
                   className="w-full py-3 bg-emerald-600 rounded-xl font-black uppercase text-xs md:text-sm shadow-lg hover:bg-emerald-500 transition-colors"
                 >

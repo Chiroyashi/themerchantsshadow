@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { get, ref } from "firebase/database";
 import { db } from "../lib/firebase";
-import { Plus, Users, ArrowRight, ChevronLeft, UserCircle, ScrollText, BadgeCheck, GripVertical, Clipboard, FlaskConical } from 'lucide-react';
+import { Plus, Users, ArrowRight, ChevronLeft, UserCircle, ScrollText, BadgeCheck, GripVertical, Clipboard, FlaskConical, ShieldCheck, Check } from 'lucide-react';
 import { useGameContext } from '../contexts/GameContext';
 import { DEV_ROLES } from '../constants/roles';
 
@@ -11,6 +11,7 @@ const Room = ({ onBack }) => {
   const [roomLocked, setRoomLocked] = useState(false);
   const [lockReason, setLockReason] = useState('');
   const [tempName, setTempName] = useState(() => localStorage.getItem('player_name') || '');
+  const [devModeratorEnabled, setDevModeratorEnabled] = useState(true);
 
   useEffect(() => {
     if (inviteCode) clearInviteCode();
@@ -80,7 +81,7 @@ const Room = ({ onBack }) => {
                 <div
                   key={role}
                   className={`px-2 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wide ${
-                    role === 'Moderator'
+                    role === (devModeratorEnabled ? 'Moderator' : 'Werewolf')
                       ? 'bg-amber-400/10 text-amber-300 border border-amber-400/40'
                       : 'bg-white/5 text-slate-300'
                   }`}
@@ -89,11 +90,36 @@ const Room = ({ onBack }) => {
                 </div>
               ))}
             </div>
-            <p className="text-[10px] text-slate-500 font-medium">Developer masuk sebagai Moderator.</p>
+            <p className="text-[10px] text-slate-500 font-medium">
+              Developer masuk sebagai {devModeratorEnabled ? 'Moderator' : 'Werewolf'}.
+            </p>
           </div>
 
           <button
-            onClick={startDiagnostic}
+            type="button"
+            onClick={() => setDevModeratorEnabled((value) => !value)}
+            className={`w-full p-4 rounded-2xl border flex items-center gap-3 text-left transition-colors ${
+              devModeratorEnabled
+                ? 'bg-blue-600/10 border-blue-500/30 text-white'
+                : 'bg-slate-950/40 border-slate-800 text-slate-500'
+            }`}
+          >
+            <ShieldCheck size={16} className={devModeratorEnabled ? 'text-blue-400' : 'text-slate-600'} />
+            <div className="flex-1">
+              <p className="text-[10px] font-black uppercase tracking-widest">Moderator</p>
+              <p className="text-[9px] text-slate-500 font-medium">
+                {devModeratorEnabled ? 'Wasit aktif, masuk dashboard' : 'Tanpa wasit, masuk sebagai Werewolf'}
+              </p>
+            </div>
+            <span className={`w-5 h-3 rounded-full border flex items-center justify-center transition-colors ${
+              devModeratorEnabled ? 'border-blue-500 bg-blue-500' : 'border-slate-700 bg-transparent'
+            }`}>
+              {devModeratorEnabled && <Check size={10} className="text-white" />}
+            </span>
+          </button>
+
+          <button
+            onClick={() => startDiagnostic({ moderatorEnabled: devModeratorEnabled })}
             disabled={isJoining}
             className="w-full group p-8 border rounded-3xl transition-all text-left space-y-3 relative overflow-hidden bg-slate-900 border-blue-500/40 hover:border-blue-400 shadow-xl shadow-blue-900/20 disabled:opacity-60"
           >

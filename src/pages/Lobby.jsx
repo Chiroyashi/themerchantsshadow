@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Users, Play, Copy, Check, AlertTriangle, ShieldCheck, XCircle, UserMinus, ChevronLeft, Eye, Shield, Crosshair, Wand2, Settings, Heart, Pencil } from 'lucide-react';
 import ClownIcon from '../components/ClownIcon';
 import InviteLink from '../components/InviteLink';
@@ -6,18 +6,24 @@ import { useGameContext } from '../contexts/GameContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { calculateRoles } from '../utils/roleBalancer';
 import { isRoleActive, MIN_PLAYERS_BY_ROLE } from '../utils/gameLogic';
+import { Z_LAYER } from '../constants/zIndex';
 
 const Lobby = () => {
-  const { roomCode, players, myPlayerId, isHost, handleStartGame, handleKickPlayer, roleSettings, handleToggleRole, handleLeaveLobby, handleRename, playerName } = useGameContext();
+  const { roomCode, players, myPlayerId, isHost, moderatorEnabled, handleStartGame, handleKickPlayer, roleSettings, handleToggleRole, handleLeaveLobby, handleRename, playerName } = useGameContext();
   const { showNotif } = useNotification();
   const [isCopied, setIsCopied] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [renameValue, setRenameValue] = useState('');
+  const copyTimerRef = useRef(null);
+
+  useEffect(() => () => {
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+  }, []);
 
   // --- LOGIKA PEMBATASAN MINIMAL PEMAIN ---
   const minPlayers = 5;
-  const participantsCount = players.filter(p => p.role !== 'Moderator' && p.status !== 'dead').length;
+  const participantsCount = players.filter(p => p.status !== 'dead' && (!moderatorEnabled || p.role !== 'Moderator')).length;
   const isReady = participantsCount >= minPlayers;
   const roleConfig = calculateRoles(participantsCount, roleSettings);
 
@@ -43,7 +49,8 @@ const Lobby = () => {
     const ok = await copyText(roomCode);
     if (ok) {
       setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 2000);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setIsCopied(false), 2000);
     } else {
       showNotif("Gagal", "Tidak bisa menyalin kode room.", "error");
     }
@@ -208,8 +215,8 @@ const Lobby = () => {
           <ul className="space-y-2 max-h-80 overflow-y-auto pr-2 custom-scrollbar relative z-10">
             {[...players]
               .sort((a, b) => {
-                const aIsMod = a.role === 'Moderator';
-                const bIsMod = b.role === 'Moderator';
+                const aIsMod = moderatorEnabled && a.role === 'Moderator';
+                const bIsMod = moderatorEnabled && b.role === 'Moderator';
                 if (aIsMod && !bIsMod) return -1;
                 if (bIsMod && !aIsMod) return 1;
                 if (a.id === myPlayerId) return -1;
@@ -223,8 +230,9 @@ const Lobby = () => {
               .filter(p => p.status !== 'dead')
               .map((p) => {
                 const isMe = p.id === myPlayerId;
-                const isModerator = p.role === 'Moderator';
-                const isHighlight = isMe && !isModerator;
+                const isModerator = moderatorEnabled && p.role === 'Moderator';
+                const isHostPlayer = isMe && isHost && !moderatorEnabled;
+                const isHighlight = isMe && !isModerator && !isHostPlayer;
                 return (
                   <li
                     key={p.id}
@@ -253,12 +261,12 @@ const Lobby = () => {
 
                     {/* Actions */}
                     <div className="flex items-center gap-2">
-                      {isModerator && (
+                      {(isModerator || isHostPlayer) && (
                         <span className="text-[8px] font-black bg-red-600/20 text-red-500 px-3 py-1.5 rounded-full border border-red-600/30 uppercase tracking-wide">
                           Host
                         </span>
                       )}
-                      {isMe && !isModerator && (
+                      {isMe && !isModerator && !isHostPlayer && (
                         <span className="text-[8px] font-black bg-emerald-600/20 text-emerald-500 px-3 py-1.5 rounded-full border border-emerald-600/30 uppercase tracking-wide">
                           Anda
                         </span>
@@ -272,7 +280,7 @@ const Lobby = () => {
                           <Pencil size={16} className="group-hover/edit:animate-pulse" />
                         </button>
                       )}
-                      {isHost && !isModerator ? (
+                      {isHost && !isMe ? (
                         <button
                           onClick={() => confirmKick(p.id, p.name)}
                           className="p-3 hover:bg-red-600 text-slate-600 hover:text-white rounded-xl transition-all active:scale-90 group/kick"
@@ -308,8 +316,8 @@ const Lobby = () => {
           ) : (
             <div className="py-6 px-6 bg-slate-900/30 border border-white/5 rounded-[2rem] backdrop-blur-sm">
                <p className="text-slate-500 animate-pulse uppercase tracking-[0.3em] text-[9px] font-black italic leading-loose">
-                 {isReady
-                  ? "Moderator is preparing the gate..."
+                  {isReady
+                  ? (moderatorEnabled ? "Moderator is preparing the gate..." : "Host sedang menyiapkan gerbang...")
                   : `Summoning ${minPlayers - participantsCount} more souls...`}
                </p>
             </div>
@@ -324,7 +332,7 @@ const Lobby = () => {
 
       {/* GANTI NAMA MODAL */}
       {showRenameModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[9999]" onClick={() => setShowRenameModal(false)}>
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: Z_LAYER.ACTION_MODAL }} onClick={() => setShowRenameModal(false)}>
           <div className="bg-slate-900 border border-white/5 rounded-[2rem] p-6 max-w-sm w-full space-y-4 shadow-2xl animate-in zoom-in duration-300" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-2 border-b border-white/5 pb-3">
               <Pencil size={18} className="text-amber-500" />
@@ -365,7 +373,7 @@ const Lobby = () => {
 
       {/* ROLE SETTINGS POPUP MODAL (HOST ONLY) */}
       {showSettingsModal && isHost && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[9999]" onClick={() => setShowSettingsModal(false)}>
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: Z_LAYER.ACTION_MODAL }} onClick={() => setShowSettingsModal(false)}>
           <div className="bg-slate-900 border border-white/5 rounded-[2rem] p-6 max-w-sm w-full space-y-4 shadow-2xl animate-in zoom-in duration-300" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-2 border-b border-white/5 pb-3">
               <Settings size={18} className="text-amber-500" />
@@ -374,6 +382,27 @@ const Lobby = () => {
             <p className="text-[9px] text-slate-500 uppercase font-bold tracking-tight text-left">
               Wajib: Pedagang, Werewolf, Hakim. Konfigurasi sisa peran:
             </p>
+            <button
+              onClick={() => handleToggleRole('Moderator', !moderatorEnabled)}
+              className={`w-full flex items-center justify-between p-3 rounded-2xl border transition-all text-left cursor-pointer active:scale-95 ${
+                moderatorEnabled ? 'bg-blue-600/10 border-blue-500/30 text-white' : 'bg-slate-950/40 border-transparent text-slate-500'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <ShieldCheck size={16} className={moderatorEnabled ? 'text-blue-400' : 'text-slate-600'} />
+                <div className="flex flex-col items-start">
+                  <span className="text-[10px] font-black uppercase tracking-wider">Moderator</span>
+                  <span className="text-[7px] text-slate-500 uppercase tracking-wider">
+                    {moderatorEnabled ? 'Host jadi wasit, kontrol manual' : 'Tanpa wasit, game otomatis'}
+                  </span>
+                </div>
+              </div>
+              <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center transition-all ${
+                moderatorEnabled ? 'border-blue-500 bg-blue-500' : 'border-slate-700 bg-transparent'
+              }`}>
+                {moderatorEnabled && <Check size={10} className="text-white font-black" />}
+              </div>
+            </button>
             <div className="grid grid-cols-2 gap-2">
               {[
                 { key: 'Seer', label: 'Seer', icon: Eye },
@@ -416,7 +445,7 @@ const Lobby = () => {
                       )}
                     </div>
                     <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center transition-all ${
-                      isEnabled ? 'border-blue-500 bg-blue-500' : 'border-slate-750 bg-transparent'
+                      isEnabled ? 'border-blue-500 bg-blue-500' : 'border-slate-700 bg-transparent'
                     }`}>
                       {isEnabled && <Check size={10} className="text-white font-black" />}
                     </div>

@@ -1,16 +1,36 @@
-# React + Vite
+# The Merchant's Shadow
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Game sosial berbasis React + Vite dengan Firebase Realtime Database.
 
-Currently, two official plugins are available:
+## Persyaratan
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Node.js >= 20.19
+- Akun Firebase dengan Realtime Database dan Anonymous Authentication aktif
 
-## React Compiler
+## Setup
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+npm ci
+cp .env.example .env
+npm run dev
+```
 
-## Expanding the ESLint configuration
+Isi `.env` dengan konfigurasi web Firebase proyek Anda. Nilai config web Firebase bersifat publik di browser; keamanan data bergantung pada Firebase Security Rules, bukan kerahasiaan config.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Script
+
+- `npm run dev` — menjalankan server pengembangan
+- `npm test` — menjalankan test Node
+- `npm run lint` — menjalankan ESLint
+- `npm run build` — membuat build produksi di `dist/`
+- `npm run preview` — melihat build produksi secara lokal
+
+## Aturan Firebase
+
+Security Rules ada di `database.rules.json`. Setiap perubahan rules wajib di-deploy ulang ke Firebase Console atau Firebase CLI.
+
+## Deploy
+
+Target deploy utama adalah Vercel (proyek Vite, root `/`). `public/404.html` dipakai sebagai fallback SPA. Build dihasilkan oleh `npm run build`.
+
+CI menjalankan `npm ci`, `npm test`, `npm run lint`, lalu `npm run build` untuk push dan pull request ke `main`.

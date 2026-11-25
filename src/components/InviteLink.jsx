@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link2, Check } from 'lucide-react';
 
 const buildInviteUrl = (roomCode) => {
@@ -24,13 +24,19 @@ const copyToClipboard = async (text) => {
 
 const InviteLink = ({ roomCode, onCopied }) => {
   const [isCopied, setIsCopied] = useState(false);
+  const copyTimerRef = useRef(null);
+
+  useEffect(() => () => {
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+  }, []);
 
   const handleCopyInvite = async () => {
     if (!roomCode) return;
     const ok = await copyToClipboard(buildInviteUrl(roomCode));
     if (ok) {
       setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 2000);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setIsCopied(false), 2000);
     } else if (onCopied) {
       onCopied();
     }

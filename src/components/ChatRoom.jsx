@@ -7,6 +7,8 @@ import { Z_LAYER } from '../constants/zIndex';
 import { useTimerContext } from '../contexts/TimerContext';
 import { isMalam } from '../constants/phases';
 import { playNotificationChime } from '../utils/audio';
+import { countNewMessages, getLatestTimestamp } from '../utils/chatUnread';
+import { shouldShowJujurBadge, shouldShowExclamationMark } from '../utils/uiVisibility';
 
 const getTimestamp = () => Date.now();
 
@@ -33,6 +35,8 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
   const scrollRef = useRef(null);
   const lastSeenRef = useRef(getTimestamp());
   const inputRef = useRef(null);
+  const scrollTimerRef = useRef(null);
+  const focusTimerRef = useRef(null);
 
   const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
   if (isOpen !== prevIsOpen) {
@@ -94,9 +98,10 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
         setMessages(sorted);
 
         if (!isOpen) {
-          const newCount = sorted.filter(m => m.timestamp > lastSeenRef.current && m.senderId !== myId).length;
+          const newCount = countNewMessages(sorted, lastSeenRef.current, myId);
           if (newCount > 0) {
             setUnreadCount(prev => prev + newCount);
+            lastSeenRef.current = Math.max(lastSeenRef.current, getLatestTimestamp(sorted));
             const hasFresh = sorted.some(m => m.timestamp > (Date.now() - 4000) && m.senderId !== myId);
             if (hasFresh) playNotificationChime();
           }
@@ -107,10 +112,15 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
   }, [roomCode, myId, isHost, isOpen, isWW, isDead]);
 
   useEffect(() => {
-    if (isOpen) {
-      setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
-      setTimeout(() => inputRef.current?.focus(), 200);
-    }
+    if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+    if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+    if (!isOpen) return undefined;
+    scrollTimerRef.current = setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    focusTimerRef.current = setTimeout(() => inputRef.current?.focus(), 200);
+    return () => {
+      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+      if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+    };
   }, [messages, channel, isOpen]);
 
   const sendMessage = (e) => {
@@ -148,11 +158,12 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
         });
 
         push(chatRef, {
-          senderId: myId,
-          senderName: myName,
-          text: input,
+          senderId: "SYSTEM_TRUTH",
+          senderName: "Sistem",
+          text: `[JUJUR] ${myName}: ${input}`,
           target: "all",
           channel: "public",
+          isTruthLeak: true,
           timestamp: Date.now() + 1
         });
       }
@@ -167,11 +178,12 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
         });
 
         push(chatRef, {
-          senderId: myId,
-          senderName: myName,
-          text: input,
+          senderId: "SYSTEM_TRUTH",
+          senderName: "Sistem",
+          text: `[JUJUR] ${myName}: ${input}`,
           target: "all",
           channel: "public",
+          isTruthLeak: true,
           timestamp: Date.now()
         });
       } else {
@@ -243,12 +255,13 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
       {!isOpen && isOpenExternal === undefined && (
         <button
           onClick={toggleOpen}
+          aria-label="Buka chat"
           className="fixed bottom-6 right-6 w-14 h-14 rounded-2xl bg-slate-900 border border-blue-500/30 shadow-2xl shadow-blue-900/20 flex items-center justify-center hover:bg-slate-800 hover:border-blue-400/50 active:scale-90 transition-all duration-200"
           style={{ zIndex: Z_LAYER.CHAT_PANEL }}
         >
           <MessageSquare size={22} className="text-blue-400" />
           {unreadCount > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 min-w-[22px] h-[22px] rounded-full bg-red-600 text-white text-[9px] font-black flex items-center justify-center px-1 shadow-lg animate-in zoom-in duration-200">
+            <span className="absolute -top-1.5 -right-1.5 min-w-[22px] h-[22px] rounded-full bg-red-600 text-white text-[11px] font-black flex items-center justify-center px-1 shadow-lg animate-in zoom-in duration-200">
               {unreadCount > 99 ? '99+' : unreadCount}
             </span>
           )}
@@ -267,13 +280,13 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
                   <div className="flex items-center gap-3">
                     <div className={`w-2.5 h-2.5 rounded-full animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)] ${isWWChannel ? 'bg-red-500' : isGraveyard ? 'bg-slate-500' : 'bg-emerald-500'}`} />
                     <div>
-                      <p className="text-[9px] font-black uppercase tracking-[0.25em] text-slate-500">CHAT</p>
+                      <p className="text-[11px] font-black uppercase tracking-[0.25em] text-slate-400">CHAT</p>
                       <p className="text-xs font-bold text-white">
                         {isWWChannel ? '🐺 Markas Werewolf' : isGraveyard ? '💀 Arwah Penasaran' : isPrivate ? `→ ${getTargetName()}` : 'Komunikasi Publik'}
                       </p>
                     </div>
                   </div>
-                  <button onClick={toggleOpen} className="p-1.5 hover:bg-white/5 rounded-full transition-colors text-slate-600 hover:text-slate-300">
+                  <button onClick={toggleOpen} aria-label="Tutup chat" className="p-1.5 hover:bg-white/5 rounded-full transition-colors text-slate-400 hover:text-slate-200">
                     <ChevronDown size={18} />
                   </button>
                 </div>
@@ -282,15 +295,15 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
                 <div className="flex gap-1">
                   <button
                     onClick={() => handleSelectChannel('public')}
-                    className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all relative ${
+                    className={`flex-1 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all relative ${
                       channel === 'public'
                         ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
-                        : 'bg-slate-950/40 text-slate-600 border border-transparent'
+                        : 'bg-slate-950/40 text-slate-400 border border-transparent'
                     }`}
                   >
                     💬 Umum
                     {getUnreadCountForChannel('public') > 0 && (
-                      <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] rounded-full bg-red-600 text-white text-[8px] font-black flex items-center justify-center px-0.5 shadow-lg animate-in zoom-in duration-200">
+                      <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] rounded-full bg-red-600 text-white text-[10px] font-black flex items-center justify-center px-0.5 shadow-lg animate-in zoom-in duration-200">
                         {getUnreadCountForChannel('public')}
                       </span>
                     )}
@@ -298,15 +311,15 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
                   {canAccessWW && (
                     <button
                       onClick={() => { handleSelectChannel('ww'); setTargetId('all'); }}
-                      className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all relative ${
+                      className={`flex-1 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all relative ${
                         channel === 'ww'
                           ? 'bg-red-600/20 text-red-400 border border-red-500/30'
-                          : 'bg-slate-950/40 text-slate-600 border border-transparent'
+                          : 'bg-slate-950/40 text-slate-400 border border-transparent'
                       }`}
                     >
                       🐺 Markas
                       {getUnreadCountForChannel('ww') > 0 && (
-                        <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] rounded-full bg-red-600 text-white text-[8px] font-black flex items-center justify-center px-0.5 shadow-lg animate-in zoom-in duration-200">
+                        <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] rounded-full bg-red-600 text-white text-[10px] font-black flex items-center justify-center px-0.5 shadow-lg animate-in zoom-in duration-200">
                           {getUnreadCountForChannel('ww')}
                         </span>
                       )}
@@ -315,15 +328,15 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
                   {canAccessGraveyard && (
                     <button
                       onClick={() => { handleSelectChannel('graveyard'); setTargetId('all'); }}
-                      className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all relative ${
+                      className={`flex-1 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all relative ${
                         channel === 'graveyard'
                           ? 'bg-slate-600/30 text-slate-300 border border-slate-500/30'
-                          : 'bg-slate-950/40 text-slate-600 border border-transparent'
+                          : 'bg-slate-950/40 text-slate-400 border border-transparent'
                       }`}
                     >
                       💀 Arwah
                       {getUnreadCountForChannel('graveyard') > 0 && (
-                        <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] rounded-full bg-red-600 text-white text-[8px] font-black flex items-center justify-center px-0.5 shadow-lg animate-in zoom-in duration-200">
+                        <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] rounded-full bg-red-600 text-white text-[10px] font-black flex items-center justify-center px-0.5 shadow-lg animate-in zoom-in duration-200">
                           {getUnreadCountForChannel('graveyard')}
                         </span>
                       )}
@@ -336,9 +349,9 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
               <div className="h-[45vh] overflow-y-auto px-5 py-4 space-y-3 custom-scrollbar" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(100,116,139,0.3) transparent' }}>
                 {filteredMessages.length === 0 && (
                   <div className="text-center py-10">
-                    <MessageSquare size={32} className="mx-auto text-slate-700 mb-3" />
-                    <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest">Belum ada pesan</p>
-                    <p className="text-[8px] text-slate-700 mt-1 italic">
+                    <MessageSquare size={32} className="mx-auto text-slate-400 mb-3" />
+                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Belum ada pesan</p>
+                    <p className="text-[10px] text-slate-400 mt-1 italic">
                       {isGraveyard ? 'Bisikan dari alam baka...' : isWWChannel ? 'Gorok mereka dalam keheningan...' : 'Mulai diskusi dengan pemain lain'}
                     </p>
                   </div>
@@ -356,21 +369,21 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
                     <div key={m.id} className={`flex flex-col ${isMeMsg ? 'items-end' : 'items-start'} animate-in fade-in duration-200`}>
                       <div className="flex items-center gap-1.5 mb-1 px-1">
                         {isPrivateMsg ? (
-                          <span className="text-[7px] font-black uppercase tracking-tight text-purple-400 flex items-center gap-1">
+                          <span className="text-[10px] font-black uppercase tracking-tight text-purple-400 flex items-center gap-1">
                             <span>{isMeMsg ? 'Anda' : m.senderName}</span>
-                            <span className="text-[8px] text-purple-500 font-bold">➔</span>
+                            <span className="text-[10px] text-purple-500 font-bold">➔</span>
                             <span>{m.target === myId ? 'Anda' : (players?.find(p => p.id === m.target)?.name || 'User')}</span>
-                            <span className="text-[6px] text-purple-500/80 lowercase italic font-normal ml-0.5">(whisper)</span>
+                            <span className="text-[10px] text-purple-500/80 lowercase italic font-normal ml-0.5">(whisper)</span>
                           </span>
                         ) : (
-                          <span className={`text-[7px] font-black uppercase tracking-tight ${
-                            isGraveyardMsg ? 'text-slate-500/80 italic' : 'text-slate-600'
+                          <span className={`text-[10px] font-black uppercase tracking-tight ${
+                            isGraveyardMsg ? 'text-slate-400/80 italic' : 'text-slate-400'
                           }`}>
                             {isMeMsg ? 'Anda' : m.senderName}
                           </span>
                         )}
                         {isWWMsg && !isMeMsg && <Ghost size={9} className="text-red-500" />}
-                        {isGraveyardMsg && <Ghost size={9} className="text-slate-500/70 animate-pulse" />}
+                        {isGraveyardMsg && <Ghost size={9} className="text-slate-400/70 animate-pulse" />}
                         {isSystemTruth && <ShieldAlert size={9} className="text-amber-500" />}
                         {isSystemGunshot && <ShieldAlert size={9} className="text-red-500 animate-pulse" />}
                       </div>
@@ -392,16 +405,16 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
                                     ? 'bg-blue-600 text-white rounded-2xl rounded-br-sm'
                                     : 'bg-slate-800 text-slate-200 rounded-2xl rounded-bl-sm border border-white/5'
                         }`}>
-                          {isWWMsg && !isSystemTruth && !isSystemGunshot && <span className="text-[9px] mr-1">🐺</span>}
-                          {isGraveyardMsg && <span className="text-[9px] mr-1">👻</span>}
-                          {isUnderTruth && !isSystemTruth && !isSystemGunshot && (
-                            <span className="inline-block bg-amber-500/20 border border-amber-500/30 text-amber-400 text-[8px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded-md mr-1.5 select-none">
+                          {isWWMsg && !isSystemTruth && !isSystemGunshot && <span className="text-[11px] mr-1">🐺</span>}
+                          {isGraveyardMsg && <span className="text-[11px] mr-1">👻</span>}
+                          {shouldShowJujurBadge(isUnderTruth, isSystemTruth, isSystemGunshot) && (
+                            <span className="inline-block bg-amber-500/20 border border-amber-500/30 text-amber-400 text-[10px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded-md mr-1.5 select-none">
                               [JUJUR]
                             </span>
                           )}
                           {m.text}
                         </div>
-                        {isUnderTruth && m.senderId !== myId && (
+                        {shouldShowExclamationMark(isUnderTruth, m.senderId, myId) && (
                           <span className="text-amber-500 font-extrabold text-base animate-pulse flex-shrink-0 select-none" title="Kebenaran Hakim">
                             !
                           </span>
@@ -426,7 +439,7 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
                     <div className="relative">
                       <div className={`absolute bottom-full left-0 mb-2 w-48 bg-slate-800 border border-white/10 rounded-2xl shadow-2xl transition-all duration-200 origin-bottom-left overflow-hidden
                         ${showTargetMenu ? 'scale-100 opacity-100' : 'scale-75 opacity-0 pointer-events-none'}`}>
-                        <div className="p-2.5 border-b border-white/5 text-[8px] font-black uppercase text-slate-500 tracking-widest text-center">Kirim Ke:</div>
+                        <div className="p-2.5 border-b border-white/5 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Kirim Ke:</div>
                         <div className="max-h-48 overflow-y-auto custom-scrollbar">
                           {(!isNightTime || isHost) && (
                             <button
@@ -450,7 +463,7 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
                       <button
                         type="button"
                         onClick={() => setShowTargetMenu(!showTargetMenu)}
-                        className={`flex items-center gap-1.5 pl-2.5 pr-2 py-2 rounded-full transition-all text-[9px] font-black uppercase tracking-wide ${isPrivate ? 'bg-purple-500/15 text-purple-400' : 'text-blue-400'}`}
+                        className={`flex items-center gap-1.5 pl-2.5 pr-2 py-2 rounded-full transition-all text-[11px] font-black uppercase tracking-wide ${isPrivate ? 'bg-purple-500/15 text-purple-400' : 'text-blue-400'}`}
                       >
                         {isPrivate ? <User size={14} /> : <Globe size={14} />}
                         <span className="max-w-[56px] truncate">{getTargetName()}</span>
@@ -461,17 +474,17 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
 
                   {/* CHANNEL LABELS */}
                   {isWWChannel && isHost && (
-                    <div className="flex items-center gap-2 pl-3 pr-2 py-2 text-[9px] font-black uppercase tracking-wide text-slate-500">
+                    <div className="flex items-center gap-2 pl-3 pr-2 py-2 text-[11px] font-black uppercase tracking-wide text-slate-400">
                       <ShieldAlert size={14} className="text-amber-500" /> Read Only
                     </div>
                   )}
                   {isWWChannel && !isHost && (
-                    <div className="flex items-center gap-2 pl-3 pr-2 py-2 text-[9px] font-black uppercase tracking-wide text-red-500">
+                    <div className="flex items-center gap-2 pl-3 pr-2 py-2 text-[11px] font-black uppercase tracking-wide text-red-500">
                       <Ghost size={14} /> Markas
                     </div>
                   )}
                   {isGraveyard && (
-                    <div className="flex items-center gap-2 pl-3 pr-2 py-2 text-[9px] font-black uppercase tracking-wide text-slate-400">
+                    <div className="flex items-center gap-2 pl-3 pr-2 py-2 text-[11px] font-black uppercase tracking-wide text-slate-400">
                       <Skull size={14} /> Arwah
                     </div>
                   )}
@@ -501,10 +514,11 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
                       (isHost && isWWChannel) ||
                       (isNightTime && !isHost && channel === 'public' && targetId === 'all')
                     }
-                    className="flex-1 min-w-0 bg-transparent py-2.5 text-sm font-medium text-white outline-none placeholder:text-slate-600 disabled:opacity-40"
+                    className="flex-1 min-w-0 bg-transparent py-2.5 text-sm font-medium text-white outline-none placeholder:text-slate-400 disabled:opacity-40"
                   />
                   <button
                     type="submit"
+                    aria-label="Kirim pesan"
                     disabled={
                       !input.trim() ||
                       (isDead && channel === 'public') ||
@@ -519,7 +533,7 @@ const ChatRoom = ({ roomCode, myId, myName, players, isHost, isOpenExternal, onT
                         ? isWWChannel
                           ? 'bg-red-600 text-white shadow-lg shadow-red-600/30 hover:bg-red-500 active:scale-90'
                           : 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 hover:bg-blue-500 active:scale-90'
-                        : 'bg-slate-800 text-slate-600'
+                        : 'bg-slate-800 text-slate-400'
                     }`}
                   >
                     <Send size={16} />

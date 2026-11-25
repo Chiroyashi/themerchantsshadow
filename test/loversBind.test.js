@@ -1,40 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { getPlayerTeam } from '../src/utils/roleActions.js';
 import { isPlayerWinner } from '../src/utils/playerResult.js';
+import { buildLoversBindUpdates } from '../src/utils/actionPayloads.js';
+import { resolveLoversBinds, resolveLoversTeam } from '../src/utils/nightResolution.js';
 import { canShowLoversOverlay, shouldShowLoversWave } from '../src/utils/uiVisibility.js';
-
-function simulateLoversBindAction(roomCode, loverData, targetPlayer) {
-  const updates = {};
-  const timestamp = Date.now();
-
-  // Current action payload
-  updates[`rooms/${roomCode}/players/${loverData.id}/currentAction`] = {
-    role: "Lovers",
-    action: "bind",
-    targetId: targetPlayer.id,
-    targetName: targetPlayer.name,
-    timestamp
-  };
-
-  // Realtime bind event payload
-  updates[`rooms/${roomCode}/loversBindEvent`] = {
-    loverId: loverData.id,
-    loverName: loverData.name,
-    partnerId: targetPlayer.id,
-    partnerName: targetPlayer.name,
-    timestamp
-  };
-
-  return updates;
-}
 
 test('Lovers bind action creates both currentAction and loversBindEvent', () => {
   const roomCode = 'ROOM12';
   const lover = { id: 'p_lover', name: 'Romeo', role: 'Lovers' };
   const partner = { id: 'p_partner', name: 'Juliet', role: 'Pedagang' };
 
-  const updates = simulateLoversBindAction(roomCode, lover, partner);
+  const updates = buildLoversBindUpdates({ roomCode, lover, partner });
 
   assert.deepStrictEqual(updates[`rooms/${roomCode}/loversBindEvent`], {
     loverId: 'p_lover',
@@ -76,11 +52,6 @@ test('Lovers overlay aktif di halaman game', () => {
   assert.strictEqual(canShowLoversOverlay(null, true), false);
 });
 
-function resolveLoversTeam(partnerRole) {
-  const team = getPlayerTeam(partnerRole);
-  return team === 'INDEPENDEN' ? 'JOKER' : team;
-}
-
 test('Lovers bind menulis faksi yang sama ke kedua pemain', () => {
   const lover = { id: 'p_lover', role: 'Lovers' };
   const werewolf = { id: 'p_ww', role: 'Werewolf' };
@@ -99,4 +70,24 @@ test('Lovers yang terikat Joker ikut menang saat Joker menang', () => {
   assert.strictEqual(team, 'JOKER');
   assert.strictEqual(isPlayerWinner(joker, 'JOKER'), true);
   assert.strictEqual(isPlayerWinner(lover, 'JOKER'), true);
+});
+
+test('Lovers yang terikat Lovers belum memiliki faksi', () => {
+  assert.strictEqual(resolveLoversTeam('Lovers'), null);
+});
+
+test('Lovers yang sudah mati tidak bisa mengikat pasangan', () => {
+  const players = [
+    { id: 'lover1', name: 'Romeo', role: 'Lovers', status: 'dead' },
+    { id: 'target1', name: 'Juliet', role: 'Pedagang', status: 'alive' }
+  ];
+
+  const { updates, logs } = resolveLoversBinds({
+    players,
+    binds: [{ playerId: 'lover1', name: 'Romeo', targetId: 'target1' }],
+    roomCode: 'TEST'
+  });
+
+  assert.deepStrictEqual(updates, {});
+  assert.deepStrictEqual(logs, []);
 });

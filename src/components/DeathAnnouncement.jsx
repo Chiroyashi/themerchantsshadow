@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Skull, Sun, Crosshair, X } from 'lucide-react';
 import { Z_LAYER } from '../constants/zIndex';
-import { lockScroll, unlockScroll } from '../utils/scrollLock';
+import DialogOverlay from './DialogOverlay';
 
 const CrackedOverlay = () => (
   <svg className="absolute inset-0 w-full h-full pointer-events-none z-30" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -47,14 +47,10 @@ const DeathAnnouncement = ({ deadPlayers, deadDetails = {}, day, onClose }) => {
   });
 
   useEffect(() => {
-    lockScroll();
     const timer = setTimeout(() => {
       handleDismiss();
     }, 4000);
-    return () => {
-      unlockScroll();
-      clearTimeout(timer);
-    };
+    return () => clearTimeout(timer);
   }, []);
 
   if (!deadPlayers || deadPlayers.length === 0) return null;
@@ -66,7 +62,10 @@ const DeathAnnouncement = ({ deadPlayers, deadDetails = {}, day, onClose }) => {
       : 'linear-gradient(to bottom, rgba(2, 6, 23, 1) 0%, rgba(2, 6, 23, 0.7) 70%, rgba(153, 27, 27, 1) 100%)';
 
   return (
-    <div
+    <DialogOverlay
+      role="alertdialog"
+      labelledBy="death-title"
+      onClose={handleDismiss}
       className="fixed inset-0 flex flex-col items-center justify-center p-6 sm:p-8 animate-in fade-in duration-700 overflow-y-auto custom-scrollbar text-center"
       style={{
         zIndex: Z_LAYER.PHASE_OVERLAY,
@@ -97,7 +96,7 @@ const DeathAnnouncement = ({ deadPlayers, deadDetails = {}, day, onClose }) => {
         </div>
 
         <div className="space-y-2 mb-8 relative z-10">
-          <h2 className={`font-black uppercase tracking-[0.4em] text-[10px] ${isPeacefulNight ? 'text-emerald-400' : 'text-red-500'}`}>
+          <h2 id="death-title" className={`font-black uppercase tracking-[0.4em] text-[10px] ${isPeacefulNight ? 'text-emerald-400' : 'text-red-500'}`}>
             Laporan Forensik • Hari {day}
           </h2>
           <h1 className="text-white text-2xl font-black italic uppercase leading-none tracking-tighter">
@@ -151,7 +150,7 @@ const DeathAnnouncement = ({ deadPlayers, deadDetails = {}, day, onClose }) => {
             : '"Kegelapan malam menyisakan duka. Siapa yang akan kalian hukum pagi ini?"'}
         </p>
       </div>
-    </div>
+    </DialogOverlay>
   );
 };
 

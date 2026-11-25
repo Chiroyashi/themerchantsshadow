@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ref, onValue, set } from "firebase/database";
 import { db } from "../lib/firebase";
 import {
@@ -43,9 +43,16 @@ const ModeratorDashboard = () => {
 
   // State untuk notif toast
   const [notifMsg, setNotifMsg] = useState(null);
+  const notifTimerRef = useRef(null);
+
+  useEffect(() => () => {
+    if (notifTimerRef.current) clearTimeout(notifTimerRef.current);
+  }, []);
+
   const triggerNotif = (msg, type = 'info') => {
     setNotifMsg({ msg, type });
-    setTimeout(() => setNotifMsg(null), 4000);
+    if (notifTimerRef.current) clearTimeout(notifTimerRef.current);
+    notifTimerRef.current = setTimeout(() => setNotifMsg(null), 4000);
   };
 
   // Scroll lock for end game modal

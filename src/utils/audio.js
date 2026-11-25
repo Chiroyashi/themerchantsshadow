@@ -1,11 +1,20 @@
 let ctx = null;
+const lastPlayedAt = new Map();
 
 const getCtx = () => {
   if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
   return ctx;
 };
 
+const canPlay = (name, cooldownMs) => {
+  const now = Date.now();
+  if (now - (lastPlayedAt.get(name) || 0) < cooldownMs) return false;
+  lastPlayedAt.set(name, now);
+  return true;
+};
+
 export const playClickSound = () => {
+  if (!canPlay('click', 60)) return;
   try {
     const c = getCtx();
     if (c.state === 'suspended') c.resume();
@@ -23,10 +32,11 @@ export const playClickSound = () => {
 
     osc.start();
     osc.stop(c.currentTime + 0.04);
-  } catch (e) { /* fallback silently */ }
+  } catch { /* fallback silently */ }
 };
 
 export const playNotificationChime = () => {
+  if (!canPlay('chime', 300)) return;
   try {
     const c = getCtx();
     if (c.state === 'suspended') c.resume();
@@ -44,10 +54,11 @@ export const playNotificationChime = () => {
 
     osc.start();
     osc.stop(c.currentTime + 0.2);
-  } catch (e) { /* fallback silently */ }
+  } catch { /* fallback silently */ }
 };
 
 export const playGallowsExecutionSound = () => {
+  if (!canPlay('gallows', 500)) return;
   try {
     const c = getCtx();
     if (c.state === 'suspended') c.resume();
@@ -80,10 +91,11 @@ export const playGallowsExecutionSound = () => {
     gain2.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.4);
     osc2.start();
     osc2.stop(c.currentTime + 0.4);
-  } catch (e) { /* fallback silently */ }
+  } catch { /* fallback silently */ }
 };
 
 export const playExplosionSound = () => {
+  if (!canPlay('explosion', 500)) return;
   try {
     const c = getCtx();
     if (c.state === 'suspended') c.resume();
@@ -114,10 +126,11 @@ export const playExplosionSound = () => {
 
     noise.start();
     noise.stop(c.currentTime + 1.5);
-  } catch (e) { /* fallback silently */ }
+  } catch { /* fallback silently */ }
 };
 
 export const playLoversChimeSound = () => {
+  if (!canPlay('lovers', 500)) return;
   try {
     const c = getCtx();
     if (c.state === 'suspended') c.resume();
@@ -138,5 +151,27 @@ export const playLoversChimeSound = () => {
       osc.start(c.currentTime + idx * 0.12);
       osc.stop(c.currentTime + idx * 0.12 + 1.2);
     });
-  } catch (e) { /* fallback silently */ }
+  } catch { /* fallback silently */ }
+};
+
+export const playPoisonSound = () => {
+  if (!canPlay('poison', 400)) return;
+  try {
+    const c = getCtx();
+    if (c.state === 'suspended') c.resume();
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.connect(gain);
+    gain.connect(c.destination);
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(320, c.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(70, c.currentTime + 0.55);
+
+    gain.gain.setValueAtTime(0.08, c.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.55);
+
+    osc.start();
+    osc.stop(c.currentTime + 0.55);
+  } catch { /* fallback silently */ }
 };

@@ -11,6 +11,7 @@ import { useNotification } from './NotificationContext';
 import { pickNextHostUid } from '../utils/roomSafety';
 import { PHASE } from '../constants/phases';
 import { getPhaseDuration } from '../utils/timer';
+import { buildModeratorToggleUpdates } from '../utils/actionPayloads';
 
 const GameContext = createContext(null);
 
@@ -308,7 +309,7 @@ export function GameProvider({ children }) {
     setCurrentPage('landing');
   }, [roomCode]);
 
-  const startDiagnostic = useCallback(async () => {
+  const startDiagnostic = useCallback(async ({ moderatorEnabled = true } = {}) => {
     if (isJoiningRef.current) return;
     let uid = authUidRef.current || auth.currentUser?.uid || null;
     if (!uid) {
@@ -328,9 +329,10 @@ export function GameProvider({ children }) {
       const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
       const newMatchId = "dev_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
       const now = Date.now();
-      const { roomData, updates: roomUpdates, moderatorSlotId } = buildDiagnosticRoom({
+      const { roomData, updates: roomUpdates, hostSlotId: newHostSlotId, hostRole } = buildDiagnosticRoom({
         uid,
         matchId: newMatchId,
+        moderatorEnabled,
         now
       });
       await writeWithRetry(() => set(ref(db, "rooms/" + newCode), roomData));
@@ -345,14 +347,14 @@ export function GameProvider({ children }) {
       await writeWithRetry(() => update(ref(db), updates));
 
       setRoomCode(newCode);
-      setMyPlayerId(moderatorSlotId);
+      setMyPlayerId(newHostSlotId);
       setGameMatchId(newMatchId);
       gameMatchIdRef.current = newMatchId;
       notifiedDestroyedRoomRef.current = null;
       lastPlayerStateRef.current = '';
       setIsHost(true);
-      setPlayerName('Moderator');
-      setCurrentPage('view-mod');
+      setPlayerName(hostRole);
+      setCurrentPage(hostRole === 'Moderator' ? 'view-mod' : 'view-role');
     } catch (e) {
       console.error(e);
       const detail = e?.code || e?.message || "unknown";
@@ -644,18 +646,18 @@ export function GameProvider({ children }) {
   }, [isHost, roomCode, myPlayerId, showNotif]);
 
   const handleToggleRole = useCallback(async (roleName, isEnabled) => {
-    if (!isHost || !roomCode) return;
+    if (!isHost || !roomCode || !myPlayerId) return;
     if (roleName === 'Moderator') {
-      const hostId = authUidRef.current;
-      await update(ref(db), {
-        [`rooms/${roomCode}/roleSettings/Moderator`]: isEnabled,
-        [`rooms/${roomCode}/players/${hostId}/role`]: isEnabled ? 'Moderator' : 'Pending',
-        [`rooms/${roomCode}/players/${hostId}/name`]: isEnabled ? `${playerName} (Moderator)` : playerName
-      });
+      await update(ref(db), buildModeratorToggleUpdates({
+        roomCode,
+        playerId: myPlayerId,
+        playerName,
+        isEnabled
+      }));
       return;
     }
     await set(ref(db, `rooms/${roomCode}/roleSettings/${roleName}`), isEnabled);
-  }, [isHost, roomCode, playerName]);
+  }, [isHost, roomCode, myPlayerId, playerName]);
 
   const handleRename = useCallback(async (name) => {
     if (!roomCode || !myPlayerId || !name.trim()) return;

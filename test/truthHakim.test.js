@@ -1,52 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert';
-
-// Simulating Hakim Truth Action and Processing Logic
-function simulateHakimAction(roomCode, hakimId, targetId, targetName, currentTruthUsedCount) {
-  const updates = {};
-
-  // Simulated logic from ViewRole.jsx (lines 494-505)
-  updates[`rooms/${roomCode}/players/${hakimId}/currentAction`] = {
-    role: "Hakim",
-    action: "truth",
-    actionType: "truth",
-    targetId: targetId,
-    targetName: targetName,
-    timestamp: Date.now()
-  };
-  updates[`rooms/${roomCode}/players/${hakimId}/truthActed`] = true;
-  updates[`rooms/${roomCode}/players/${hakimId}/truthUsedCount`] = (currentTruthUsedCount || 0) + 1;
-
-  return updates;
-}
-
-function simulateProcessNightResults(roomCode, players, nightActions) {
-  const updates = {};
-  const logs = [];
-  const truthTargets = {};
-
-  // Simulated logic from TimerContext.jsx (lines 400-406 & lines 414-416)
-  for (const truth of nightActions.filter(a => a.role === 'Hakim')) {
-    if (!truth.targetId) continue;
-    truthTargets[truth.targetId] = true;
-    logs.push(`Hakim ${truth.name} menggunakan Truth pada ${truth.targetName}`);
-  }
-
-  Object.keys(truthTargets).forEach(id => {
-    updates[`rooms/${roomCode}/players/${id}/underTruth`] = true;
-  });
-
-  return { updates, logs };
-}
-
-// Chatroom Badge and Exclamation Mark Predicates
-function shouldShowJujurBadge(isUnderTruth, isSystemTruth, isSystemGunshot) {
-  return isUnderTruth && !isSystemTruth && !isSystemGunshot;
-}
-
-function shouldShowExclamationMark(isUnderTruth, senderId, myId) {
-  return isUnderTruth && senderId !== myId;
-}
+import { buildHakimSkipUpdates, buildHakimTruthUpdates } from '../src/utils/actionPayloads.js';
+import { resolveHakimTruth } from '../src/utils/nightResolution.js';
+import { shouldShowJujurBadge, shouldShowExclamationMark } from '../src/utils/uiVisibility.js';
 
 // ============================================================================
 // TEST SUITE
@@ -59,7 +15,13 @@ test("Hakim Action Submission Updates object", () => {
   const targetName = "Target Player";
   const currentTruthUsedCount = 0;
 
-  const updates = simulateHakimAction(roomCode, hakimId, targetId, targetName, currentTruthUsedCount);
+  const updates = buildHakimTruthUpdates({
+    roomCode,
+    playerId: hakimId,
+    targetId,
+    targetName,
+    truthUsedCount: currentTruthUsedCount
+  });
 
   assert.deepStrictEqual(updates[`rooms/${roomCode}/players/${hakimId}/currentAction`], {
     role: "Hakim",
@@ -74,13 +36,25 @@ test("Hakim Action Submission Updates object", () => {
   assert.strictEqual(updates[`rooms/${roomCode}/players/${hakimId}/truthUsedCount`], 1);
 });
 
+test("Hakim skip Truth menandai aksi selesai tanpa menambah truthUsedCount", () => {
+  const updates = buildHakimSkipUpdates({
+    roomCode: "TESTROOM",
+    playerId: "player_hakim",
+    timestamp: 123
+  });
+
+  assert.deepStrictEqual(updates[`rooms/TESTROOM/players/player_hakim/currentAction`], {
+    role: "Hakim",
+    action: "skip",
+    actionType: "truth",
+    timestamp: 123
+  });
+  assert.strictEqual(updates[`rooms/TESTROOM/players/player_hakim/truthActed`], true);
+  assert.strictEqual(updates[`rooms/TESTROOM/players/player_hakim/truthUsedCount`], undefined);
+});
+
 test("Night Action Processing Updates underTruth in Database", () => {
   const roomCode = "TESTROOM";
-  const players = [
-    { id: "player_hakim", name: "Pak Hakim", role: "Hakim", status: "alive" },
-    { id: "player_sus", name: "Pemain Sus", role: "Werewolf", status: "alive" }
-  ];
-
   const nightActions = [
     {
       playerId: "player_hakim",
@@ -91,7 +65,7 @@ test("Night Action Processing Updates underTruth in Database", () => {
     }
   ];
 
-  const { updates, logs } = simulateProcessNightResults(roomCode, players, nightActions);
+  const { updates, logs } = resolveHakimTruth({ actions: nightActions, roomCode });
 
   // Verify that the player underTruth is set to true
   assert.strictEqual(updates[`rooms/${roomCode}/players/player_sus/underTruth`], true);

@@ -1,10 +1,14 @@
 import React, { useEffect, useRef } from 'react';
 import { Heart } from 'lucide-react';
 import { playLoversChimeSound } from '../utils/audio';
+import { Z_LAYER } from '../constants/zIndex';
 
 export default function LoversWaveOverlay({ partnerName, onFinish }) {
   const finishRef = useRef(onFinish);
-  finishRef.current = onFinish;
+
+  useEffect(() => {
+    finishRef.current = onFinish;
+  }, [onFinish]);
 
   useEffect(() => {
     playLoversChimeSound();
@@ -17,7 +21,7 @@ export default function LoversWaveOverlay({ partnerName, onFinish }) {
   }, []);
 
   return (
-    <div className="fixed inset-0 pointer-events-none z-[99999] flex flex-col items-center justify-center overflow-hidden">
+    <div role="status" aria-live="polite" className="fixed inset-0 pointer-events-none flex flex-col items-center justify-center overflow-hidden" style={{ zIndex: Z_LAYER.LOVE_WAVE }}>
       <style>{`
         @keyframes loversSweepDown {
           0% {

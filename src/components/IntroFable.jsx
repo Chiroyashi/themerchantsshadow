@@ -178,7 +178,7 @@ const IntroFable = ({ players, roomCode, onFinish, playerData }) => {
         {step === 3 && (
           <div className="space-y-4 md:space-y-6 animate-in fade-in zoom-in duration-700">
             <div className="flex flex-col items-center gap-1 mb-2">
-              <Users size={20} md:size={24} className="text-blue-500" />
+              <Users size={20} className="text-blue-500" />
               <h2 className="text-[8px] md:text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">KOMPOSISI PERAN</h2>
             </div>
 
@@ -188,7 +188,7 @@ const IntroFable = ({ players, roomCode, onFinish, playerData }) => {
                 const Icon = roleData.icon;
                 return (
                   <div key={role} className="p-3 md:p-4 rounded-2xl bg-slate-900/80 border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.5)] backdrop-blur-sm flex flex-col items-center group hover:scale-105 transition-transform">
-                    <Icon size={32} md:size={36} className={`mb-1 transition-colors ${roleData.color}`} />
+                    <Icon size={32} className={`mb-1 transition-colors ${roleData.color}`} />
                     <span className="text-2xl md:text-3xl font-black text-white leading-none">{count}</span>
                     <span className={`text-[8px] md:text-[10px] font-black uppercase tracking-widest mt-1 ${roleData.color}`}>{role}</span>
                   </div>
